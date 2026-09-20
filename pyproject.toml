@@ -1,0 +1,19 @@
+[project]
+name = "precis"
+version = "0.1.0"
+description = "Known-file (ISBN + chapters) in, validated book JSON out — standalone AI generation module."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "pydantic>=2",
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+]

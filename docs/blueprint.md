@@ -105,7 +105,12 @@ blanket rule over every piece of tooling in this module's orbit. Concretely:
   don't decompose into a per-chapter breakdown at all.
 - `kind: "fiction" | "non-fiction"`
 - `narrative: bool` — non-fiction only; routes to the lighter parts-based
-  treatment instead of the full chapter/claims study guide.
+  treatment instead of the full chapter/claims study guide. The phase-2
+  structural preflight check rejects `narrative: true` set alongside
+  `kind: fiction` outright (not silently ignored) — the combination only
+  means something for non-fiction, and a reader who set it on a fiction
+  known-file almost certainly misunderstood the field rather than meant
+  something by it.
 - `notes` — optional reader notes, a weighting signal only, persisted
   verbatim into the output's `reader_notes` field, never quoted into
   generated prose.
@@ -203,6 +208,12 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    failure up to a small local cap, falling back to the last schema-valid
    candidate if critique still fails after retries are exhausted — a
    critique failure is a quality signal, not proof the content is unusable.
+   This retry cap is for **content-quality failures only** (critique
+   rejects the draft). Transient/technical failures (rate limits, 5xx,
+   dropped connections) are a different problem and are handled separately,
+   with exponential backoff at the HTTP-client level — they never consume
+   the quality-repair budget and never set `quality_flag`, since nothing
+   about the content itself was actually in question.
    A fallback candidate is never silently accepted as equivalent to a clean
    pass: it sets `quality_flag` on that chapter (see Book JSON shape below)
    so it surfaces to whoever reviews the output, rather than being
@@ -238,8 +249,10 @@ skipping the rest.
 ## CLI contract
 
 ```
-precis generate <known-file.json> [--output <path>] [--trust-known]
-    → whole-book mode, writes a validated book JSON.
+precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh]
+    → whole-book mode, writes a validated book JSON. Auto-resumes from an
+      existing checkpoint for this known-file's thread_id if one exists;
+      --fresh discards it and starts clean instead.
 
 precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
     → single-chapter mode, writes just that chapter object, validated
@@ -252,7 +265,9 @@ precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
 Errors (verify-stage mismatch, exhausted retries on the whole-book assemble
 step, run-budget timeout) are a non-zero exit code plus a message on
 stderr. On a whole-book structural failure, no output file is written at
-all — no partial or corrupt file left behind for a caller to trip over.
+all — no partial or corrupt file left behind for a caller to trip over. A
+run-budget timeout is not a structural failure in this sense — the
+checkpoint from whatever completed survives it, ready for a resumed run.
 
 Merging a single-chapter output back into wherever the book currently lives
 is still the consumer's job, per the module boundary above — this CLI only
@@ -274,30 +289,53 @@ ever writes a standalone JSON file, never merges into an existing one.
   nothing in a search result should be treated as overriding the prompt
   it's grounding — a basic prompt-injection guard given the content is
   fetched from the open web.
-- **Orchestration:** plain `asyncio` (bounded concurrency via a semaphore),
-  not a graph framework. LangGraph was considered and dropped: this
-  pipeline has exactly one fan-out/fan-in (parallel chapter drafting in
-  Stage 2), which `asyncio.gather` plus a concurrency limit handles
-  directly, and none of LangGraph's actual value-adds (checkpointing/
-  resume, tracing, human-in-the-loop interrupts) are being used here. If a
-  concrete need for one of those shows up later, revisit then — don't carry
-  the dependency and its execution-model overhead on the basis of a future
-  need that isn't concrete yet.
-- **Run budget:** a single wall-clock ceiling of **1 hour** for a whole-book
-  run, plus a **~2 minute** timeout on each individual LLM call. This is a
-  circuit breaker for a genuinely hung run (an API call that never returns,
-  a retry loop that never terminates) — not a constraint meant to bind on a
-  normal run, which should finish well under it with concurrency 3. No
-  token/cost budget for now — token spend is worth logging for visibility,
-  but a hard spend cap is a separate concern from run safety and isn't
-  needed to ship this.
+- **Orchestration:** LangGraph (Python), reinstated — the "revisit if a
+  concrete need shows up" condition from the earlier no-LangGraph decision
+  was met almost immediately: whole-book runs take 10+ minutes, run inside
+  a container with no host-process durability guarantee, and a crash with
+  no checkpoint means redoing the entire run, including already-finished
+  chapters. That's a real cost, not a hypothetical one, and it's exactly
+  what LangGraph's checkpointing exists to solve — plain `asyncio` was the
+  right call when the only question was fan-out, but resumability wasn't in
+  scope at that point.
+  - **Checkpointer:** `langgraph-checkpoint-sqlite`, writing to a SQLite
+    file on a Docker volume mounted into the generation container (separate
+    from and in addition to the devcontainer's own volumes) — so the
+    checkpoint survives the *container* dying, not just the process inside
+    it. This is standard LangGraph usage, not a custom persistence layer:
+    the checkpointer captures state after each node completes, including
+    per-branch state in Stage 2's parallel fan-out, so a resumed run only
+    redoes chapters that hadn't finished, not the whole batch.
+  - **Run identity:** a `thread_id` derived deterministically from the
+    known-file's content (e.g. a hash of its canonical JSON) — the same
+    known-file resolves to the same thread, so resuming is "run the same
+    command again," not a separate resume-specific invocation the caller
+    has to construct.
+  - **CLI:** `precis generate` auto-detects an existing checkpoint for that
+    known-file's `thread_id` and resumes from it; `--fresh` forces a clean
+    run and discards any existing checkpoint for that thread instead.
+- **Run budget:** unchanged at a wall-clock ceiling of **1 hour** for a
+  whole-book run, plus a **~2 minute** timeout on each individual LLM call
+  — still a circuit breaker for a genuinely hung run, not a constraint
+  meant to bind on a normal one (a legitimately-behaving run taking a full
+  hour would itself be surprising). Checkpointing changes what happens when
+  the ceiling *is* hit: the process still gets killed, but progress isn't
+  lost, since LangGraph has already persisted completed nodes independently
+  of the process being alive — hitting the budget now means "resume later,"
+  not "start over." No token/cost budget for now — token spend is worth
+  logging for visibility, but a hard spend cap is a separate concern from
+  run safety and isn't needed to ship this.
 - **Docker:** contains AI generation only (phase 3) — see "Docker boundary"
   above. The new repo's devcontainer provides real Docker access via the
   `docker-outside-of-docker` feature (mounts the host's socket) specifically
   so this is possible in day-to-day development, not just in CI — book-
-  keeper's own devcontainer was never built for this. Concrete Dockerfile/
-  compose shape for the generation image itself (distinct from the
-  devcontainer) to be finalized when the foundation is actually built.
+  keeper's own devcontainer was never built for this. The generation
+  container needs one persistent volume beyond its own ephemeral
+  filesystem: the checkpoint SQLite file (see Orchestration above), so a
+  checkpoint written by one container invocation is still there for the
+  next one. Concrete Dockerfile/compose shape for the generation image
+  itself (distinct from the devcontainer) to be finalized when the
+  foundation is actually built.
 
 ## Explicitly out of scope for this part
 

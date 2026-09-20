@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+
+# uv
+uv-cache/
+
+# Testing / linting / type-checking caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Env files (never commit real secrets/config)
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts: checkpoint DB and generated output are run products,
+# not source — see docs/blueprint.md's Orchestration/CLI sections.
+*.sqlite
+*.sqlite3
+/output/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,45 @@
+// For format details, see https://aka.ms/devcontainer.json.
+//
+// NOTE: "precis" is a working name only — if you land on a different repo
+// name, update: "name" below, workspaceFolder, and the "precis-uv-cache"
+// volume name.
+{
+  "name": "Precis",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspaces/precis",
+  "initializeCommand": "sh -c 'mkdir -p $HOME/.claude $HOME/.gemini && touch $HOME/.claude.json'",
+  "onCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.cache/uv /workspaces/precis",
+  "postCreateCommand": "sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh; [ -f pyproject.toml ] && uv sync || echo \"no pyproject.toml yet\"'",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      }
+    }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gemini,target=/home/vscode/.gemini,type=bind,consistency=cached",
+    "source=precis-uv-cache,target=/home/vscode/.cache/uv,type=volume"
+  ],
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true
+}
