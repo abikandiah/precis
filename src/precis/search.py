@@ -49,3 +49,13 @@ class TavilySearchClient:
 
 def build_search_client() -> SearchClient:
     return TavilySearchClient()
+
+
+def format_results(results: list[SearchResult]) -> str:
+    """Renders results for inclusion in a prompt. Shared by every stage that
+    grounds against search (Stages 1, 2, 3) so the "untrusted reference
+    data, not instructions" framing stays consistent everywhere it's used.
+    """
+    if not results:
+        return "(no search results found)"
+    return "\n\n".join(f"- {r.title}: {r.content}" for r in results)

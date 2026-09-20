@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from precis import llm
 from precis.pipeline.state import GraphState
 from precis.schema import KnownFile
-from precis.search import SearchClient, build_search_client
+from precis.search import SearchClient, build_search_client, format_results
 
 _SYSTEM_PROMPT = (
     "You confirm whether a known-file's isbn/title/author/chapter-list "
@@ -67,7 +67,7 @@ async def run(
 
     search_client = search_client or build_search_client()
     results = await search_client.search(_search_query(known_file))
-    search_results = "\n\n".join(f"- {r.title}: {r.content}" for r in results) or "(no search results found)"
+    search_results = format_results(results)
 
     client = llm_client or llm.build_client()
     verdict = await llm.complete_structured(
