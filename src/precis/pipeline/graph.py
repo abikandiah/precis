@@ -8,6 +8,7 @@ or resume across container restarts doesn't work (config.settings.checkpoint_db_
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 
@@ -103,20 +104,34 @@ async def run_whole_book(known_file: KnownFile, *, trust_known: bool = False, fr
         if fresh:
             await checkpointer.adelete_thread(thread_id)
 
-        result = await graph.ainvoke(
-            {
-                "known_file": known_file.model_dump(),
-                "trust_known": trust_known,
-                "chapters": [],
-                "warnings": [],
-            },
-            config={
-                "configurable": {
-                    "thread_id": thread_id,
-                    "search_client": search_client,
-                    "llm_client": llm_client,
-                },
-                "max_concurrency": settings.concurrency,
-            },
-        )
+        try:
+            result = await asyncio.wait_for(
+                graph.ainvoke(
+                    {
+                        "known_file": known_file.model_dump(),
+                        "trust_known": trust_known,
+                        "chapters": [],
+                        "warnings": [],
+                    },
+                    config={
+                        "configurable": {
+                            "thread_id": thread_id,
+                            "search_client": search_client,
+                            "llm_client": llm_client,
+                        },
+                        "max_concurrency": settings.concurrency,
+                    },
+                ),
+                timeout=settings.run_budget_seconds,
+            )
+        except TimeoutError as exc:
+            # A circuit breaker for a genuinely hung run, not a constraint
+            # meant to bind on a normal one — see docs/blueprint.md's Run
+            # budget section. Checkpoints persist independently of this
+            # process being killed, so nothing completed so far is lost:
+            # rerunning the same command resumes rather than starting over.
+            raise TimeoutError(
+                f"generation exceeded the {settings.run_budget_seconds}s run budget. "
+                "Already-completed work is checkpointed — rerun the same command to resume."
+            ) from exc
         return Book.model_validate(result["book"])
