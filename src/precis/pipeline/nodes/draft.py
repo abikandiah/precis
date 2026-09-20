@@ -28,6 +28,11 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from precis import llm
+from precis.pipeline.nodes.common import (
+    book_header,
+    resolve_llm_client,
+    resolve_search_client,
+)
 from precis.pipeline.state import GraphState
 from precis.schema import Chapter, KnownFile
 from precis.search import SearchClient, search_and_format, search_results_block
@@ -79,7 +84,7 @@ def _search_query(known_file: KnownFile, chapter_title: str) -> str:
 
 
 def _book_chapter_header(known_file: KnownFile, chapter_title: str) -> str:
-    return f'Book: "{known_file.title}" by {known_file.author}\nChapter: {chapter_title}\n\n'
+    return book_header(known_file) + f"\nChapter: {chapter_title}\n\n"
 
 
 def _draft_user_prompt(
@@ -163,9 +168,8 @@ async def run_one(
     search_client: SearchClient | None = None,
     llm_client: AsyncOpenAI | None = None,
 ) -> dict:
-    configurable = (config or {}).get("configurable", {})
-    search_client = search_client or configurable.get("search_client")
-    llm_client = llm_client or configurable.get("llm_client")
+    search_client = resolve_search_client(config, search_client)
+    llm_client = resolve_llm_client(config, llm_client)
 
     known_file = KnownFile.model_validate(state["known_file"])
     chapter_number = state["chapter_number"]

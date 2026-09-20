@@ -3,12 +3,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from precis.pipeline.nodes import assemble
-from precis.pipeline.nodes.synthesize import (
-    KeyClaimDraft,
-    SynthesisPart,
-    SynthesisWithClaims,
-)
-from precis.schema import KnownFile
+from precis.pipeline.nodes.synthesize import SynthesisWithClaims
+from precis.schema import KeyClaim, KnownFile, Part
 
 
 def _nonfiction_known_file() -> KnownFile:
@@ -121,8 +117,8 @@ async def test_invalid_parts_chapter_reference_triggers_one_repair_call(monkeypa
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1", "tag2"],
-            key_claims_for_review=[KeyClaimDraft(prompt="q1", answer="a1")],
-            parts=[SynthesisPart(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
+            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
+            parts=[Part(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
         )
 
     monkeypatch.setattr(assemble.llm, "complete_structured", fake_complete_structured)
@@ -146,14 +142,34 @@ async def test_repair_still_invalid_raises_informative_error(monkeypatch):
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1", "tag2"],
-            key_claims_for_review=[KeyClaimDraft(prompt="q1", answer="a1")],
-            parts=[SynthesisPart(title="Part One", summary="still bad", chapter_numbers=[1, 99])],
+            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
+            parts=[Part(title="Part One", summary="still bad", chapter_numbers=[1, 99])],
         )
 
     monkeypatch.setattr(assemble.llm, "complete_structured", fake_complete_structured)
 
     with pytest.raises(ValueError, match="Stage 4 assemble: book still invalid after one repair attempt"):
         await assemble.run(state, llm_client=AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_unrepairable_field_error_skips_repair_and_raises_immediately(monkeypatch):
+    """Regression test: a validation error on a field the repair pass can
+    never touch (e.g. title, which Synthesis/SynthesisWithClaims don't
+    carry) used to still trigger one wasted repair attempt that was
+    guaranteed to reproduce the identical error. It must now raise
+    immediately instead, and never call complete_structured at all.
+    """
+    fake = AsyncMock()
+    monkeypatch.setattr(assemble.llm, "complete_structured", fake)
+
+    known_file = KnownFile.model_validate({**_nonfiction_known_file().model_dump(), "title": None})
+    state = _nonfiction_state(known_file=known_file.model_dump())
+
+    with pytest.raises(ValueError, match="not a Stage-3-synthesized field"):
+        await assemble.run(state, llm_client=AsyncMock())
+
+    fake.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -169,8 +185,8 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1", "tag2"],
-            key_claims_for_review=[KeyClaimDraft(prompt="q1", answer="a1")],
-            parts=[SynthesisPart(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
+            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
+            parts=[Part(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
         )
 
     monkeypatch.setattr(assemble.llm, "complete_structured", fake_complete_structured)

@@ -3,13 +3,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from precis.pipeline.nodes import synthesize
-from precis.pipeline.nodes.synthesize import (
-    KeyClaimDraft,
-    Synthesis,
-    SynthesisPart,
-    SynthesisWithClaims,
-)
-from precis.schema import KnownFile
+from precis.pipeline.nodes.synthesize import Synthesis, SynthesisWithClaims
+from precis.schema import KeyClaim, KnownFile, Part
 from precis.search import SearchResult
 
 
@@ -42,8 +37,8 @@ async def test_nonfiction_path_produces_claims_and_chapter_referencing_parts(mon
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1", "tag2"],
-            key_claims_for_review=[KeyClaimDraft(prompt="q1", answer="a1")],
-            parts=[SynthesisPart(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
+            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
+            parts=[Part(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
         )
 
     monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
@@ -69,7 +64,7 @@ async def test_fiction_path_produces_parts_but_no_key_claims_key(monkeypatch):
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1"],
-            parts=[SynthesisPart(title="Beginning", summary="stakes are introduced")],
+            parts=[Part(title="Beginning", summary="stakes are introduced")],
         )
 
     monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
@@ -97,7 +92,7 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
             synopsis="s",
             one_line_takeaway="t",
             tags=["tag"],
-            parts=[SynthesisPart(title="p", summary="s")],
+            parts=[Part(title="p", summary="s")],
         )
 
     monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)

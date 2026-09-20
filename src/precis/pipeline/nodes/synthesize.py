@@ -12,7 +12,15 @@ catches problems with this stage's output.
 
 Two distinct response models, not one with an optional field, mirroring the
 two branches this stage routes on (known_file.is_full_nonfiction_path):
-SynthesisWithClaims (full non-fiction) and Synthesis (fiction/narrative).
+SynthesisWithClaims (full non-fiction) extends Synthesis (fiction/narrative)
+by adding key_claims_for_review — a real is-a relationship (the full path
+is a superset), not two unrelated siblings. Both reuse schema.Part/
+schema.KeyClaim directly for their part/claim fields rather than redefining
+near-identical shapes: unlike Stage 2's ChapterDraft/Chapter split (which
+exists because the LLM-facing draft genuinely lacks pipeline-owned fields
+like `number`/`quality_flag`), Part and KeyClaim have no such split — every
+field on both is already LLM-generated, so there's nothing for a separate
+response-only shape to omit.
 """
 
 from langchain_core.runnables import RunnableConfig
@@ -20,8 +28,13 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from precis import llm
+from precis.pipeline.nodes.common import (
+    book_header,
+    resolve_llm_client,
+    resolve_search_client,
+)
 from precis.pipeline.state import GraphState
-from precis.schema import KnownFile
+from precis.schema import KeyClaim, KnownFile, Part
 from precis.search import SearchClient, search_and_format, search_results_block
 
 _SYSTEM_PROMPT_NONFICTION = (
@@ -47,42 +60,23 @@ _SYSTEM_PROMPT_FICTION = (
 )
 
 
-class SynthesisPart(BaseModel):
-    title: str
-    summary: str
-    chapter_numbers: list[int] | None = None
-
-
-class KeyClaimDraft(BaseModel):
-    prompt: str
-    answer: str
-
-
-class SynthesisWithClaims(BaseModel):
-    """Full non-fiction path: chapters and key_claims_for_review both exist."""
-
-    synopsis: str
-    one_line_takeaway: str
-    tags: list[str] = Field(min_length=1)
-    key_claims_for_review: list[KeyClaimDraft] = Field(min_length=1)
-    parts: list[SynthesisPart] = Field(min_length=1)
-
-
 class Synthesis(BaseModel):
     """Fiction / narrative non-fiction path: no key_claims_for_review."""
 
     synopsis: str
     one_line_takeaway: str
     tags: list[str] = Field(min_length=1)
-    parts: list[SynthesisPart] = Field(min_length=1)
+    parts: list[Part] = Field(min_length=1)
+
+
+class SynthesisWithClaims(Synthesis):
+    """Full non-fiction path: chapters and key_claims_for_review both exist."""
+
+    key_claims_for_review: list[KeyClaim] = Field(min_length=1)
 
 
 def _search_query(known_file: KnownFile) -> str:
     return f'"{known_file.title}" themes analysis review'
-
-
-def _book_header(known_file: KnownFile) -> str:
-    return f'Book: "{known_file.title}" by {known_file.author}\n\n'
 
 
 def _chapters_block(chapters: list[dict]) -> str:
@@ -93,7 +87,7 @@ def _chapters_block(chapters: list[dict]) -> str:
 
 
 def _user_prompt_nonfiction(known_file: KnownFile, chapters: list[dict], search_results: str) -> str:
-    header = _book_header(known_file) + _chapters_block(chapters) + search_results_block(search_results)
+    header = book_header(known_file) + "\n\n" + _chapters_block(chapters) + search_results_block(search_results)
     question = (
         "Write the synopsis, one_line_takeaway, tags, key_claims_for_review, "
         "and parts (grouping the chapters above into named structural "
@@ -104,7 +98,7 @@ def _user_prompt_nonfiction(known_file: KnownFile, chapters: list[dict], search_
 
 
 def _user_prompt_fiction(known_file: KnownFile, search_results: str) -> str:
-    header = _book_header(known_file) + search_results_block(search_results)
+    header = book_header(known_file) + "\n\n" + search_results_block(search_results)
     question = (
         "Write the synopsis, one_line_takeaway, tags, and parts (spoiler-safe "
         "structural beats sketching the story's shape). Call the tool with "
@@ -120,9 +114,8 @@ async def run(
     search_client: SearchClient | None = None,
     llm_client: AsyncOpenAI | None = None,
 ) -> dict:
-    configurable = (config or {}).get("configurable", {})
-    search_client = search_client or configurable.get("search_client")
-    llm_client = llm_client or configurable.get("llm_client")
+    search_client = resolve_search_client(config, search_client)
+    llm_client = resolve_llm_client(config, llm_client)
 
     known_file = KnownFile.model_validate(state["known_file"])
     chapters = state.get("chapters") or []

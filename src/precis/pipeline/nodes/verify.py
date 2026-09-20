@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from precis import llm
+from precis.pipeline.nodes.common import resolve_llm_client, resolve_search_client
 from precis.pipeline.state import GraphState
 from precis.schema import KnownFile
 from precis.search import SearchClient, search_and_format, search_results_block
@@ -65,9 +66,8 @@ async def run(
     if state.get("trust_known"):
         return {"verified": True}
 
-    configurable = (config or {}).get("configurable", {})
-    search_client = search_client or configurable.get("search_client")
-    llm_client = llm_client or configurable.get("llm_client")
+    search_client = resolve_search_client(config, search_client)
+    llm_client = resolve_llm_client(config, llm_client)
 
     known_file = KnownFile.model_validate(state["known_file"])
 
