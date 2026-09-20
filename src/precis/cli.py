@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
+from typing import Literal
 
 from pydantic import BaseModel
 
-from precis.known_file import preflight_check
+from precis.known_file import create_known_file, preflight_check
 from precis.pipeline import graph as pipeline_graph
 from precis.pipeline.nodes import draft
 from precis.schema import Chapter, KnownFile
@@ -46,6 +48,50 @@ def _report_preflight_problems(known_file: KnownFile) -> int | None:
     for problem in problems:
         print(f"- {problem}", file=sys.stderr)
     return 1
+
+
+_BATCH_KIND_DEFAULT: Literal["fiction", "non-fiction"] = "non-fiction"
+
+
+def _cmd_create_known_file(args: argparse.Namespace) -> int:
+    isbns: list[str] = args.isbn
+    batch = len(isbns) > 1
+
+    if batch and args.kind:
+        print(
+            "--kind can't be used with more than one isbn — kind is book-specific "
+            "and can't be applied uniformly across a batch. Omit --kind; each "
+            f"created known-file will default to kind: {_BATCH_KIND_DEFAULT} and "
+            "must be corrected by hand.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if batch and not args.output_dir:
+        print("--output-dir is required when creating known-files for more than one isbn", file=sys.stderr)
+        return 1
+
+    if args.output and args.output_dir:
+        print("--output and --output-dir can't both be given", file=sys.stderr)
+        return 1
+
+    kind: Literal["fiction", "non-fiction"] = args.kind or _BATCH_KIND_DEFAULT
+    known_files = [(isbn, create_known_file(isbn, kind=kind, narrative=args.narrative)) for isbn in isbns]
+
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
+        for isbn, known_file in known_files:
+            _write_output(known_file, os.path.join(args.output_dir, f"{isbn}.json"))
+    else:
+        _write_output(known_files[0][1], args.output)
+
+    if not args.kind:
+        print(
+            f"kind defaulted to '{_BATCH_KIND_DEFAULT}' for {len(known_files)} known-file(s) — "
+            "review and correct `kind`/`narrative` by hand before generating.",
+            file=sys.stderr,
+        )
+    return 0
 
 
 def _cmd_generate(args: argparse.Namespace) -> int:
@@ -105,6 +151,16 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="precis")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    create_known_file_cmd = subparsers.add_parser(
+        "create-known-file", help="phase 1: ISBN(s) -> known-file(s)"
+    )
+    create_known_file_cmd.add_argument("isbn", nargs="+")
+    create_known_file_cmd.add_argument("--kind", choices=["fiction", "non-fiction"])
+    create_known_file_cmd.add_argument("--narrative", action="store_true")
+    create_known_file_cmd.add_argument("--output", help="single-isbn only")
+    create_known_file_cmd.add_argument("--output-dir", help="required for more than one isbn")
+    create_known_file_cmd.set_defaults(func=_cmd_create_known_file)
 
     generate = subparsers.add_parser("generate", help="whole-book generation")
     generate.add_argument("known_file")
