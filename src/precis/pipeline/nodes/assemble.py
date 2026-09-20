@@ -11,8 +11,6 @@ repairs structure. The repair pass reuses Stage 3's own response models
 since it's repairing exactly the fields Stage 3 produced.
 """
 
-from __future__ import annotations
-
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
 from pydantic import ValidationError

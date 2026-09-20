@@ -23,8 +23,6 @@ calls this function directly (no graph, no checkpointing — a one-off
 chapter regen doesn't need either) and expects the same shape.
 """
 
-from __future__ import annotations
-
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field

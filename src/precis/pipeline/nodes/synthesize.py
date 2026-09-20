@@ -15,8 +15,6 @@ two branches this stage routes on (known_file.is_full_nonfiction_path):
 SynthesisWithClaims (full non-fiction) and Synthesis (fiction/narrative).
 """
 
-from __future__ import annotations
-
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field

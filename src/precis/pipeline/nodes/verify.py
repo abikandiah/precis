@@ -6,8 +6,6 @@ mismatch. Skippable via `trust_known`. See docs/blueprint.md's Pipeline
 stages, Stage 1.
 """
 
-from __future__ import annotations
-
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
