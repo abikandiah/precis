@@ -318,11 +318,14 @@ ever writes a standalone JSON file, never merges into an existing one.
   whole-book run, plus a **~2 minute** timeout on each individual LLM call
   — still a circuit breaker for a genuinely hung run, not a constraint
   meant to bind on a normal one (a legitimately-behaving run taking a full
-  hour would itself be surprising). Checkpointing changes what happens when
-  the ceiling *is* hit: the process still gets killed, but progress isn't
-  lost, since LangGraph has already persisted completed nodes independently
-  of the process being alive — hitting the budget now means "resume later,"
-  not "start over." No token/cost budget for now — token spend is worth
+  hour would itself be surprising). Enforced as an in-process
+  `asyncio.wait_for` around the whole graph invocation, not an external
+  process kill — hitting it cancels the run and raises cleanly within the
+  same process, it doesn't terminate the container. Checkpointing changes
+  what happens when the ceiling *is* hit: progress isn't lost, since
+  LangGraph has already persisted completed nodes independently of the
+  run being cancelled — hitting the budget means "resume later," not
+  "start over." No token/cost budget for now — token spend is worth
   logging for visibility, but a hard spend cap is a separate concern from
   run safety and isn't needed to ship this.
 - **Docker:** contains AI generation only (phase 3) — see "Docker boundary"

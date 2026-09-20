@@ -33,6 +33,12 @@ docker run --rm \
   precis generate /input/mybook.json --output /output/mybook.json
 ```
 
+`precis-checkpoints` must be a **named volume** (as above), not a host bind
+mount (`-v ./somedir:/data`) — the image runs as a non-root user and only
+gets write access to `/data` on a named volume's first creation. A bind
+mount keeps the host directory's own ownership, which will fail to write
+the checkpoint file unless that directory is already owned by uid 1000.
+
 `--trust-known` skips Stage 1 (verify) for a known-file you're already
 confident about; `--fresh` discards any existing checkpoint for that
 known-file instead of resuming it. `generate-chapter` (targeted regeneration

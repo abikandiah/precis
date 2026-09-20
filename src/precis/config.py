@@ -27,6 +27,19 @@ def _env_int(name: str, default: int) -> int:
     return int(value) if value else default
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    """For settings that are circuit-breaker timeouts, not optional/
+    disableable ones — PRECIS_RUN_BUDGET_SECONDS=0 (or negative) previously
+    made asyncio.wait_for time out instantly on every single run, since
+    nothing validated the value was sane. Failing loudly at settings-load
+    time beats a confusing per-run "generation exceeded the 0s run budget."
+    """
+    value = _env_int(name, default)
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive number of seconds (got {value})")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     # LLM gateway: OpenRouter-style, base URL + key + model via env vars,
@@ -48,8 +61,10 @@ class Settings:
 
     # Circuit breakers, not constraints meant to bind on a normal run — see
     # docs/blueprint.md's Run budget section.
-    run_budget_seconds: int = field(default_factory=lambda: _env_int("PRECIS_RUN_BUDGET_SECONDS", 60 * 60))
-    llm_call_timeout_seconds: int = field(default_factory=lambda: _env_int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", 120))
+    run_budget_seconds: int = field(default_factory=lambda: _env_positive_int("PRECIS_RUN_BUDGET_SECONDS", 60 * 60))
+    llm_call_timeout_seconds: int = field(
+        default_factory=lambda: _env_positive_int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", 120)
+    )
 
     # Checkpoint DB path — in the real generation container this must be
     # overridden to a path on a volume mounted into the container, not its

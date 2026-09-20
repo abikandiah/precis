@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import os
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -25,6 +26,16 @@ from precis.pipeline.nodes import assemble, draft, synthesize, verify
 from precis.pipeline.state import GraphState
 from precis.schema import Book, KnownFile
 from precis.search import build_search_client
+
+
+class RunBudgetExceeded(TimeoutError):
+    """Raised when a whole-book run exceeds settings.run_budget_seconds —
+    a distinct type from bare TimeoutError so a caller can tell this
+    deliberate circuit breaker apart from an incidental timeout elsewhere
+    in the stack (e.g. an LLM client's own per-call timeout), rather than
+    only by parsing the message string. Still a TimeoutError, so existing
+    `except TimeoutError` handling elsewhere doesn't need to change.
+    """
 
 
 def thread_id_for(known_file: KnownFile, *, trust_known: bool) -> str:
@@ -55,6 +66,22 @@ def _route_after_verify(state: GraphState) -> str | list[Send]:
             for i, title in enumerate(known_file.chapters)
         ]
     return "synthesize"
+
+
+async def _invoke_with_budget(graph: CompiledStateGraph, input_state: dict, config: RunnableConfig) -> dict:
+    try:
+        return await asyncio.wait_for(graph.ainvoke(input_state, config), timeout=settings.run_budget_seconds)
+    except TimeoutError as exc:
+        # A circuit breaker for a genuinely hung run, not a constraint
+        # meant to bind on a normal one — see docs/blueprint.md's Run
+        # budget section. Enforced in-process (asyncio.wait_for), not an
+        # external process kill — checkpoints persist independently of
+        # this cancellation, so nothing completed so far is lost:
+        # rerunning the same command resumes rather than starting over.
+        raise RunBudgetExceeded(
+            f"generation exceeded the {settings.run_budget_seconds}s run budget. "
+            "Already-completed work is checkpointed — rerun the same command to resume."
+        ) from exc
 
 
 def build_graph(checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
@@ -104,34 +131,21 @@ async def run_whole_book(known_file: KnownFile, *, trust_known: bool = False, fr
         if fresh:
             await checkpointer.adelete_thread(thread_id)
 
-        try:
-            result = await asyncio.wait_for(
-                graph.ainvoke(
-                    {
-                        "known_file": known_file.model_dump(),
-                        "trust_known": trust_known,
-                        "chapters": [],
-                        "warnings": [],
-                    },
-                    config={
-                        "configurable": {
-                            "thread_id": thread_id,
-                            "search_client": search_client,
-                            "llm_client": llm_client,
-                        },
-                        "max_concurrency": settings.concurrency,
-                    },
-                ),
-                timeout=settings.run_budget_seconds,
-            )
-        except TimeoutError as exc:
-            # A circuit breaker for a genuinely hung run, not a constraint
-            # meant to bind on a normal one — see docs/blueprint.md's Run
-            # budget section. Checkpoints persist independently of this
-            # process being killed, so nothing completed so far is lost:
-            # rerunning the same command resumes rather than starting over.
-            raise TimeoutError(
-                f"generation exceeded the {settings.run_budget_seconds}s run budget. "
-                "Already-completed work is checkpointed — rerun the same command to resume."
-            ) from exc
+        result = await _invoke_with_budget(
+            graph,
+            {
+                "known_file": known_file.model_dump(),
+                "trust_known": trust_known,
+                "chapters": [],
+                "warnings": [],
+            },
+            {
+                "configurable": {
+                    "thread_id": thread_id,
+                    "search_client": search_client,
+                    "llm_client": llm_client,
+                },
+                "max_concurrency": settings.concurrency,
+            },
+        )
         return Book.model_validate(result["book"])

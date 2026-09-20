@@ -25,6 +25,19 @@ def _load_known_file(path: str) -> KnownFile:
         return KnownFile.model_validate_json(f.read())
 
 
+def _load_known_file_or_report(path: str) -> KnownFile | None:
+    """Loads a known-file, or prints a clean message and returns None on
+    failure — the caller returns 1 immediately when this returns None.
+    Shared by both generate and generate-chapter, which otherwise had
+    byte-for-byte identical try/except blocks here.
+    """
+    try:
+        return _load_known_file(path)
+    except (OSError, ValueError) as exc:
+        print(f"could not load known-file {path!r}: {exc}", file=sys.stderr)
+        return None
+
+
 def _write_output(model: BaseModel, output_path: str | None) -> None:
     text = model.model_dump_json(indent=2)
     if output_path:
@@ -95,10 +108,8 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
 
 
 def _cmd_generate(args: argparse.Namespace) -> int:
-    try:
-        known_file = _load_known_file(args.known_file)
-    except (OSError, ValueError) as exc:
-        print(f"could not load known-file {args.known_file!r}: {exc}", file=sys.stderr)
+    known_file = _load_known_file_or_report(args.known_file)
+    if known_file is None:
         return 1
 
     if (exit_code := _report_preflight_problems(known_file)) is not None:
@@ -117,10 +128,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 
 
 def _cmd_generate_chapter(args: argparse.Namespace) -> int:
-    try:
-        known_file = _load_known_file(args.known_file)
-    except (OSError, ValueError) as exc:
-        print(f"could not load known-file {args.known_file!r}: {exc}", file=sys.stderr)
+    known_file = _load_known_file_or_report(args.known_file)
+    if known_file is None:
         return 1
 
     if (exit_code := _report_preflight_problems(known_file)) is not None:

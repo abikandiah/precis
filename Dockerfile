@@ -25,7 +25,14 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Checkpoint DB must live on a volume mounted into the container, not its
 # own ephemeral filesystem, or resume across container restarts doesn't
 # work (docs/blueprint.md's Orchestration section). Consumers should mount
-# a volume at /data — see README.md for the exact `docker run` shape.
+# a NAMED volume at /data — see README.md for the exact `docker run` shape.
+#
+# The chown below only takes effect for a named volume's first population;
+# it does NOT apply to a host bind mount (`-v ./somedir:/data`), which
+# keeps the host directory's own ownership regardless of what this image
+# sets. A bind-mounted directory not writable by uid 1000 will fail with a
+# permission error writing the checkpoint file — use a named volume, or
+# `chown 1000:1000` the host directory first if a bind mount is required.
 ENV PRECIS_CHECKPOINT_DB_PATH=/data/checkpoints.sqlite
 RUN useradd --create-home --uid 1000 precis \
     && mkdir -p /data \
