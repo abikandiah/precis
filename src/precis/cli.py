@@ -95,7 +95,11 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
 
 
 def _cmd_generate(args: argparse.Namespace) -> int:
-    known_file = _load_known_file(args.known_file)
+    try:
+        known_file = _load_known_file(args.known_file)
+    except (OSError, ValueError) as exc:
+        print(f"could not load known-file {args.known_file!r}: {exc}", file=sys.stderr)
+        return 1
 
     if (exit_code := _report_preflight_problems(known_file)) is not None:
         return exit_code
@@ -113,7 +117,11 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 
 
 def _cmd_generate_chapter(args: argparse.Namespace) -> int:
-    known_file = _load_known_file(args.known_file)
+    try:
+        known_file = _load_known_file(args.known_file)
+    except (OSError, ValueError) as exc:
+        print(f"could not load known-file {args.known_file!r}: {exc}", file=sys.stderr)
+        return 1
 
     if (exit_code := _report_preflight_problems(known_file)) is not None:
         return exit_code
