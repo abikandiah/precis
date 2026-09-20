@@ -21,7 +21,11 @@ dev = [
     "ruff",
     "mypy",
     "pytest",
+    "pytest-asyncio",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.uv]
 package = true
