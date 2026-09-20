@@ -52,6 +52,27 @@ async def test_first_draft_passing_critique_returns_chapter_with_no_flag(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypatch):
+    search_client = _search_client_with_results()
+    llm_client = AsyncMock()
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        assert client is llm_client
+        if response_model is ChapterDraft:
+            return ChapterDraft(key_points=["point a"], core_claim="claim")
+        return Critique(passed=True, feedback="fine")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
+
+    result = await draft.run_one(
+        _state(),
+        config={"configurable": {"search_client": search_client, "llm_client": llm_client}},
+    )
+    assert result["chapters"][0]["key_points"] == ["point a"]
+    search_client.search.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_repair_after_one_failed_critique_then_passes(monkeypatch):
     responses = iter(
         [
@@ -95,12 +116,34 @@ async def test_exhausted_retries_falls_back_with_quality_flag_and_warning(monkey
 
 
 @pytest.mark.asyncio
-async def test_structured_output_error_is_retried_within_budget(monkeypatch):
+async def test_structured_output_error_from_draft_propagates_uncaught(monkeypatch):
+    """Resilience against a malformed/missing tool call now lives entirely
+    in llm.complete_structured (see test_llm.py) — run_one doesn't catch
+    StructuredOutputError itself. If it's raised (meaning complete_structured
+    already exhausted its own retry budget), that's a real, escalated
+    failure for this chapter, and run_one should let it propagate rather
+    than reinterpret it as something else.
+    """
+
+    async def always_broken(client, *, messages, response_model, model=None):
+        raise llm.StructuredOutputError("never usable")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", always_broken)
+
+    with pytest.raises(llm.StructuredOutputError, match="never usable"):
+        await draft.run_one(_state(), search_client=_search_client_with_results(), llm_client=AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_structured_output_error_from_critique_propagates_uncaught(monkeypatch):
+    """Same as above, but the failure comes from the critique call after a
+    successful draft -- also propagates, not silently absorbed into a
+    quality_flag fallback with stale draft/feedback state.
+    """
     responses = iter(
         [
-            llm.StructuredOutputError("model didn't call the tool"),
-            ChapterDraft(key_points=["point a"], core_claim="claim"),
-            Critique(passed=True, feedback="fine"),
+            ChapterDraft(key_points=["draft one"], core_claim="claim one"),
+            llm.StructuredOutputError("model returned malformed critique tool call"),
         ]
     )
 
@@ -112,18 +155,5 @@ async def test_structured_output_error_is_retried_within_budget(monkeypatch):
 
     monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
 
-    result = await draft.run_one(_state(), search_client=_search_client_with_results(), llm_client=AsyncMock())
-
-    assert result["chapters"][0]["key_points"] == ["point a"]
-    assert result["chapters"][0]["quality_flag"] is None
-
-
-@pytest.mark.asyncio
-async def test_all_attempts_failing_to_produce_a_draft_raises(monkeypatch):
-    async def always_broken(client, *, messages, response_model, model=None):
-        raise llm.StructuredOutputError("never usable")
-
-    monkeypatch.setattr(draft.llm, "complete_structured", always_broken)
-
-    with pytest.raises(ValueError, match="never produced usable output"):
+    with pytest.raises(llm.StructuredOutputError, match="malformed critique tool call"):
         await draft.run_one(_state(), search_client=_search_client_with_results(), llm_client=AsyncMock())

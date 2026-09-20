@@ -904,6 +904,7 @@ name = "precis"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "langchain-core" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "openai" },
@@ -921,6 +922,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "langchain-core" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "openai" },

@@ -17,11 +17,13 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
 
+from precis import llm
 from precis.config import settings
 from precis.known_file import ensure_ready
 from precis.pipeline.nodes import assemble, draft, synthesize, verify
 from precis.pipeline.state import GraphState
 from precis.schema import Book, KnownFile
+from precis.search import build_search_client
 
 
 def thread_id_for(known_file: KnownFile, *, trust_known: bool) -> str:
@@ -85,6 +87,15 @@ async def run_whole_book(known_file: KnownFile, *, trust_known: bool = False, fr
     if checkpoint_dir:
         os.makedirs(checkpoint_dir, exist_ok=True)
 
+    # Built once per run and threaded through every node via config — see
+    # verify.run/draft.run_one, which read config["configurable"] — rather
+    # than each of the (potentially many, for draft's per-chapter fan-out)
+    # node invocations constructing its own client independently. Never
+    # touches the checkpoint DB: config passed to ainvoke() is per-run,
+    # not part of the persisted state the checkpointer serializes.
+    search_client = build_search_client()
+    llm_client = llm.build_client()
+
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
         graph = build_graph(checkpointer)
         thread_id = thread_id_for(known_file, trust_known=trust_known)
@@ -100,7 +111,11 @@ async def run_whole_book(known_file: KnownFile, *, trust_known: bool = False, fr
                 "warnings": [],
             },
             config={
-                "configurable": {"thread_id": thread_id},
+                "configurable": {
+                    "thread_id": thread_id,
+                    "search_client": search_client,
+                    "llm_client": llm_client,
+                },
                 "max_concurrency": settings.concurrency,
             },
         )

@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2",
     "langgraph",
     "langgraph-checkpoint-sqlite",
+    "langchain-core",
     "openai",
     "tavily-python",
 ]
