@@ -66,15 +66,12 @@ def _mock_open_library_response(body: dict):
 
 
 def test_create_known_file_fills_fields_from_lookup():
-    body = {
-        "ISBN:9780000000000": {
-            "title": "The Book",
-            "authors": [{"name": "Jane Author"}],
-            "publish_date": "March 2003",
-            "number_of_pages": 320,
-        }
-    }
-    with patch("precis.known_file.urllib.request.urlopen", return_value=_mock_open_library_response(body)):
+    search_body = {"docs": [{"title": "The Book", "author_name": ["Jane Author"]}]}
+    edition_body = {"publish_date": "March 2003", "number_of_pages": 320}
+    with patch(
+        "precis.known_file.urllib.request.urlopen",
+        side_effect=[_mock_open_library_response(search_body), _mock_open_library_response(edition_body)],
+    ):
         known_file = create_known_file("9780000000000", kind="non-fiction")
 
     assert known_file.title == "The Book"
@@ -84,14 +81,53 @@ def test_create_known_file_fills_fields_from_lookup():
     assert known_file.chapters == []
 
 
+def test_create_known_file_uses_edition_specific_year_and_page_count_not_work_aggregate():
+    # search.json's first_publish_year/number_of_pages_median describe the
+    # work across all editions, not the specific ISBN queried — year/page
+    # count must come from the isbn/{isbn}.json edition record instead.
+    search_body = {
+        "docs": [
+            {
+                "title": "The Book",
+                "author_name": ["Jane Author"],
+                "first_publish_year": 1997,
+                "number_of_pages_median": 528,
+            }
+        ]
+    }
+    edition_body = {"publish_date": "1999", "number_of_pages": 494}
+    with patch(
+        "precis.known_file.urllib.request.urlopen",
+        side_effect=[_mock_open_library_response(search_body), _mock_open_library_response(edition_body)],
+    ):
+        known_file = create_known_file("9780393317558", kind="non-fiction")
+
+    assert known_file.year == 1999
+    assert known_file.page_count == 494
+
+
 def test_create_known_file_uses_placeholders_when_lookup_misses():
-    with patch("precis.known_file.urllib.request.urlopen", return_value=_mock_open_library_response({})):
+    with patch(
+        "precis.known_file.urllib.request.urlopen",
+        side_effect=[_mock_open_library_response({"docs": []}), _mock_open_library_response({})],
+    ):
         known_file = create_known_file("0000000000000", kind="fiction")
 
     assert known_file.title == PLACEHOLDER
     assert known_file.author == PLACEHOLDER
     assert known_file.year is None
     assert known_file.page_count is None
+
+
+def test_create_known_file_uses_placeholders_when_lookup_returns_non_dict_body():
+    with patch(
+        "precis.known_file.urllib.request.urlopen",
+        side_effect=[_mock_open_library_response(None), _mock_open_library_response([1, 2, 3])],
+    ):
+        known_file = create_known_file("000", kind="fiction")
+
+    assert known_file.title == PLACEHOLDER
+    assert known_file.year is None
 
 
 def test_create_known_file_uses_placeholders_on_network_error():

@@ -13,10 +13,10 @@ import urllib.error
 import urllib.request
 from typing import Literal
 
-from precis.schema import KnownFile
+from precis.schema import PLACEHOLDER, KnownFile
 
-OPEN_LIBRARY_URL = "https://openlibrary.org/api/books"
-PLACEHOLDER = "TODO: fill in by hand"
+OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
+OPEN_LIBRARY_EDITION_URL = "https://openlibrary.org/isbn"
 _LOOKUP_TIMEOUT_SECONDS = 10
 
 
@@ -44,33 +44,60 @@ def create_known_file(
     )
 
 
-def _lookup_open_library(isbn: str) -> dict:
-    url = f"{OPEN_LIBRARY_URL}?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
+def _fetch_json(url: str) -> dict | None:
+    """GETs `url` and returns the decoded body, or None on any failure —
+    network error, non-JSON body, or a JSON body that isn't an object (a
+    malformed or unexpected API response shouldn't crash the lookup, just
+    degrade it like any other failure mode).
+    """
     try:
         with urllib.request.urlopen(url, timeout=_LOOKUP_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-        # Deterministic call to a known API, but the network itself isn't
-        # guaranteed — a lookup failure just means an all-placeholder
-        # known-file, not a hard error. The reader fills it in by hand
-        # either way.
-        return {}
+        return None
+    return body if isinstance(body, dict) else None
 
-    record = body.get(f"ISBN:{isbn}")
-    if not record:
-        return {}
 
+def _lookup_open_library(isbn: str) -> dict:
+    # Open Library's old bibkeys/jscmd=data "Books API" (api/books) has been
+    # retired — it now 404s on every request. Two live replacements, used
+    # together: search.json for title/author (stable across editions of the
+    # same work), and the isbn/{isbn}.json edition record for year/page
+    # count — search.json's first_publish_year/number_of_pages_median are
+    # aggregated across every edition of the work, not the specific
+    # printing the caller's ISBN identifies.
     result: dict = {}
-    if title := record.get("title"):
-        result["title"] = title
-    if authors := record.get("authors"):
-        result["author"] = ", ".join(a["name"] for a in authors if a.get("name"))
-    publish_date = record.get("publish_date")
-    if publish_date and (match := re.search(r"\d{4}", publish_date)):
-        result["year"] = int(match.group())
-    if (page_count := record.get("number_of_pages")) is not None:
-        result["page_count"] = page_count
+
+    search_url = f"{OPEN_LIBRARY_SEARCH_URL}?isbn={isbn}&fields=title,author_name"
+    search_body = _fetch_json(search_url)
+    docs = search_body.get("docs") if search_body else None
+    if docs:
+        record = docs[0]
+        if title := record.get("title"):
+            result["title"] = title
+        if authors := record.get("author_name"):
+            result["author"] = ", ".join(authors)
+
+    edition_body = _fetch_json(f"{OPEN_LIBRARY_EDITION_URL}/{isbn}.json")
+    if edition_body:
+        publish_date = edition_body.get("publish_date")
+        if publish_date and (match := re.search(r"\d{4}", publish_date)):
+            result["year"] = int(match.group())
+        if (page_count := edition_body.get("number_of_pages")) is not None:
+            result["page_count"] = page_count
+
     return result
+
+
+def slugify_title(title: str | None) -> str:
+    """Book title -> filename slug: lowercase, non-alphanumeric runs
+    collapsed to single hyphens, e.g. "Guns, Germs, and Steel" ->
+    "guns-germs-and-steel". Empty string for a missing title, so callers
+    can use the result directly without a separate None-check.
+    """
+    if not title:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
 def preflight_check(known_file: KnownFile) -> list[str]:

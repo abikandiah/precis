@@ -1,4 +1,5 @@
-from precis.cli import build_parser
+from precis.cli import _known_file_filename, build_parser
+from precis.schema import KnownFile
 
 
 def _run(args: list[str]) -> int:
@@ -32,3 +33,34 @@ def test_generate_chapter_with_missing_known_file_reports_clean_error(capsys):
     captured = capsys.readouterr()
     assert "could not load known-file" in captured.err
     assert "Traceback" not in captured.err
+
+
+def _known_file(**overrides) -> KnownFile:
+    defaults = {"isbn": "123", "kind": "non-fiction", "title": "Same Book"}
+    defaults.update(overrides)
+    return KnownFile(**defaults)
+
+
+def test_known_file_filename_uses_title_slug():
+    assert _known_file_filename("123", _known_file(), set()) == "same-book.json"
+
+
+def test_known_file_filename_falls_back_to_isbn_without_a_real_title():
+    kf = _known_file(title=None)
+    assert _known_file_filename("123", kf, set()) == "123.json"
+
+
+def test_known_file_filename_resolves_repeated_collisions_for_the_same_isbn():
+    # A repeated isbn in one batch (e.g. `create-known-file 123 123 123`)
+    # used to make the 2nd and 3rd calls collide on the same fallback name,
+    # silently overwriting the 2nd's file.
+    used: set[str] = set()
+    kf = _known_file()
+    names = []
+    for _ in range(3):
+        name = _known_file_filename("123", kf, used)
+        used.add(name)
+        names.append(name)
+
+    assert names == ["same-book.json", "same-book-123.json", "same-book-123-2.json"]
+    assert len(set(names)) == 3

@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field, model_validator
 
 SCHEMA_VERSION = "1"
 
+PLACEHOLDER = "TODO: fill in by hand"
+
 
 class KnownFile(BaseModel):
     """Phase 1/2 input. Deliberately permissive at the schema level —
@@ -38,6 +40,15 @@ class KnownFile(BaseModel):
         definition so the two can't silently drift apart.
         """
         return self.kind == "non-fiction" and not self.narrative
+
+    @property
+    def has_title(self) -> bool:
+        """False for both "never filled in" (None) and "phase 1 couldn't
+        find it, still a placeholder" — one definition so consumers (e.g.
+        the known-file filename in cli.py) don't each reimplement the
+        placeholder check.
+        """
+        return bool(self.title) and self.title != PLACEHOLDER
 
 
 class Part(BaseModel):

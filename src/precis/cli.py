@@ -14,7 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from precis.known_file import create_known_file, preflight_check
+from precis.known_file import create_known_file, preflight_check, slugify_title
 from precis.pipeline import graph as pipeline_graph
 from precis.pipeline.nodes import draft
 from precis.schema import Chapter, KnownFile
@@ -45,6 +45,26 @@ def _write_output(model: BaseModel, output_path: str | None) -> None:
             f.write(text)
     else:
         print(text)
+
+
+def _known_file_filename(isbn: str, known_file: KnownFile, used_names: set[str]) -> str:
+    """Title-slug filename, falling back to the isbn when the lookup didn't
+    find a title (still a placeholder) or when the slug collides with an
+    earlier file in the same batch — including repeat collisions (e.g. the
+    same isbn passed more than once), which the first-collision-only
+    fallback used to silently overwrite instead of resolving.
+    """
+    slug = slugify_title(known_file.title) if known_file.has_title else ""
+    base = slug or isbn
+    filename = f"{base}.json"
+    if filename not in used_names:
+        return filename
+    filename = f"{base}-{isbn}.json"
+    suffix = 2
+    while filename in used_names:
+        filename = f"{base}-{isbn}-{suffix}.json"
+        suffix += 1
+    return filename
 
 
 def _report_preflight_problems(known_file: KnownFile) -> int | None:
@@ -93,8 +113,11 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
+        used_names: set[str] = set()
         for isbn, known_file in known_files:
-            _write_output(known_file, os.path.join(args.output_dir, f"{isbn}.json"))
+            filename = _known_file_filename(isbn, known_file, used_names)
+            used_names.add(filename)
+            _write_output(known_file, os.path.join(args.output_dir, filename))
     else:
         _write_output(known_files[0][1], args.output)
 
