@@ -31,6 +31,7 @@ class GraphState(TypedDict, total=False):
 
     # Stage 1 output.
     verified: bool
+    verify_reason: str  # always set (pass or fail) — see verify.py
 
     # Stage 2 fan-out: per-branch input, delivered via Send() in graph.py.
     # Only visible inside a single draft_one_chapter invocation — never

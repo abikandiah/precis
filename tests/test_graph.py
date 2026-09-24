@@ -93,7 +93,7 @@ async def test_stream_with_budget_raises_if_assemble_never_runs():
 
     class _NeverAssemblesGraph:
         async def astream(self, input_state, config, stream_mode=None):
-            yield {"verify": {"verified": True}}
+            yield {"verify": {"verified": True, "verify_reason": "known-file confirmed against search results"}}
 
     with pytest.raises(RuntimeError, match="assemble"):
         await graph_module._stream_with_budget(_NeverAssemblesGraph(), {}, {}, total_chapters=0, on_progress=None)
@@ -103,7 +103,7 @@ async def test_stream_with_budget_raises_if_assemble_never_runs():
 async def test_stream_with_budget_calls_on_progress_for_each_update():
     class _FakeGraph:
         async def astream(self, input_state, config, stream_mode=None):
-            yield {"verify": {"verified": True}}
+            yield {"verify": {"verified": True, "verify_reason": "known-file confirmed against search results"}}
             yield {"draft_one_chapter": {"chapters": [{"number": 1, "title": "Ch 1", "quality_flag": None}]}}
             yield {"assemble": {"book": {"sentinel": True}}}
 
@@ -132,9 +132,10 @@ def test_format_chapter_progress_with_and_without_total_and_flag():
 
 
 def test_progress_messages_for_each_node_shape():
-    assert graph_module._progress_messages("verify", {"verified": True}, 0) == [
-        "verify: known-file confirmed against search results"
+    assert graph_module._progress_messages("verify", {"verified": True, "verify_reason": "looks right"}, 0) == [
+        "verify: looks right"
     ]
+    assert graph_module._progress_messages("verify", {"verified": True}, 0) == ["verify: known-file confirmed"]
     assert graph_module._progress_messages(
         "draft_one_chapter", {"chapters": [{"number": 2, "title": "Ch 2", "quality_flag": None}]}, 5
     ) == ["chapter 2/5 drafted: 'Ch 2'"]
@@ -146,6 +147,9 @@ def test_progress_messages_for_each_node_shape():
     assert graph_module._progress_messages("synthesize", {"parts_source": "known"}, 0) == [
         "synthesize: synopsis/tags/parts complete (parts: known)"
     ]
+    assert graph_module._progress_messages(
+        "synthesize", {"parts_source": "known", "warnings": ["part 'X': model suggested a different title"]}, 0
+    ) == ["synthesize: synopsis/tags/parts complete (parts: known) — 1 part discrepancy(ies) noted"]
     assert graph_module._progress_messages("assemble", {"book": {}}, 0) == ["assemble: book finalized"]
     assert graph_module._progress_messages("some_other_node", {}, 0) == []
 
@@ -203,7 +207,7 @@ async def test_run_whole_book_threads_on_progress_through_to_the_real_stream(mon
 
     class _FakeGraph:
         async def astream(self, input_state, config, stream_mode=None):
-            yield {"verify": {"verified": True}}
+            yield {"verify": {"verified": True, "verify_reason": "known-file confirmed against search results"}}
             yield {"assemble": {"book": fake_book}}
 
     monkeypatch.setattr(graph_module, "build_graph", lambda checkpointer: _FakeGraph())

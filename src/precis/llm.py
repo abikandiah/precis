@@ -88,6 +88,7 @@ async def complete_structured[T: BaseModel](
     response_model: type[T],
     model: str | None = None,
     max_attempts: int = 2,
+    validation_context: dict[str, object] | None = None,
 ) -> T:
     """Forces schema-shaped output via tool-calling rather than free-form
     JSON-in-prose: `response_model`'s own JSON schema becomes the tool's
@@ -100,6 +101,15 @@ async def complete_structured[T: BaseModel](
     doesn't call the tool, or calls it with arguments that don't validate —
     usually one-off noise, not a reason to fail the whole call. Raises
     StructuredOutputError only once that budget is exhausted.
+
+    `validation_context` is passed straight through to `model_validate` —
+    it's how a caller wires a runtime-only constraint (something that
+    varies per call and can't be a static Field on `response_model`, e.g.
+    "must be exactly N items") into a `model_validator` so a mismatch is a
+    real schema failure that this retry loop already handles, rather than
+    a separate check the caller does after the fact with no chance to
+    retry. See synthesize.py's known-parts count check for the motivating
+    case.
     """
     tool_name = f"emit_{response_model.__name__.lower()}"
     tool: ChatCompletionFunctionToolParam = {
@@ -137,7 +147,7 @@ async def complete_structured[T: BaseModel](
 
         try:
             arguments = json.loads(call.function.arguments)
-            return response_model.model_validate(arguments)
+            return response_model.model_validate(arguments, context=validation_context)
         except (json.JSONDecodeError, ValidationError) as exc:
             if attempt == max_attempts - 1:
                 raise StructuredOutputError(

@@ -39,7 +39,7 @@ known-file fact, not something to re-derive per call.
 
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, model_validator
 
 from precis import llm
 from precis.llm import StructuredOutputError
@@ -75,6 +75,14 @@ _SYSTEM_PROMPT_FICTION = (
 )
 
 
+# The one validation_context key this module produces and consumes — named
+# rather than an inline literal so the two sides (run()'s dict-building,
+# _check_known_parts_count's .get()) can't silently drift apart from an edit
+# to only one of them, and a typo becomes a NameError instead of the check
+# just silently no-op'ing.
+EXPECTED_PART_COUNT_KEY = "expected_part_count"
+
+
 class Synthesis(BaseModel):
     """Fiction / narrative non-fiction path: no key_claims_for_review."""
 
@@ -82,6 +90,25 @@ class Synthesis(BaseModel):
     one_line_takeaway: str
     tags: list[str] = Field(min_length=1)
     parts: list[Part] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check_known_parts_count(self, info: ValidationInfo) -> "Synthesis":
+        """`EXPECTED_PART_COUNT_KEY` is only present in `validation_context`
+        on the known-parts path (see run()'s `complete_structured` calls) —
+        absent for the generated-parts path, where any count is fine. This
+        makes a miscount a real schema-validation failure that
+        `llm.complete_structured`'s own retry loop already handles, instead
+        of a separate check `_finalize_parts` could only report after the
+        retry budget was already (uselessly) spent on a request that could
+        never have passed.
+        """
+        expected = (info.context or {}).get(EXPECTED_PART_COUNT_KEY)
+        if expected is not None and len(self.parts) != expected:
+            raise ValueError(
+                f"expected exactly {expected} parts (one per known part, in order), "
+                f"got {len(self.parts)}: {[p.title for p in self.parts]!r}"
+            )
+        return self
 
 
 class SynthesisWithClaims(Synthesis):
@@ -150,35 +177,59 @@ def _user_prompt_fiction(known_file: KnownFile, search_results: str) -> str:
     return header + question
 
 
-def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[list[dict], str]:
-    """Splits the two Stage-3 paths' output into (parts, parts_source).
-    On the known path, title and chapter_numbers come from the known-file,
-    never the model — only `summary` is taken from its response, matched
-    back to each known part **by position**, not by title: the prompt
-    presents known parts in a fixed order and asks for summaries in that
-    same order, so position is a more reliable correlation key than the
-    model's echoed title (immune to it paraphrasing a title, and immune to
-    two known parts sharing a title, which title-based matching couldn't
-    distinguish either way).
+def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[list[dict], str, list[str]]:
+    """Splits the two Stage-3 paths' output into (parts, parts_source,
+    warnings). On the known path, title and chapter_numbers come from the
+    known-file, never the model — only `summary` is taken from its
+    response, matched back to each known part **by position**, not by
+    title: the prompt presents known parts in a fixed order and asks for
+    summaries in that same order, so position is a more reliable
+    correlation key than the model's echoed title (immune to it
+    paraphrasing a title, and immune to two known parts sharing a title,
+    which title-based matching couldn't distinguish either way).
+
+    The exact-count case is caught earlier now, by Synthesis's own
+    model_validator (see run()'s validation_context) — complete_structured
+    gets a chance to retry it there, so this raise is effectively
+    unreachable via run()'s known-parts path today. It stays here (rather
+    than being removed or turned into a bare assert) because zip() below
+    would otherwise silently truncate to the shorter list for any other
+    caller of this function with mismatched lengths — a real invariant to
+    guard, just no longer "the model ignored instructions" specifically.
+
+    A same-count-but-different-title mismatch isn't fatal (the known
+    title always wins), but it's still worth a warning: the model
+    disagreeing about a title even once is a real signal — either it
+    mis-followed instructions, or the known-file's title is itself wrong
+    and worth a second look — and silently overwriting it without a trace
+    would throw that signal away.
     """
     if not known_file.parts:
-        return [p.model_dump() for p in result_parts], "generated"
+        return [p.model_dump() for p in result_parts], "generated", []
 
     if len(result_parts) != len(known_file.parts):
         raise StructuredOutputError(
             f"model returned {len(result_parts)} parts, expected exactly "
-            f"{len(known_file.parts)} (one summary per known part, in order)"
+            f"{len(known_file.parts)} (one summary per known part, in order): "
+            f"{[p.title for p in result_parts]!r}"
         )
 
-    finalized = [
-        Part(
-            title=known_part.title,
-            summary=result_part.summary,
-            chapter_numbers=known_part.chapter_numbers,
-        ).model_dump()
-        for known_part, result_part in zip(known_file.parts, result_parts)
-    ]
-    return finalized, "known"
+    finalized = []
+    warnings = []
+    for known_part, result_part in zip(known_file.parts, result_parts):
+        if result_part.title != known_part.title:
+            warnings.append(
+                f"part {known_part.title!r}: model suggested a different title "
+                f"({result_part.title!r}) — kept the known-file's title"
+            )
+        finalized.append(
+            Part(
+                title=known_part.title,
+                summary=result_part.summary,
+                chapter_numbers=known_part.chapter_numbers,
+            ).model_dump()
+        )
+    return finalized, "known", warnings
 
 
 async def run(
@@ -197,6 +248,12 @@ async def run(
     search_results = await search_and_format(_search_query(known_file), client=search_client)
     client = llm_client or llm.build_client()
 
+    # Only set on the known-parts path — absent means "any count is fine"
+    # to Synthesis's model_validator (the generated-parts path).
+    validation_context: dict[str, object] | None = (
+        {EXPECTED_PART_COUNT_KEY: len(known_file.parts)} if known_file.parts else None
+    )
+
     if known_file.is_full_nonfiction_path:
         result = await llm.complete_structured(
             client,
@@ -205,8 +262,9 @@ async def run(
                 {"role": "user", "content": _user_prompt_nonfiction(known_file, chapters, search_results)},
             ],
             response_model=SynthesisWithClaims,
+            validation_context=validation_context,
         )
-        parts, parts_source = _finalize_parts(known_file, result.parts)
+        parts, parts_source, warnings = _finalize_parts(known_file, result.parts)
         return {
             "synopsis": result.synopsis,
             "one_line_takeaway": result.one_line_takeaway,
@@ -214,6 +272,7 @@ async def run(
             "key_claims_for_review": [c.model_dump() for c in result.key_claims_for_review],
             "parts": parts,
             "parts_source": parts_source,
+            "warnings": warnings,
         }
 
     fiction_result = await llm.complete_structured(
@@ -223,12 +282,14 @@ async def run(
             {"role": "user", "content": _user_prompt_fiction(known_file, search_results)},
         ],
         response_model=Synthesis,
+        validation_context=validation_context,
     )
-    parts, parts_source = _finalize_parts(known_file, fiction_result.parts)
+    parts, parts_source, warnings = _finalize_parts(known_file, fiction_result.parts)
     return {
         "synopsis": fiction_result.synopsis,
         "one_line_takeaway": fiction_result.one_line_takeaway,
         "tags": fiction_result.tags,
         "parts": parts,
         "parts_source": parts_source,
+        "warnings": warnings,
     }

@@ -10,6 +10,13 @@ Known-file `parts` gets the same "known fact, not a guess" treatment as
 verbatim instead of inventing them (see synthesize.py's _finalize_parts),
 this is the one place that checks whether those titles/groupings actually
 match the real book, rather than trusting them unconditionally forever.
+
+`verify_reason` is always returned, pass or fail (unlike `verdict.reason`,
+which used to be discarded on a pass) — graph.py's `_progress_messages`
+surfaces it as this stage's progress line, so whatever the model noticed
+(even a caveat that wasn't enough to fail the check) is visible to the
+reader before Stage 2's expensive chapter drafting starts, not just when
+verify hard-fails.
 """
 
 from langchain_core.runnables import RunnableConfig
@@ -86,7 +93,7 @@ async def run(
     llm_client: AsyncOpenAI | None = None,
 ) -> dict:
     if state.get("trust_known"):
-        return {"verified": True}
+        return {"verified": True, "verify_reason": "skipped (--trust-known)"}
 
     search_client = resolve_search_client(config, search_client)
     llm_client = resolve_llm_client(config, llm_client)
@@ -107,4 +114,4 @@ async def run(
     if not verdict.verified:
         raise ValueError(f"Stage 1 verify failed: {verdict.reason}")
 
-    return {"verified": True}
+    return {"verified": True, "verify_reason": verdict.reason}

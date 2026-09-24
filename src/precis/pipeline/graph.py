@@ -108,14 +108,16 @@ def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -
     already produces.
     """
     if node_name == NODE_VERIFY:
-        return ["verify: known-file confirmed against search results"]
+        return [f"verify: {node_update.get('verify_reason', 'known-file confirmed')}"]
     if node_name == NODE_DRAFT_CHAPTER:
         return [
             format_chapter_progress(c["number"], c["title"], c.get("quality_flag"), total_chapters=total_chapters)
             for c in node_update.get("chapters", [])
         ]
     if node_name == NODE_SYNTHESIZE:
-        return [f"synthesize: synopsis/tags/parts complete (parts: {node_update.get('parts_source')})"]
+        discrepancies = node_update.get("warnings") or []
+        note = f" — {len(discrepancies)} part discrepancy(ies) noted" if discrepancies else ""
+        return [f"synthesize: synopsis/tags/parts complete (parts: {node_update.get('parts_source')}){note}"]
     if node_name == NODE_ASSEMBLE:
         return ["assemble: book finalized"]
     return []

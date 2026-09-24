@@ -220,7 +220,11 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    on mismatch (wrong edition, wrong book, bad chapter list, bad part
    claims) before any expensive per-chapter work runs. Skippable via a
    `--trust-known`-style flag for a known-file the reader is already
-   confident about.
+   confident about. The critique's reasoning (`verify_reason`) is always
+   surfaced as this stage's progress line, pass or fail — not just on a
+   hard failure — so a caveat that wasn't enough to fail the check (e.g.
+   "parts look mostly right, though...") is still visible to the reader
+   before Stage 2 runs, not silently discarded.
 2. **Draft chapters** (non-fiction full path only) — parallel, bounded
    concurrency (configurable, default **3**). Per chapter: search-ground
    (`"<title>" "<chapter>" summary`), draft `key_points` + `core_claim`,
@@ -255,6 +259,16 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    this plan had synthesis first; the catch: `key_claims_for_review` would
    read as generic back-cover material, and `parts` can't meaningfully group
    chapters that don't exist yet).
+   On the known-parts path, the exact expected part count is enforced as a
+   real schema constraint (a `model_validator` reading a `validation_context`
+   passed into `llm.complete_structured`, not a check bolted on after the
+   fact) — so a model that returns the wrong count is a validation failure
+   `complete_structured`'s own retry already handles, giving it a second,
+   cheap attempt at Stage 3 before the whole run fails. A same-count title
+   mismatch isn't fatal (the known title always wins), but it's recorded as
+   a `warnings` entry on the output rather than silently overwritten, since
+   the model disagreeing about a title is itself a signal worth a second
+   look, whichever side turns out to be wrong.
 4. **Assemble + validate the whole book** — full schema validation
    including cross-field checks (`parts` referencing real chapter numbers).
    One repair-and-retry pass if invalid; if that also fails, generation

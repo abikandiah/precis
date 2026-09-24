@@ -19,7 +19,7 @@ async def test_trust_known_skips_search_and_llm_entirely():
         search_client=search_client,
         llm_client=AsyncMock(),
     )
-    assert result == {"verified": True}
+    assert result == {"verified": True, "verify_reason": "skipped (--trust-known)"}
     search_client.search.assert_not_called()
 
 
@@ -38,7 +38,7 @@ async def test_verified_verdict_returns_true(monkeypatch):
         search_client=search_client,
         llm_client=AsyncMock(),
     )
-    assert result == {"verified": True}
+    assert result == {"verified": True, "verify_reason": "looks right"}
     search_client.search.assert_called_once()
 
 
@@ -58,7 +58,7 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
         {"known_file": _known_file().model_dump(), "trust_known": False},
         config={"configurable": {"search_client": search_client, "llm_client": llm_client}},
     )
-    assert result == {"verified": True}
+    assert result == {"verified": True, "verify_reason": "looks right"}
     search_client.search.assert_called_once()
 
 
@@ -107,7 +107,7 @@ async def test_known_parts_are_included_in_search_query_and_prompt(monkeypatch):
         llm_client=AsyncMock(),
     )
 
-    assert result == {"verified": True}
+    assert result == {"verified": True, "verify_reason": "looks right"}
     search_query = search_client.search.call_args[0][0]
     assert "parts" in search_query
     assert "Part One" in captured_prompt["content"]
