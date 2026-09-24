@@ -13,7 +13,7 @@ serialization internals at all.
 from __future__ import annotations
 
 from operator import add
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 
 class GraphState(TypedDict, total=False):
@@ -44,6 +44,7 @@ class GraphState(TypedDict, total=False):
     one_line_takeaway: str
     tags: list[str]
     parts: list[dict]  # Part.model_dump() each
+    parts_source: Literal["known", "generated"]
     key_claims_for_review: list[dict]  # KeyClaim.model_dump() each
 
     # Stage 4 output. Book.model_dump().

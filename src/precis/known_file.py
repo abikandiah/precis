@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Literal
 
-from precis.schema import PLACEHOLDER, KnownFile
+from precis.schema import PLACEHOLDER, KnownFile, invalid_chapter_numbers
 
 OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
 OPEN_LIBRARY_EDITION_URL = "https://openlibrary.org/isbn"
@@ -123,6 +123,40 @@ def preflight_check(known_file: KnownFile) -> list[str]:
             "non-fiction full study-guide path (kind: non-fiction, "
             "narrative: false)"
         )
+
+    if known_file.kind == "fiction" and known_file.parts:
+        problems.append(
+            "parts is not meaningful for kind: fiction — fiction's parts "
+            "are spoiler-safe structural beats the model invents, not a "
+            "fact to supply by hand"
+        )
+
+    if known_file.kind == "non-fiction" and known_file.narrative and any(
+        part.chapter_numbers is not None for part in known_file.parts
+    ):
+        problems.append(
+            "chapter_numbers on parts requires a known chapter list, which "
+            "narrative non-fiction doesn't have — leave chapter_numbers "
+            "unset on parts for narrative books"
+        )
+
+    if known_file.is_full_nonfiction_path and known_file.parts:
+        valid_numbers = set(range(1, len(known_file.chapters) + 1))
+        for part in known_file.parts:
+            for n in invalid_chapter_numbers(part.chapter_numbers, valid_numbers):
+                problems.append(
+                    f"part {part.title!r} references chapter number "
+                    f"{n}, which doesn't exist in chapters (1-{len(known_file.chapters)})"
+                )
+
+    # Not a correctness requirement for Stage 3 (_finalize_parts matches by
+    # position, not title), but two parts sharing a title is almost always
+    # an authoring mistake worth catching here rather than shipping a
+    # confusing output with two identically-named parts.
+    titles = [part.title for part in known_file.parts]
+    if len(titles) != len(set(titles)):
+        dupes = {t for t in titles if titles.count(t) > 1}
+        problems.append(f"parts has duplicate titles: {sorted(dupes)!r} — each part title must be unique")
 
     return problems
 

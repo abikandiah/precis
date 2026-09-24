@@ -32,6 +32,7 @@ def _nonfiction_state(**overrides) -> dict:
         "synopsis": "a synopsis",
         "tags": ["tag1", "tag2"],
         "parts": [{"title": "Part One", "summary": "covers ch 1-2", "chapter_numbers": [1, 2]}],
+        "parts_source": "generated",
         "key_claims_for_review": [{"prompt": "q1", "answer": "a1"}],
         "warnings": [],
     }
@@ -47,6 +48,7 @@ def _fiction_state(**overrides) -> dict:
         "synopsis": "a synopsis",
         "tags": ["tag1"],
         "parts": [{"title": "Beginning", "summary": "stakes are introduced", "chapter_numbers": None}],
+        "parts_source": "generated",
         "warnings": [],
     }
     state.update(overrides)
@@ -69,6 +71,7 @@ async def test_nonfiction_path_valid_on_first_attempt_no_repair_called(monkeypat
     assert book["synopsis"] == "a synopsis"
     assert book["tags"] == ["tag1", "tag2"]
     assert book["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapter_numbers": [1, 2]}]
+    assert book["parts_source"] == "generated"
     assert book["key_claims_for_review"] == [{"prompt": "q1", "answer": "a1"}]
     assert len(book["chapters"]) == 2
     assert book["reader_notes"] is None
@@ -170,6 +173,87 @@ async def test_unrepairable_field_error_skips_repair_and_raises_immediately(monk
         await assemble.run(state, llm_client=AsyncMock())
 
     fake.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_known_parts_source_skips_repair_and_raises_immediately(monkeypatch):
+    """A validation error touching `parts` when parts_source is "known"
+    must never be handed to the generic repair pass — that would silently
+    swap the reader-supplied known structure for an invented one while the
+    book still claimed parts_source: "known". known_file.py's preflight
+    check is what's supposed to keep this from ever legitimately firing, so
+    reaching it here means something upstream is broken and should surface
+    loudly, not get "fixed" by an LLM call.
+    """
+    fake = AsyncMock()
+    monkeypatch.setattr(assemble.llm, "complete_structured", fake)
+
+    state = _nonfiction_state(
+        parts=[{"title": "Part One", "summary": "covers ch 1-99", "chapter_numbers": [1, 99]}],
+        parts_source="known",
+    )
+
+    with pytest.raises(ValueError, match="not a Stage-3-synthesized field"):
+        await assemble.run(state, llm_client=AsyncMock())
+
+    fake.assert_not_called()
+
+
+def test_apply_repair_never_overwrites_known_parts_even_if_invoked():
+    """Belt-and-suspenders: even if repair were ever triggered while
+    parts_source == "known" (e.g. by a validation error on some other
+    field), _apply_repair must not let the repair model's invented parts
+    overwrite the known-file-sourced ones — _is_repairable is the first
+    guard against this, this is the second, independent of whether the
+    first one's error-location logic is airtight.
+    """
+    book_kwargs = {
+        "parts": [{"title": "Part One", "summary": "the real summary", "chapter_numbers": [1, 2]}],
+        "parts_source": "known",
+    }
+    repaired = SynthesisWithClaims(
+        synopsis="s",
+        one_line_takeaway="t",
+        tags=["tag"],
+        key_claims_for_review=[KeyClaim(prompt="q", answer="a")],
+        parts=[Part(title="invented part", summary="invented summary", chapter_numbers=[1])],
+    )
+
+    result = assemble._apply_repair(book_kwargs, repaired, is_full_nonfiction_path=True)
+
+    assert result["parts"] == [{"title": "Part One", "summary": "the real summary", "chapter_numbers": [1, 2]}]
+
+
+def test_apply_repair_overwrites_generated_parts_as_before():
+    book_kwargs = {
+        "parts": [{"title": "old", "summary": "old summary", "chapter_numbers": [1]}],
+        "parts_source": "generated",
+    }
+    repaired = SynthesisWithClaims(
+        synopsis="s",
+        one_line_takeaway="t",
+        tags=["tag"],
+        key_claims_for_review=[KeyClaim(prompt="q", answer="a")],
+        parts=[Part(title="new", summary="new summary", chapter_numbers=[1, 2])],
+    )
+
+    result = assemble._apply_repair(book_kwargs, repaired, is_full_nonfiction_path=True)
+
+    assert result["parts"] == [{"title": "new", "summary": "new summary", "chapter_numbers": [1, 2]}]
+
+
+@pytest.mark.asyncio
+async def test_known_parts_source_passes_through_when_already_valid(monkeypatch):
+    fake = AsyncMock()
+    monkeypatch.setattr(assemble.llm, "complete_structured", fake)
+
+    state = _nonfiction_state(parts_source="known")
+
+    result = await assemble.run(state, llm_client=AsyncMock())
+
+    fake.assert_not_called()
+    assert result["book"]["parts_source"] == "known"
+    assert result["book"]["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapter_numbers": [1, 2]}]
 
 
 @pytest.mark.asyncio

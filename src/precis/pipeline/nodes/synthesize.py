@@ -21,6 +21,20 @@ exists because the LLM-facing draft genuinely lacks pipeline-owned fields
 like `number`/`quality_flag`), Part and KeyClaim have no such split — every
 field on both is already LLM-generated, so there's nothing for a separate
 response-only shape to omit.
+
+When known_file.parts is non-empty, the reader already knows the book's
+real part structure (preflight_check in known_file.py guarantees this is
+only ever true for the non-fiction branches, never fiction). The model
+still answers with the same Synthesis/SynthesisWithClaims shape — asked to
+reuse the given titles/groupings verbatim, in order, rather than invent its
+own — and _finalize_parts then keeps only its summaries, matched back to
+each known part **by position**, discarding whatever title/chapter_numbers
+it echoed back in favor of the known-file's own. Position rather than
+title is deliberate: it's immune to the model paraphrasing a title, and
+doesn't require known-file titles to be unique either (though preflight_check
+still flags duplicates as an authoring smell). `summary` is the one field
+this stage still owns even on the known path; title and grouping are
+known-file fact, not something to re-derive per call.
 """
 
 from langchain_core.runnables import RunnableConfig
@@ -28,6 +42,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from precis import llm
+from precis.llm import StructuredOutputError
 from precis.pipeline.nodes.common import (
     book_header,
     resolve_llm_client,
@@ -86,25 +101,84 @@ def _chapters_block(chapters: list[dict]) -> str:
     return "Finished chapters:\n" + "\n".join(lines) + "\n\n"
 
 
+def _known_parts_block(known_file: KnownFile) -> str:
+    if not known_file.parts:
+        return ""
+    lines = [
+        f"{p.title!r} — chapters {p.chapter_numbers}" if p.chapter_numbers else repr(p.title)
+        for p in known_file.parts
+    ]
+    return (
+        "Known parts (these are fact, not something to invent — do not "
+        "regroup chapters or add/drop/rename/reorder parts; your job is "
+        "only to write each one's summary, returned in this exact order, "
+        "one per part listed):\n" + "\n".join(lines) + "\n\n"
+    )
+
+
 def _user_prompt_nonfiction(known_file: KnownFile, chapters: list[dict], search_results: str) -> str:
-    header = book_header(known_file) + "\n\n" + _chapters_block(chapters) + search_results_block(search_results)
+    header = (
+        book_header(known_file)
+        + "\n\n"
+        + _chapters_block(chapters)
+        + _known_parts_block(known_file)
+        + search_results_block(search_results)
+    )
+    parts_instruction = (
+        "parts (a summary for each of the known parts listed above, keeping "
+        "their exact titles and chapter groupings)"
+        if known_file.parts
+        else "parts (grouping the chapters above into named structural "
+        "sections, referencing their real chapter numbers)"
+    )
     question = (
-        "Write the synopsis, one_line_takeaway, tags, key_claims_for_review, "
-        "and parts (grouping the chapters above into named structural "
-        "sections, referencing their real chapter numbers). Call the tool "
-        "with your result."
+        f"Write the synopsis, one_line_takeaway, tags, key_claims_for_review, "
+        f"and {parts_instruction}. Call the tool with your result."
     )
     return header + question
 
 
 def _user_prompt_fiction(known_file: KnownFile, search_results: str) -> str:
-    header = book_header(known_file) + "\n\n" + search_results_block(search_results)
-    question = (
-        "Write the synopsis, one_line_takeaway, tags, and parts (spoiler-safe "
-        "structural beats sketching the story's shape). Call the tool with "
-        "your result."
+    header = book_header(known_file) + "\n\n" + _known_parts_block(known_file) + search_results_block(search_results)
+    parts_instruction = (
+        "parts (a spoiler-safe summary for each of the known parts listed "
+        "above, keeping their exact titles)"
+        if known_file.parts
+        else "parts (spoiler-safe structural beats sketching the story's shape)"
     )
+    question = f"Write the synopsis, one_line_takeaway, tags, and {parts_instruction}. Call the tool with your result."
     return header + question
+
+
+def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[list[dict], str]:
+    """Splits the two Stage-3 paths' output into (parts, parts_source).
+    On the known path, title and chapter_numbers come from the known-file,
+    never the model — only `summary` is taken from its response, matched
+    back to each known part **by position**, not by title: the prompt
+    presents known parts in a fixed order and asks for summaries in that
+    same order, so position is a more reliable correlation key than the
+    model's echoed title (immune to it paraphrasing a title, and immune to
+    two known parts sharing a title, which title-based matching couldn't
+    distinguish either way).
+    """
+    if not known_file.parts:
+        return [p.model_dump() for p in result_parts], "generated"
+
+    if len(result_parts) != len(known_file.parts):
+        raise StructuredOutputError(
+            f"model returned {len(result_parts)} parts, expected exactly "
+            f"{len(known_file.parts)} (one summary per known part, in order)"
+        )
+
+    finalized = [
+        Part(
+            title=known_part.title,
+            summary=result_part.summary,
+            chapter_numbers=known_part.chapter_numbers,
+        ).model_dump()
+        for known_part, result_part in zip(known_file.parts, result_parts)
+    ]
+    return finalized, "known"
 
 
 async def run(
@@ -132,12 +206,14 @@ async def run(
             ],
             response_model=SynthesisWithClaims,
         )
+        parts, parts_source = _finalize_parts(known_file, result.parts)
         return {
             "synopsis": result.synopsis,
             "one_line_takeaway": result.one_line_takeaway,
             "tags": result.tags,
             "key_claims_for_review": [c.model_dump() for c in result.key_claims_for_review],
-            "parts": [p.model_dump() for p in result.parts],
+            "parts": parts,
+            "parts_source": parts_source,
         }
 
     fiction_result = await llm.complete_structured(
@@ -148,9 +224,11 @@ async def run(
         ],
         response_model=Synthesis,
     )
+    parts, parts_source = _finalize_parts(known_file, fiction_result.parts)
     return {
         "synopsis": fiction_result.synopsis,
         "one_line_takeaway": fiction_result.one_line_takeaway,
         "tags": fiction_result.tags,
-        "parts": [p.model_dump() for p in fiction_result.parts],
+        "parts": parts,
+        "parts_source": parts_source,
     }

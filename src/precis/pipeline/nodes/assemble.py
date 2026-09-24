@@ -18,6 +18,18 @@ chapters/key_claims_for_review coupling check) can never be fixed by
 asking the model to revise its synthesis — attempting repair anyway would
 just reproduce the identical error after wasting an LLM call, which is
 exactly what happened before _is_repairable was added below.
+
+`parts` is repairable only when parts_source is "generated". When it's
+"known", `parts` is a pass-through of the reader-supplied known-file
+structure, already guaranteed valid by known_file.py's preflight check — a
+validation error there means something upstream is actually broken, and
+letting generic repair "fix" it would silently replace known structure
+with an invented one while parts_source still claimed "known". Two
+independent guards enforce this: `_is_repairable` skips repair outright
+for a `parts`-shaped error, and `_apply_repair` additionally never
+overwrites `parts` when parts_source is "known" regardless of which
+field's error triggered the repair — so a repair prompted by some other
+field can never smuggle invented parts in under a "known" label either.
 """
 
 from langchain_core.runnables import RunnableConfig
@@ -47,7 +59,7 @@ _SYSTEM_PROMPT = (
 _REPAIRABLE_FIELDS = {"synopsis", "one_line_takeaway", "tags", "parts", "key_claims_for_review"}
 
 
-def _is_repairable(error: ValidationError) -> bool:
+def _is_repairable(error: ValidationError, parts_source: str | None) -> bool:
     for err in error.errors():
         loc = err["loc"]
         # A whole-model error (empty loc, e.g. the chapters/key_claims_for_review
@@ -57,6 +69,18 @@ def _is_repairable(error: ValidationError) -> bool:
         # coupling check should be unreachable in practice anyway, since
         # Stage 3's own branching already keeps the two in sync.
         if loc and loc[0] not in _REPAIRABLE_FIELDS:
+            return False
+        # parts_source == "known" means `parts` is a pass-through of the
+        # reader-supplied known-file structure, already guaranteed valid by
+        # known_file.py's preflight check — a validation error touching it
+        # here means something upstream is actually broken, not a
+        # content-quality slip the model can be asked to revise. Letting
+        # generic repair "fix" it would silently swap known structure for
+        # an invented one while parts_source still claimed "known". Covers
+        # the empty-loc whole-model case too (the parts/chapter-number
+        # check above), same as the "common real case" it's already keyed
+        # off of for the general repairable check.
+        if parts_source == "known" and (not loc or loc[0] == "parts"):
             return False
     return True
 
@@ -113,7 +137,14 @@ def _apply_repair(book_kwargs: dict, repaired: Synthesis | SynthesisWithClaims, 
     book_kwargs["synopsis"] = repaired.synopsis
     book_kwargs["one_line_takeaway"] = repaired.one_line_takeaway
     book_kwargs["tags"] = repaired.tags
-    book_kwargs["parts"] = [p.model_dump() for p in repaired.parts]
+    # Never let a repair triggered by some *other* field's error overwrite
+    # known-file-sourced parts with the repair model's invented ones —
+    # _is_repairable already skips repair entirely for a `parts`-shaped
+    # error here, but that's a separate guard against a separate failure
+    # mode; this is what actually keeps parts_source: "known" honest for
+    # any repair that does proceed.
+    if book_kwargs.get("parts_source") != "known":
+        book_kwargs["parts"] = [p.model_dump() for p in repaired.parts]
     if is_full_nonfiction_path:
         assert isinstance(repaired, SynthesisWithClaims)
         book_kwargs["key_claims_for_review"] = [c.model_dump() for c in repaired.key_claims_for_review]
@@ -147,6 +178,7 @@ async def run(
         "synopsis": state["synopsis"],
         "tags": state["tags"],
         "parts": state.get("parts"),
+        "parts_source": state.get("parts_source"),
         "key_claims_for_review": state.get("key_claims_for_review"),
         "reader_notes": known_file.notes,
         "warnings": state.get("warnings", []),
@@ -156,7 +188,7 @@ async def run(
     try:
         book = Book.model_validate(book_kwargs)
     except ValidationError as exc:
-        if not _is_repairable(exc):
+        if not _is_repairable(exc, book_kwargs["parts_source"]):
             raise ValueError(
                 f"Stage 4 assemble: book invalid in a way the repair pass can't fix "
                 f"(not a Stage-3-synthesized field): {exc}"

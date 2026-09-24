@@ -103,6 +103,16 @@ blanket rule over every piece of tooling in this module's orbit. Concretely:
   (`kind: non-fiction`, `narrative: false`) before generation will accept
   the file. Optional/absent for fiction and narrative non-fiction, which
   don't decompose into a per-chapter breakdown at all.
+- `parts: list[{title, chapter_numbers?}]` — optional, non-fiction only
+  (both branches: full and narrative). Same reasoning as `chapters`: when
+  the reader already knows the book's real part structure, that's a fact
+  to supply, not something worth an LLM guessing from chapter titles alone.
+  `chapter_numbers` only means something against a known chapter list, so
+  it's only meaningful (and only checked by the phase-2 preflight) on the
+  full non-fiction path; narrative non-fiction known-parts entries are
+  title-only. Rejected outright by preflight for `kind: fiction` — fiction's
+  parts are spoiler-safe invented beats (see Output below), not a fact the
+  reader could supply even if they wanted to.
 - `kind: "fiction" | "non-fiction"`
 - `narrative: bool` — non-fiction only; routes to the lighter parts-based
   treatment instead of the full chapter/claims study guide. The phase-2
@@ -142,8 +152,9 @@ schema or otherwise) is that consumer's concern, not this module's — the
 module's job ends at emitting valid JSON per `schema_version` (below).
 
 - Common: `schema_version`, `title`, `author`, `year`, `isbn`, `page_count`,
-  `one_line_takeaway`, `synopsis`, `tags`, `parts?`, `reader_notes?`,
-  `warnings[]`. `date_added`/`verified` are not generation output at all —
+  `one_line_takeaway`, `synopsis`, `tags`, `parts?`, `parts_source?`
+  (`"known" | "generated"`), `reader_notes?`, `warnings[]`.
+  `date_added`/`verified` are not generation output at all —
   set by whatever consumes the output (this project's publish tooling sets
   `date_added` itself and always defaults `verified: false`; a different
   consumer would do the same in its own way).
@@ -184,9 +195,13 @@ module's job ends at emitting valid JSON per `schema_version` (below).
   - Fiction / narrative non-fiction: spoiler-safe, structural beats — what
     changes and what's at stake at each transition, not what happens — for
     sketching the story's shape in memory without giving away plot turns.
-- `parts` are AI-generated in every case, never hard-determined from input
-  structure — the known-file supplies at most a flat chapter list (or
-  nothing, for fiction).
+- `parts` are AI-generated only when the known-file didn't already supply
+  them. When it did (non-fiction, either branch), Stage 3 keeps the
+  known-file's title/chapter_numbers verbatim and asks the model only for
+  `summary` — never for fiction, whose known-file `parts` is always empty
+  (rejected by preflight). `parts_source: "known" | "generated"` on the
+  output records which happened, so a consumer doesn't present an
+  AI-invented grouping as the book's real published structure.
 - The module validates its own output against this schema before ever
   emitting it (see Stage 4 below) — including cross-field checks like
   `parts` referencing real chapter numbers. That guarantee lives entirely
@@ -196,11 +211,16 @@ module's job ends at emitting valid JSON per `schema_version` (below).
 ## Pipeline stages (whole-book mode)
 
 1. **Verify** — one search + one model critique against the known-file's
-   `isbn`/`chapters`, scoped narrowly to confirming edition/chapter-list
-   correctness (not general thematic research — see Stage 3). Fail fast on
-   mismatch (wrong edition, wrong book, bad chapter list) before any
-   expensive per-chapter work runs. Skippable via a `--trust-known`-style
-   flag for a known-file the reader is already confident about.
+   `isbn`/`chapters`/`parts` (when supplied), scoped narrowly to confirming
+   edition/chapter-list/part-structure correctness (not general thematic
+   research — see Stage 3). `parts` gets checked here for the same reason
+   `chapters` is: once Stage 3 passes it through as fact instead of
+   inventing it, this is the one point that confirms it's actually the
+   book's real structure, not a reader's typo or misremembering. Fail fast
+   on mismatch (wrong edition, wrong book, bad chapter list, bad part
+   claims) before any expensive per-chapter work runs. Skippable via a
+   `--trust-known`-style flag for a known-file the reader is already
+   confident about.
 2. **Draft chapters** (non-fiction full path only) — parallel, bounded
    concurrency (configurable, default **3**). Per chapter: search-ground
    (`"<title>" "<chapter>" summary`), draft `key_points` + `core_claim`,

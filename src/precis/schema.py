@@ -16,6 +16,28 @@ SCHEMA_VERSION = "1"
 PLACEHOLDER = "TODO: fill in by hand"
 
 
+def invalid_chapter_numbers(chapter_numbers: list[int] | None, valid_numbers: set[int]) -> list[int]:
+    """The shared "does this part reference a real chapter" check — used by
+    both KnownFile's preflight (known_file.py) and Book's own model_validator
+    below, so the two can't drift into different definitions of "valid"
+    (e.g. a contiguous-range assumption in one and not the other).
+    """
+    return [n for n in chapter_numbers or [] if n not in valid_numbers]
+
+
+class KnownPart(BaseModel):
+    """Known-file input mirror of Part, minus `summary` — writing the
+    summary is still Stage 3's job. `chapter_numbers` only means something
+    against a known chapter list, so it's meaningful for the full
+    non-fiction path only; narrative non-fiction has no known chapters to
+    bind against and must leave it unset. Never meaningful for fiction —
+    see preflight_check in known_file.py.
+    """
+
+    title: str
+    chapter_numbers: list[int] | None = None
+
+
 class KnownFile(BaseModel):
     """Phase 1/2 input. Deliberately permissive at the schema level —
     phase 1 writes one with empty `chapters`, and the reader fills it in by
@@ -32,6 +54,7 @@ class KnownFile(BaseModel):
     kind: Literal["fiction", "non-fiction"]
     narrative: bool = False
     notes: str | None = None
+    parts: list[KnownPart] = Field(default_factory=list)
 
     @property
     def is_full_nonfiction_path(self) -> bool:
@@ -90,6 +113,11 @@ class Book(BaseModel):
     synopsis: str
     tags: list[str]
     parts: list[Part] | None = None
+    parts_source: Literal["known", "generated"] | None = None
+    """Whether `parts` is a pass-through of the reader-supplied known-file
+    structure or Stage 3's own invention — lets a consumer avoid presenting
+    an AI-invented grouping as the book's real published structure.
+    """
     reader_notes: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
@@ -116,10 +144,9 @@ class Book(BaseModel):
         if self.parts and self.chapters is not None:
             known_numbers = {c.number for c in self.chapters}
             for part in self.parts:
-                for n in part.chapter_numbers or []:
-                    if n not in known_numbers:
-                        raise ValueError(
-                            f"part {part.title!r} references chapter "
-                            f"number {n}, which doesn't exist in chapters"
-                        )
+                for n in invalid_chapter_numbers(part.chapter_numbers, known_numbers):
+                    raise ValueError(
+                        f"part {part.title!r} references chapter "
+                        f"number {n}, which doesn't exist in chapters"
+                    )
         return self
