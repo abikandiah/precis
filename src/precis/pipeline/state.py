@@ -15,6 +15,14 @@ from __future__ import annotations
 from operator import add
 from typing import Annotated, Literal, TypedDict
 
+# The channel that marks a run as complete — assemble.run() (Stage 4, the
+# only node that reaches END) is the only writer of it. Import this rather
+# than the bare string "book" wherever "has this run finished" needs
+# checking against raw state/channel_values (e.g. checkpoints.py deciding
+# what's safe to prune) — one definition so that check can't independently
+# drift from GraphState's own shape.
+COMPLETED_STATE_KEY = "book"
+
 
 class GraphState(TypedDict, total=False):
     # Set once at graph invocation. KnownFile.model_dump().

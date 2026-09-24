@@ -15,6 +15,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from precis.known_file import create_known_file, preflight_check, slugify_title
+from precis.pipeline import checkpoints as pipeline_checkpoints
 from precis.pipeline import graph as pipeline_graph
 from precis.pipeline.nodes import draft
 from precis.schema import Chapter, KnownFile
@@ -130,6 +131,14 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_progress(message: str) -> None:
+    """Progress goes to stderr, never stdout — `_write_output` writes the
+    final JSON to stdout when `--output` isn't given, and the two streams
+    must stay separable for a caller piping that output elsewhere.
+    """
+    print(message, file=sys.stderr)
+
+
 def _cmd_generate(args: argparse.Namespace) -> int:
     known_file = _load_known_file_or_report(args.known_file)
     if known_file is None:
@@ -140,7 +149,9 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 
     try:
         book = asyncio.run(
-            pipeline_graph.run_whole_book(known_file, trust_known=args.trust_known, fresh=args.fresh)
+            pipeline_graph.run_whole_book(
+                known_file, trust_known=args.trust_known, fresh=args.fresh, on_progress=_print_progress
+            )
         )
     except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
         print(f"generation failed: {exc}", file=sys.stderr)
@@ -166,13 +177,16 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
         )
         return 1
 
+    chapter_title = known_file.chapters[args.chapter - 1]
+    _print_progress(f"drafting chapter {args.chapter} ({chapter_title!r})...")
+
     try:
         result = asyncio.run(
             draft.run_one(
                 {
                     "known_file": known_file.model_dump(),
                     "chapter_number": args.chapter,
-                    "chapter_title": known_file.chapters[args.chapter - 1],
+                    "chapter_title": chapter_title,
                 }
             )
         )
@@ -184,7 +198,37 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
         print(f"chapter generation failed: {exc}", file=sys.stderr)
         return 1
 
+    _print_progress(
+        pipeline_graph.format_chapter_progress(
+            args.chapter, chapter.title, chapter.quality_flag, total_chapters=len(known_file.chapters)
+        )
+    )
     _write_output(chapter, args.output)
+    return 0
+
+
+def _print_thread(t: pipeline_checkpoints.CheckpointThreadSummary, *, verb: str = "") -> None:
+    status = "done" if t.completed else "in-progress"
+    print(f"{verb}{t.thread_id}  {status}  last updated {t.last_updated}")
+
+
+def _cmd_checkpoints(args: argparse.Namespace) -> int:
+    if args.prune:
+        deleted = asyncio.run(
+            pipeline_checkpoints.prune_checkpoint_threads(
+                older_than_days=args.older_than_days, include_incomplete=args.include_incomplete
+            )
+        )
+        for t in deleted:
+            _print_thread(t, verb="deleted ")
+        _print_progress(f"pruned {len(deleted)} checkpoint thread(s)")
+        return 0
+
+    threads = asyncio.run(pipeline_checkpoints.list_checkpoint_threads())
+    for t in threads:
+        _print_thread(t)
+    if not threads:
+        _print_progress("no checkpoint threads found")
     return 0
 
 
@@ -216,6 +260,26 @@ def build_parser() -> argparse.ArgumentParser:
     generate_chapter.add_argument("--chapter", type=int, required=True)
     generate_chapter.add_argument("--output")
     generate_chapter.set_defaults(func=_cmd_generate_chapter)
+
+    checkpoints_cmd = subparsers.add_parser(
+        "checkpoints", help="list or prune the generation checkpoint store"
+    )
+    checkpoints_cmd.add_argument(
+        "--prune", action="store_true", help="delete matching threads instead of just listing them"
+    )
+    checkpoints_cmd.add_argument(
+        "--older-than-days",
+        type=float,
+        default=None,
+        help="only match threads whose last checkpoint is older than this many days",
+    )
+    checkpoints_cmd.add_argument(
+        "--include-incomplete",
+        action="store_true",
+        help="also match threads that haven't reached assemble yet (still resumable) — "
+        "deleting one forfeits resuming that interrupted run, not just reclaiming disk space",
+    )
+    checkpoints_cmd.set_defaults(func=_cmd_checkpoints)
 
     return parser
 

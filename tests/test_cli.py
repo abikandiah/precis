@@ -1,4 +1,12 @@
+import asyncio
+import dataclasses
+import json
+
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+from precis import cli as cli_module
 from precis.cli import _known_file_filename, build_parser
+from precis.pipeline.state import COMPLETED_STATE_KEY
 from precis.schema import KnownFile
 
 
@@ -33,6 +41,99 @@ def test_generate_chapter_with_missing_known_file_reports_clean_error(capsys):
     captured = capsys.readouterr()
     assert "could not load known-file" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_generate_chapter_prints_progress_in_the_shared_whole_book_format(tmp_path, capsys, monkeypatch):
+    """generate-chapter's progress line must use the same wording
+    (position/total, title, flagged-suffix) as the whole-book `generate`
+    path's per-chapter progress messages — the two used to drift
+    independently before format_chapter_progress was extracted.
+    """
+    known_file_path = tmp_path / "book.json"
+    known_file = KnownFile(isbn="123", kind="non-fiction", chapters=["Ch 1", "Ch 2", "Ch 3"])
+    known_file_path.write_text(known_file.model_dump_json())
+
+    async def fake_run_one(state):
+        return {
+            "chapters": [
+                {
+                    "number": state["chapter_number"],
+                    "title": state["chapter_title"],
+                    "key_points": ["a point"],
+                    "core_claim": "a claim",
+                    "quality_flag": None,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(cli_module.draft, "run_one", fake_run_one)
+
+    exit_code = _run(["generate-chapter", str(known_file_path), "--chapter", "2"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "chapter 2/3 drafted: 'Ch 2'" in captured.err
+    output = json.loads(captured.out)
+    assert output["number"] == 2
+
+
+async def _seed_checkpoint_thread(db_path: str, thread_id: str, *, ts: str, book: bool) -> None:
+    config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+    checkpoint = {
+        "v": 1,
+        "id": "1",
+        "ts": ts,
+        "channel_values": {COMPLETED_STATE_KEY: {"sentinel": True}} if book else {"chapters": []},
+        "channel_versions": {},
+        "versions_seen": {},
+        "pending_sends": [],
+    }
+    async with AsyncSqliteSaver.from_conn_string(db_path) as saver:
+        await saver.aput(config, checkpoint, {"source": "update", "step": 1, "writes": {}, "parents": {}}, {})
+
+
+def test_checkpoints_with_empty_db_reports_none_found(tmp_path, capsys, monkeypatch):
+    db_path = str(tmp_path / "checkpoints.sqlite")
+    fast_settings = dataclasses.replace(cli_module.pipeline_checkpoints.settings, checkpoint_db_path=db_path)
+    monkeypatch.setattr(cli_module.pipeline_checkpoints, "settings", fast_settings)
+
+    exit_code = _run(["checkpoints"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "no checkpoint threads found" in captured.err
+
+
+def test_checkpoints_lists_threads_with_status(tmp_path, capsys, monkeypatch):
+    db_path = str(tmp_path / "checkpoints.sqlite")
+    fast_settings = dataclasses.replace(cli_module.pipeline_checkpoints.settings, checkpoint_db_path=db_path)
+    monkeypatch.setattr(cli_module.pipeline_checkpoints, "settings", fast_settings)
+    asyncio.run(_seed_checkpoint_thread(db_path, "done-thread", ts="2020-01-01T00:00:00+00:00", book=True))
+    asyncio.run(_seed_checkpoint_thread(db_path, "wip-thread", ts="2020-01-01T00:00:00+00:00", book=False))
+
+    exit_code = _run(["checkpoints"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "done-thread  done" in captured.out
+    assert "wip-thread  in-progress" in captured.out
+
+
+def test_checkpoints_prune_deletes_only_completed_by_default(tmp_path, capsys, monkeypatch):
+    db_path = str(tmp_path / "checkpoints.sqlite")
+    fast_settings = dataclasses.replace(cli_module.pipeline_checkpoints.settings, checkpoint_db_path=db_path)
+    monkeypatch.setattr(cli_module.pipeline_checkpoints, "settings", fast_settings)
+    asyncio.run(_seed_checkpoint_thread(db_path, "done-thread", ts="2020-01-01T00:00:00+00:00", book=True))
+    asyncio.run(_seed_checkpoint_thread(db_path, "wip-thread", ts="2020-01-01T00:00:00+00:00", book=False))
+
+    exit_code = _run(["checkpoints", "--prune"])
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "deleted done-thread" in captured.out
+    assert "wip-thread" not in captured.out
+    assert "pruned 1 checkpoint thread(s)" in captured.err
 
 
 def _known_file(**overrides) -> KnownFile:

@@ -280,6 +280,18 @@ precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
       already-generated book) as input — the known-file is already the
       source of truth for the chapter list, so nothing else is needed to
       ground the regeneration.
+
+precis checkpoints [--prune] [--older-than-days <n>] [--include-incomplete]
+    → lists every thread in the checkpoint store (thread id, last-updated
+      timestamp, done/in-progress) with no args. `--prune` deletes matching
+      threads instead of listing them. Nothing is deleted automatically,
+      ever — a checkpoint accumulates forever otherwise (every book, and
+      every edited draft of every known-file, gets its own thread; see
+      Orchestration above). Only "done" threads (reached assemble, nothing
+      left to resume) are eligible by default; `--include-incomplete`
+      widens that to threads still mid-run, which forfeits resuming them,
+      not just reclaiming disk space, so it's opt-in. `--older-than-days`
+      narrows either set by the last checkpoint's age.
 ```
 
 Errors (verify-stage mismatch, exhausted retries on the whole-book assemble

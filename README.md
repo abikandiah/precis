@@ -48,3 +48,26 @@ If a run is interrupted (hits `PRECIS_RUN_BUDGET_SECONDS`, the container is
 killed, etc.), rerunning the identical command against the same
 `precis-checkpoints` volume resumes from the last completed pipeline stage
 rather than starting over.
+
+Both `generate` and `generate-chapter` print progress to stderr as they
+run (verify/chapter/synthesize/assemble completions) — stdout stays clean
+JSON, so piping `--output`-less output elsewhere still works.
+
+## Cleaning up checkpoints
+
+Nothing deletes a run's checkpoint automatically — that's what makes resume
+work, but it also means `precis-checkpoints` grows forever otherwise, since
+every generated book (and every edited draft of every known-file along the
+way) gets its own entry:
+
+```
+precis checkpoints                    # list every thread: id, status, last updated
+precis checkpoints --prune            # delete finished threads (nothing left to resume)
+precis checkpoints --prune --older-than-days 30
+precis checkpoints --prune --include-incomplete   # also delete in-progress threads —
+                                                   # forfeits resuming them, not just disk space
+```
+
+Only threads that finished (reached the assemble stage) are pruned by
+default; an in-progress thread is exactly what the resume behavior above
+depends on, so deleting one needs the explicit `--include-incomplete` flag.
