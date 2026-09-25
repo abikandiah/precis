@@ -216,8 +216,8 @@ async def test_no_book_specific_results_drafts_ungrounded_and_always_flags(monke
     assert draft._NO_RESULTS_INSTRUCTION in draft_prompt
     assert "untrusted reference data" not in draft_prompt
     assert "generic nutrition advice" not in draft_prompt
-    # Critique still runs, but for distinctness only.
-    assert critique_messages[0]["content"] == draft._DISTINCTNESS_CRITIQUE_SYSTEM_PROMPT
+    # Critique still runs, but for scope and distinctness only.
+    assert critique_messages[0]["content"] == draft._UNGROUNDED_CRITIQUE_SYSTEM_PROMPT
     assert result["chapters"][0]["quality_flag"] == draft._UNGROUNDED_FLAG
     assert result["warnings"] == [f"chapter 1 ('Ch 1'): {draft._UNGROUNDED_FLAG}"]
 
@@ -246,3 +246,32 @@ def test_search_queries_use_short_title_and_author():
         '"The Diet Myth" Tim Spector "Fibre" summary',
         "The Diet Myth Tim Spector Fibre",
     ]
+
+
+@pytest.mark.asyncio
+async def test_draft_and_critique_prompts_list_the_other_chapters(monkeypatch):
+    """Search results about the book in general "ground" a whole-book summary
+    or a neighbouring chapter's material as well as this chapter's, so both
+    prompts name the other chapters as out of scope.
+    """
+    user_prompts: list[str] = []
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        user_prompts.append(messages[1]["content"])
+        if response_model is ChapterDraft:
+            return ChapterDraft(key_points=["point a"], core_claim="claim")
+        return Critique(passed=True, feedback="ok")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
+    known_file = KnownFile(
+        isbn="1", title="A Book", author="An Author", kind="non-fiction", chapters=["Fats", "Fibre", "Alcohol"]
+    )
+    state = {"known_file": known_file.model_dump(), "chapter_number": 2, "chapter_title": "Fibre"}
+
+    await draft.run_one(state, search_client=_search_client_with_results(), llm_client=AsyncMock())
+
+    assert len(user_prompts) == 2
+    for prompt in user_prompts:
+        assert "Chapter 2 of 3: Fibre\n" in prompt
+        assert "  1. Fats\n  3. Alcohol\n" in prompt
+        assert "  2. Fibre" not in prompt

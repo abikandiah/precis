@@ -324,7 +324,21 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    generic "diet myths" article for a nutrition book) otherwise let
    critique pass content the author never wrote. A chapter with no
    book-specific results is drafted from the model's own knowledge,
-   critiqued for distinctness only, and always flagged.
+   critiqued for scope and distinctness only, and always flagged.
+   Grounding alone doesn't keep a draft on its chapter: results about the
+   book in general support a whole-book summary, or a neighbouring
+   chapter's material, as well as this chapter's (The Diet Myth's
+   "Contains Alcohol" passed as a book summary with no mention of
+   alcohol). So both the draft and critique prompts list the book's other
+   chapters, and critique checks **scope** — fail a draft that summarizes
+   the book (unless the chapter is itself an introduction, overview,
+   conclusion or epilogue), has a key point mainly about another listed
+   chapter's topic (book-wide themes can still come up), or gives generic
+   advice on the title's topic rather than the author's argument. Key
+   points that only describe the chapter ("the chapter examines ...")
+   fail the distinctness check. There's deliberately no minimum key-point
+   count: a thin chapter with two real points is fine, and a floor would
+   invite the padding the distinctness check exists to stop.
    Critique's distinctness check (does any `key_point` restate another) is
    what actually enforces the anti-padding rule from the draft prompt — the
    42% max-out measurement that motivated this rewrite was against the old
