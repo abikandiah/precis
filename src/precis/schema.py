@@ -195,6 +195,20 @@ class KeyClaim(BaseModel):
     answer: str
 
 
+class TagVocabulary(BaseModel):
+    """Export-only reflection of the closed tag vocabulary above — never
+    read back in, unlike KnownFile/Book, which are precis's actual
+    JSON-file boundary. `precis tags` (cli.py) is how a consumer repo
+    (book-keeper's `schema.ts`, or any future one) pulls this instead of
+    hand-copying NONFICTION_TAGS/FICTION_TAGS verbatim and risking drift —
+    see the comment on those two tuples above.
+    """
+
+    schema_version: str = SCHEMA_VERSION
+    non_fiction_tags: tuple[str, ...] = tags_for_kind("non-fiction")
+    fiction_tags: tuple[str, ...] = tags_for_kind("fiction")
+
+
 class Book(BaseModel):
     schema_version: str = SCHEMA_VERSION
 

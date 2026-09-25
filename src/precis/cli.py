@@ -18,7 +18,7 @@ from precis.known_file import create_known_file, preflight_check, slugify_title
 from precis.pipeline import checkpoints as pipeline_checkpoints
 from precis.pipeline import graph as pipeline_graph
 from precis.pipeline.nodes import draft
-from precis.schema import Chapter, KnownFile
+from precis.schema import Chapter, KnownFile, TagVocabulary
 
 
 def _load_known_file(path: str) -> KnownFile:
@@ -211,6 +211,11 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_tags(args: argparse.Namespace) -> int:
+    _write_output(TagVocabulary(), args.output)
+    return 0
+
+
 def _print_thread(t: pipeline_checkpoints.CheckpointThreadSummary, *, verb: str = "") -> None:
     status = "done" if t.completed else "in-progress"
     print(f"{verb}{t.thread_id}  {status}  last updated {t.last_updated}")
@@ -264,6 +269,12 @@ def build_parser() -> argparse.ArgumentParser:
     generate_chapter.add_argument("--chapter", type=int, required=True)
     generate_chapter.add_argument("--output")
     generate_chapter.set_defaults(func=_cmd_generate_chapter)
+
+    tags_cmd = subparsers.add_parser(
+        "tags", help="print the closed tag vocabulary, for a consumer repo to sync its own copy against"
+    )
+    tags_cmd.add_argument("--output")
+    tags_cmd.set_defaults(func=_cmd_tags)
 
     checkpoints_cmd = subparsers.add_parser(
         "checkpoints", help="list or prune the generation checkpoint store"

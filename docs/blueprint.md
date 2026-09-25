@@ -316,6 +316,14 @@ precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
       source of truth for the chapter list, so nothing else is needed to
       ground the regeneration.
 
+precis tags [--output <path>]
+    → prints the closed tag vocabulary (`schema_version`, `non_fiction_tags`,
+      `fiction_tags` — see TagVocabulary in schema.py) as JSON. Exists so a
+      consumer repo (book-keeper's `schema.ts`, or any future one) can pull
+      this instead of hand-copying NONFICTION_TAGS/FICTION_TAGS verbatim —
+      see the "Mirrors book-keeper's own schema.ts" comment on those two
+      tuples in schema.py.
+
 precis checkpoints [--prune] [--older-than-days <n>] [--include-incomplete]
     → lists every thread in the checkpoint store (thread id, last-updated
       timestamp, done/in-progress) with no args. `--prune` deletes matching

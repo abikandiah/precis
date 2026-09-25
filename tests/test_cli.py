@@ -7,7 +7,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from precis import cli as cli_module
 from precis.cli import _known_file_filename, build_parser
 from precis.pipeline.state import COMPLETED_STATE_KEY
-from precis.schema import KnownFile
+from precis.schema import FICTION_TAGS, NONFICTION_TAGS, SCHEMA_VERSION, KnownFile
 
 
 def _run(args: list[str]) -> int:
@@ -148,6 +148,16 @@ def test_checkpoints_prune_deletes_only_completed_by_default(tmp_path, capsys, m
     assert "deleted done-thread" in captured.out
     assert "wip-thread" not in captured.out
     assert "pruned 1 checkpoint thread(s)" in captured.err
+
+
+def test_tags_prints_both_closed_vocabularies(capsys):
+    exit_code = _run(["tags"])
+
+    assert exit_code == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == SCHEMA_VERSION
+    assert output["non_fiction_tags"] == list(NONFICTION_TAGS)
+    assert output["fiction_tags"] == list(FICTION_TAGS)
 
 
 def _known_file(**overrides) -> KnownFile:
