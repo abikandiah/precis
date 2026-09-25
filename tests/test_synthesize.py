@@ -121,6 +121,35 @@ async def test_fiction_path_produces_parts_but_no_key_claims_key(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fiction_generated_parts_strip_model_invented_chapter_numbers(monkeypatch):
+    """Regression test: a fiction (or narrative non-fiction) book has no
+    `chapters` array on the Book output for a part's `chapters` (chapter-
+    number references) to mean anything against — nothing in the fiction
+    prompt asks for them, but nothing stops the model from inventing some
+    anyway. They must be stripped to None rather than shipped as dangling,
+    unverified references.
+    """
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None, validation_context=None):
+        return Synthesis(
+            synopsis="a synopsis",
+            one_line_takeaway="the takeaway",
+            tags=["tag1", "tag2"],
+            parts=[Part(title="Beginning", summary="stakes are introduced", chapters=[1, 2, 3])],
+        )
+
+    monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
+
+    result = await synthesize.run(
+        {"known_file": _fiction_known_file().model_dump()},
+        search_client=_search_client_with_results(),
+        llm_client=AsyncMock(),
+    )
+
+    assert result["parts"] == [{"title": "Beginning", "summary": "stakes are introduced", "chapters": None}]
+
+
+@pytest.mark.asyncio
 async def test_known_parts_are_passed_through_verbatim_for_full_nonfiction(monkeypatch):
     known_file = _nonfiction_known_file()
     known_file.parts = [KnownPart(title="Part One", chapters=[1, 2])]

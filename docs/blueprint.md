@@ -225,9 +225,12 @@ module's job ends at emitting valid JSON per `schema_version` (below).
   AI-invented grouping as the book's real published structure.
 - The module validates its own output against this schema before ever
   emitting it (see Stage 4 below) — including cross-field checks like
-  `parts` referencing real chapter numbers. That guarantee lives entirely
-  inside the module; what a consumer chooses to do on ingest (re-validate
-  defensively or not) is the consumer's own business.
+  `parts` referencing real chapter numbers, and stripping a part's
+  `chapters` to null whenever the book itself has no `chapters` array
+  (fiction/narrative non-fiction) for such a reference to mean anything
+  against, regardless of whether the model invented one. That guarantee
+  lives entirely inside the module; what a consumer chooses to do on ingest
+  (re-validate defensively or not) is the consumer's own business.
 
 ## Pipeline stages (whole-book mode)
 
@@ -263,11 +266,14 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    pass: it sets `quality_flag` on that chapter (see Book JSON shape below)
    so it surfaces to whoever reviews the output, rather than being
    indistinguishable from a chapter that passed critique cleanly.
-   Critique also runs an automated redundancy check (similarity/overlap
-   between `key_points` entries) as a second line of defense against the
-   restatement-padding problem this rewrite exists to fix — the prompt
-   instruction against restating ideas is necessary but was already shown
-   (by the 42% max-out measurement) to be insufficient on its own.
+   Critique's distinctness check (does any `key_point` restate another) is
+   what actually enforces the anti-padding rule from the draft prompt — the
+   42% max-out measurement that motivated this rewrite was against the old
+   pipeline, which had no critique loop at all judging this; there's no
+   separate automated (non-LLM) similarity/overlap check today. Worth
+   revisiting only if this critique-based check turns out insufficient on
+   its own, the same way the plain prompt instruction did under the old
+   pipeline.
 3. **Synthesize** — `synopsis`, `one_line_takeaway`, `tags`,
    `key_claims_for_review` (non-fiction full path), `parts`. Fed by the
    finished chapters (where they exist) plus its **own dedicated

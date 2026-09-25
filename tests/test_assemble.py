@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from precis.pipeline.nodes import assemble
-from precis.pipeline.nodes.synthesize import SynthesisWithClaims
+from precis.pipeline.nodes.synthesize import Synthesis, SynthesisWithClaims
 from precis.schema import KeyClaim, KnownFile, Part
 
 
@@ -251,6 +251,34 @@ async def test_known_parts_source_still_attempts_repair_for_unrelated_tags_error
     result = await assemble.run(state, llm_client=AsyncMock())
 
     assert result["book"]["tags"] == ["history", "philosophy"]
+
+
+@pytest.mark.asyncio
+async def test_fiction_repair_strips_model_invented_chapters(monkeypatch):
+    """Regression test: Stage 4's repair pass builds a brand-new Synthesis
+    from a fresh LLM call, bypassing Stage 3's own chapters-stripping in
+    synthesize.py's _finalize_parts — so a repair triggered by some
+    unrelated field (here, tags) could otherwise ship a fiction part with
+    model-invented, unverified `chapters` again. Book's own model_validator
+    (schema.py's _check_chapter_coupling_and_parts_refs) is what actually
+    enforces this for every producer, including this path.
+    """
+    state = _fiction_state(tags=["not-a-real-tag"])
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None, validation_context=None):
+        assert response_model is Synthesis
+        return Synthesis(
+            synopsis="a synopsis",
+            one_line_takeaway="the takeaway",
+            tags=["fantasy", "adventure"],
+            parts=[Part(title="Beginning", summary="stakes are introduced", chapters=[1, 2, 3])],
+        )
+
+    monkeypatch.setattr(assemble.llm, "complete_structured", fake_complete_structured)
+
+    result = await assemble.run(state, llm_client=AsyncMock())
+
+    assert result["book"]["parts"] == [{"title": "Beginning", "summary": "stakes are introduced", "chapters": None}]
 
 
 @pytest.mark.asyncio

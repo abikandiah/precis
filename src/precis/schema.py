@@ -270,7 +270,10 @@ class Book(BaseModel):
                 "fiction/narrative non-fiction has neither"
             )
 
-        if self.parts and self.chapters is not None:
+        if not self.parts:
+            return self
+
+        if self.chapters is not None:
             known_numbers = {c.number for c in self.chapters}
             for part in self.parts:
                 for n in invalid_chapter_numbers(part.chapters, known_numbers):
@@ -278,4 +281,14 @@ class Book(BaseModel):
                         f"part {part.title!r} references chapter "
                         f"number {n}, which doesn't exist in chapters"
                     )
+        else:
+            # No `chapters` array on this path (fiction/narrative non-fiction)
+            # for a part's `chapters` to mean anything against — enforced
+            # here, at the one place every Book gets validated, rather than
+            # trusted from whichever producer built it (Stage 3's own
+            # generated-parts path, Stage 4's repair pass, or any future
+            # caller); a producer-side strip can't cover callers it doesn't
+            # know about.
+            for part in self.parts:
+                part.chapters = None
         return self

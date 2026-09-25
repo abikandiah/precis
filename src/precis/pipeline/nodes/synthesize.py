@@ -246,6 +246,17 @@ def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[li
     would throw that signal away.
     """
     if not known_file.parts:
+        if not known_file.is_full_nonfiction_path:
+            # The generated-parts prompt never asks for chapter-number
+            # references outside the full non-fiction path (see
+            # _user_prompt_fiction's parts_instruction), but nothing stops
+            # the model from inventing some anyway; stripped here so this
+            # stage's own output is already clean. Book's own model_validator
+            # (schema.py) enforces the same invariant as the final backstop
+            # for every producer, including Stage 4's repair pass — this
+            # strip is belt-and-suspenders for this stage's intermediate
+            # state, not the only guard.
+            result_parts = [p.model_copy(update={"chapters": None}) for p in result_parts]
         return [p.model_dump() for p in result_parts], "generated", []
 
     if len(result_parts) != len(known_file.parts):

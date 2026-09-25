@@ -87,6 +87,20 @@ def test_part_referencing_known_chapter_number_is_valid():
     )
 
 
+def test_part_chapters_stripped_when_book_has_no_chapters_array():
+    """A part's `chapters` only means something against a real `chapters`
+    array on the book — with no `chapters` array (fiction/narrative
+    non-fiction), any value a part carries is stripped rather than trusted,
+    regardless of which producer built this Book.
+    """
+    book = Book(
+        **{**_base_book_kwargs(), "kind": "fiction", "tags": ["fantasy", "adventure"]},
+        parts=[Part(title="Part 1", summary="s", chapters=[1, 2, 3])],
+    )
+
+    assert book.parts[0].chapters is None
+
+
 def test_tags_outside_vocabulary_error_has_tags_loc():
     """Regression test: a tags-vocabulary error used to raise from a
     whole-model validator (empty `loc`), indistinguishable from the parts/
