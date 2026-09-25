@@ -1,13 +1,20 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
+from openai import APIConnectionError, RateLimitError
 from openai.types.chat.chat_completion_message_function_tool_call import (
     ChatCompletionMessageFunctionToolCall,
     Function,
 )
 from pydantic import BaseModel, ValidationInfo, model_validator
 
-from precis.llm import StructuredOutputError, complete_structured
+from precis.llm import (
+    StructuredOutputError,
+    TransientLLMError,
+    complete,
+    complete_structured,
+)
 
 
 class _Verdict(BaseModel):
@@ -90,6 +97,33 @@ async def test_complete_structured_requires_providers_supporting_tool_choice():
     await complete_structured(client, messages=[], response_model=_Verdict)
     extra_body = client.chat.completions.create.call_args.kwargs["extra_body"]
     assert extra_body == {"provider": {"require_parameters": True}}
+
+
+@pytest.mark.asyncio
+async def test_transient_error_surfaces_upstream_provider_message():
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    body = {
+        "message": "Provider returned error",
+        "code": 429,
+        "metadata": {"raw": "google/gemma:free is temporarily rate-limited upstream."},
+    }
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(
+        side_effect=RateLimitError(
+            "Error code: 429", response=httpx.Response(429, request=request), body=body
+        )
+    )
+    with pytest.raises(TransientLLMError, match=r"\(HTTP 429: google/gemma:free is temporarily rate-limited"):
+        await complete_structured(client, messages=[], response_model=_Verdict)
+
+
+@pytest.mark.asyncio
+async def test_transient_error_surfaces_connection_failure():
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(side_effect=APIConnectionError(request=request))
+    with pytest.raises(TransientLLMError, match=r"\(Connection error\.\)"):
+        await complete(client, messages=[])
 
 
 @pytest.mark.asyncio

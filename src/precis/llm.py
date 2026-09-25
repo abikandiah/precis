@@ -25,7 +25,13 @@ from __future__ import annotations
 
 import json
 
-from openai import APIConnectionError, AsyncOpenAI, InternalServerError, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    AsyncOpenAI,
+    InternalServerError,
+    RateLimitError,
+)
 from openai.types.chat import (
     ChatCompletionFunctionToolParam,
     ChatCompletionMessageFunctionToolCall,
@@ -52,6 +58,25 @@ _REPLY_EXCERPT_CHARS = 200
 
 class TransientLLMError(Exception):
     """Raised once the client's own built-in retries are exhausted."""
+
+
+def _transient_error(exc: Exception) -> TransientLLMError:
+    """Wraps the last transient failure with what actually went wrong —
+    the status and the gateway's own explanation. OpenRouter puts the
+    upstream provider's message (e.g. a free model's shared pool being
+    rate-limited) in the error body's `metadata.raw`, which is far more
+    actionable than its generic "Provider returned error".
+    """
+    detail = str(exc)
+    if isinstance(exc, APIStatusError):
+        body = exc.body if isinstance(exc.body, dict) else {}
+        metadata = body.get("metadata")
+        raw = metadata.get("raw") if isinstance(metadata, dict) else None
+        message = body.get("message")
+        detail = f"HTTP {exc.status_code}: {raw or message or exc.message}"
+    return TransientLLMError(
+        f"LLM call failed after exhausting the client's {settings.llm_max_retries} built-in retries ({detail})"
+    )
 
 
 class StructuredOutputError(Exception):
@@ -85,9 +110,7 @@ async def complete(
             timeout=settings.llm_call_timeout_seconds,
         )
     except _TRANSIENT_ERRORS as exc:
-        raise TransientLLMError(
-            f"LLM call failed after exhausting the client's {settings.llm_max_retries} built-in retries"
-        ) from exc
+        raise _transient_error(exc) from exc
     return response.choices[0].message.content or ""
 
 
@@ -143,9 +166,7 @@ async def complete_structured[T: BaseModel](
                 extra_body=_REQUIRE_TOOL_SUPPORT,
             )
         except _TRANSIENT_ERRORS as exc:
-            raise TransientLLMError(
-                f"LLM call failed after exhausting the client's {settings.llm_max_retries} built-in retries"
-            ) from exc
+            raise _transient_error(exc) from exc
 
         choice = response.choices[0]
         tool_calls = choice.message.tool_calls or []
