@@ -26,12 +26,47 @@ starting over — see docs/blueprint.md's Orchestration section):
 
 ```
 docker run --rm \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop=ALL \
+  --security-opt no-new-privileges \
+  --pids-limit=256 \
+  --memory=512m --memory-swap=512m \
   --env-file .env \
   -v "$(pwd)/known-files:/input:ro" \
   -v "$(pwd)/output:/output" \
   -v precis-checkpoints:/data \
   precis generate /input/mybook.json --output /output/mybook.json
 ```
+
+### Recommended hardening
+
+Generation feeds untrusted third-party content (search results) into an
+LLM, so run it locked down. The image does what an image can on its own —
+it runs as the non-root `precis` user and only ever writes to `/output`,
+`/data` and `/tmp` — but Docker only lets whoever runs the container
+apply the rest, so consumers should pass these flags on every `generate`
+and `generate-chapter` run (as above):
+
+| Flag | Why |
+|------|-----|
+| `--read-only` | Root filesystem read-only; the mounts below are the only writable paths. |
+| `--tmpfs /tmp:rw,noexec,nosuid,size=64m` | Scratch space precis needs, in memory, not executable, capped. |
+| `--cap-drop=ALL` | No Linux capabilities — precis needs none. |
+| `--security-opt no-new-privileges` | Nothing inside can gain privileges (setuid binaries etc.). |
+| `--pids-limit=256` | Caps processes, so a runaway can't fork-bomb the host. |
+| `--memory=512m --memory-swap=512m` | Caps memory, swap included; a generation run fits well within it. |
+
+Mount the known-file (or its directory) read-only (`:ro`); only `/output`
+and `/data` need to be writable. Pass in only the variables precis reads —
+`--env-file .env` is fine with precis's own `.env` (see `.env.example`), but
+if yours holds anything else, name the variables instead
+(`-e PRECIS_LLM_API_KEY -e PRECIS_LLM_MODEL -e PRECIS_SEARCH_API_KEY`) so
+nothing unrelated is forwarded into the container.
+
+This doesn't cut network access: the LLM and search APIs need it, and the
+container holds those API keys. The point is protecting the host and its
+files, not the keys.
 
 `precis-checkpoints` must be a **named volume** (as above), not a host bind
 mount (`-v ./somedir:/data`) — the image runs as a non-root user and only
