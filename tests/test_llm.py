@@ -26,12 +26,15 @@ class _CountConstrained(BaseModel):
         return self
 
 
-def _response_with_tool_calls(tool_calls: list | None, content: str | None = None) -> MagicMock:
+def _response_with_tool_calls(
+    tool_calls: list | None, content: str | None = None, finish_reason: str = "stop"
+) -> MagicMock:
     message = MagicMock()
     message.tool_calls = tool_calls
     message.content = content
     response = MagicMock()
-    response.choices = [MagicMock(message=message)]
+    response.model = "some/model"
+    response.choices = [MagicMock(message=message, finish_reason=finish_reason)]
     return response
 
 
@@ -67,6 +70,26 @@ async def test_complete_structured_raises_when_no_tool_call_made():
     client = _mock_client_returning(None, content="I didn't use the tool")
     with pytest.raises(StructuredOutputError):
         await complete_structured(client, messages=[], response_model=_Verdict)
+
+
+@pytest.mark.asyncio
+async def test_no_tool_call_error_says_what_the_model_did_instead():
+    client = _mock_client_returning(None, content="Here is my verdict: " + "x" * 500)
+    with pytest.raises(StructuredOutputError) as excinfo:
+        await complete_structured(client, messages=[], response_model=_Verdict)
+    message = str(excinfo.value)
+    assert "'some/model'" in message
+    assert "finish_reason 'stop'" in message
+    assert "Here is my verdict: " in message
+    assert "x" * 500 not in message  # truncated
+
+
+@pytest.mark.asyncio
+async def test_complete_structured_requires_providers_supporting_tool_choice():
+    client = _mock_client_returning([_tool_call('{"verified": true, "reason": "matches"}')])
+    await complete_structured(client, messages=[], response_model=_Verdict)
+    extra_body = client.chat.completions.create.call_args.kwargs["extra_body"]
+    assert extra_body == {"provider": {"require_parameters": True}}
 
 
 @pytest.mark.asyncio

@@ -39,6 +39,16 @@ from precis.config import settings
 
 _TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, InternalServerError)
 
+# OpenRouter's provider-routing preference: only route to providers that
+# support every parameter sent (here, `tools` + a forced `tool_choice`).
+# Without it, a model id served by several providers — or a router like
+# `openrouter/free` — can land on one that ignores tool_choice and replies
+# in prose. Gateways that don't know the field ignore it.
+_REQUIRE_TOOL_SUPPORT = {"provider": {"require_parameters": True}}
+
+# How much of a non-tool-call reply to quote in StructuredOutputError.
+_REPLY_EXCERPT_CHARS = 200
+
 
 class TransientLLMError(Exception):
     """Raised once the client's own built-in retries are exhausted."""
@@ -130,18 +140,24 @@ async def complete_structured[T: BaseModel](
                 tools=[tool],
                 tool_choice=tool_choice,
                 timeout=settings.llm_call_timeout_seconds,
+                extra_body=_REQUIRE_TOOL_SUPPORT,
             )
         except _TRANSIENT_ERRORS as exc:
             raise TransientLLMError(
                 f"LLM call failed after exhausting the client's {settings.llm_max_retries} built-in retries"
             ) from exc
 
-        tool_calls = response.choices[0].message.tool_calls or []
+        choice = response.choices[0]
+        tool_calls = choice.message.tool_calls or []
         call = tool_calls[0] if tool_calls else None
         if call is None or not isinstance(call, ChatCompletionMessageFunctionToolCall):
             if attempt == max_attempts - 1:
+                reply = (choice.message.content or "").strip()
+                if len(reply) > _REPLY_EXCERPT_CHARS:
+                    reply = reply[:_REPLY_EXCERPT_CHARS] + "..."
                 raise StructuredOutputError(
-                    f"model did not call the expected tool {tool_name!r} after {max_attempts} attempts"
+                    f"model did not call the expected tool {tool_name!r} after {max_attempts} attempts "
+                    f"(model {response.model!r}, finish_reason {choice.finish_reason!r}, replied {reply!r})"
                 )
             continue
 
