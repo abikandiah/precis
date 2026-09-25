@@ -58,14 +58,20 @@ JSON, so piping `--output`-less output elsewhere still works.
 Nothing deletes a run's checkpoint automatically — that's what makes resume
 work, but it also means `precis-checkpoints` grows forever otherwise, since
 every generated book (and every edited draft of every known-file along the
-way) gets its own entry:
+way) gets its own entry. Same named volume as `generate` above — no other
+mount needed, and no `--env-file` either, since this never calls an LLM:
 
 ```
-precis checkpoints                    # list every thread: id, status, last updated
-precis checkpoints --prune            # delete finished threads (nothing left to resume)
-precis checkpoints --prune --older-than-days 30
-precis checkpoints --prune --include-incomplete   # also delete in-progress threads —
-                                                   # forfeits resuming them, not just disk space
+docker run --rm -v precis-checkpoints:/data precis checkpoints
+# list every thread: id, status, last updated
+
+docker run --rm -v precis-checkpoints:/data precis checkpoints --prune
+# delete finished threads (nothing left to resume)
+
+docker run --rm -v precis-checkpoints:/data precis checkpoints --prune --older-than-days 30
+
+docker run --rm -v precis-checkpoints:/data precis checkpoints --prune --include-incomplete
+# also delete in-progress threads — forfeits resuming them, not just disk space
 ```
 
 Only threads that finished (reached the assemble stage) are pruned by
