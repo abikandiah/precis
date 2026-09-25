@@ -19,7 +19,9 @@ def _state() -> dict:
 
 def _search_client_with_results() -> AsyncMock:
     client = AsyncMock()
-    client.search.return_value = [SearchResult(title="t", url="u", content="chapter 1 covers X and Y")]
+    client.search.return_value = [
+        SearchResult(title="t", url="u", content="An Author's A Book: chapter 1 covers X and Y")
+    ]
     return client
 
 
@@ -157,3 +159,90 @@ async def test_structured_output_error_from_critique_propagates_uncaught(monkeyp
 
     with pytest.raises(llm.StructuredOutputError, match="malformed critique tool call"):
         await draft.run_one(_state(), search_client=_search_client_with_results(), llm_client=AsyncMock())
+
+
+def _search_client_returning(*batches: list[SearchResult]) -> AsyncMock:
+    client = AsyncMock()
+    client.search.side_effect = list(batches)
+    return client
+
+
+_OFF_TOPIC = [SearchResult(title="Diet myths", url="https://example.org/myths", content="generic nutrition advice")]
+_ON_TOPIC = [SearchResult(title="t", url="u", content="An Author's A Book: chapter 1 covers X and Y")]
+
+
+@pytest.mark.asyncio
+async def test_off_topic_results_fall_back_to_second_query(monkeypatch):
+    seen_prompts: list[str] = []
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        seen_prompts.append(messages[1]["content"])
+        if response_model is ChapterDraft:
+            return ChapterDraft(key_points=["point a"], core_claim="claim")
+        return Critique(passed=True, feedback="fine")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
+    search_client = _search_client_returning(_OFF_TOPIC, _ON_TOPIC)
+
+    result = await draft.run_one(_state(), search_client=search_client, llm_client=AsyncMock())
+
+    assert result["chapters"][0]["quality_flag"] is None
+    assert search_client.search.call_count == 2
+    assert all("generic nutrition advice" not in p for p in seen_prompts)
+    assert all("chapter 1 covers X and Y" in p for p in seen_prompts)
+
+
+@pytest.mark.asyncio
+async def test_no_book_specific_results_drafts_ungrounded_and_always_flags(monkeypatch):
+    messages_seen: list[tuple[type, list[dict]]] = []
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        messages_seen.append((response_model, messages))
+        if response_model is ChapterDraft:
+            return ChapterDraft(key_points=["point a"], core_claim="claim")
+        return Critique(passed=True, feedback="distinct")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
+
+    result = await draft.run_one(
+        _state(), search_client=_search_client_returning(_OFF_TOPIC, []), llm_client=AsyncMock()
+    )
+
+    assert [model for model, _ in messages_seen] == [ChapterDraft, Critique]
+    (_, draft_messages), (_, critique_messages) = messages_seen
+    draft_prompt = draft_messages[1]["content"]
+    # The instruction to draft without sources is a real instruction, not
+    # wrapped in the "untrusted reference data" search block.
+    assert draft._NO_RESULTS_INSTRUCTION in draft_prompt
+    assert "untrusted reference data" not in draft_prompt
+    assert "generic nutrition advice" not in draft_prompt
+    # Critique still runs, but for distinctness only.
+    assert critique_messages[0]["content"] == draft._DISTINCTNESS_CRITIQUE_SYSTEM_PROMPT
+    assert result["chapters"][0]["quality_flag"] == draft._UNGROUNDED_FLAG
+    assert result["warnings"] == [f"chapter 1 ('Ch 1'): {draft._UNGROUNDED_FLAG}"]
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_chapter_failing_distinctness_keeps_both_reasons(monkeypatch):
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        if response_model is ChapterDraft:
+            return ChapterDraft(key_points=["a", "a again"], core_claim="claim")
+        return Critique(passed=False, feedback="points overlap")
+
+    monkeypatch.setattr(draft.llm, "complete_structured", fake_complete_structured)
+
+    result = await draft.run_one(_state(), search_client=_search_client_returning([], []), llm_client=AsyncMock())
+
+    flag = result["chapters"][0]["quality_flag"]
+    assert flag.startswith(draft._UNGROUNDED_FLAG)
+    assert "points overlap" in flag
+
+
+def test_search_queries_use_short_title_and_author():
+    known_file = KnownFile(
+        isbn="1", title="The Diet Myth: The Real Science", author="Tim Spector", kind="non-fiction", chapters=["Fibre"]
+    )
+    assert draft._search_queries(known_file, "Fibre") == [
+        '"The Diet Myth" Tim Spector "Fibre" summary',
+        "The Diet Myth Tim Spector Fibre",
+    ]

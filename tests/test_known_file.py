@@ -2,6 +2,8 @@ import json
 import urllib.error
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from precis.known_file import (
     PLACEHOLDER,
     create_known_file,
@@ -12,7 +14,14 @@ from precis.schema import KnownFile, KnownPart
 
 
 def _known_file(**overrides) -> KnownFile:
-    defaults = {"isbn": "123", "kind": "non-fiction", "narrative": False, "chapters": ["Ch 1"]}
+    defaults = {
+        "isbn": "123",
+        "title": "A Book",
+        "author": "An Author",
+        "kind": "non-fiction",
+        "narrative": False,
+        "chapters": ["Ch 1"],
+    }
     defaults.update(overrides)
     return KnownFile(**defaults)
 
@@ -195,3 +204,10 @@ def test_create_known_file_uses_placeholders_on_network_error():
         known_file = create_known_file("111", kind="fiction")
 
     assert known_file.title == PLACEHOLDER
+
+
+@pytest.mark.parametrize("field", ["title", "author"])
+@pytest.mark.parametrize("value", [None, "", PLACEHOLDER])
+def test_preflight_requires_title_and_author(field, value):
+    problems = preflight_check(_known_file(**{field: value}))
+    assert any(p.startswith(f"{field} is required") for p in problems)

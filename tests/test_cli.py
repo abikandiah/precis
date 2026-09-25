@@ -64,7 +64,9 @@ def test_generate_chapter_prints_progress_in_the_shared_whole_book_format(tmp_pa
     independently before format_chapter_progress was extracted.
     """
     known_file_path = tmp_path / "book.json"
-    known_file = KnownFile(isbn="123", kind="non-fiction", chapters=["Ch 1", "Ch 2", "Ch 3"])
+    known_file = KnownFile(
+        isbn="123", title="A Book", author="An Author", kind="non-fiction", chapters=["Ch 1", "Ch 2", "Ch 3"]
+    )
     known_file_path.write_text(known_file.model_dump_json())
 
     async def fake_run_one(state):

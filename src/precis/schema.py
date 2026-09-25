@@ -167,6 +167,11 @@ class KnownFile(BaseModel):
         """
         return bool(self.title) and self.title != PLACEHOLDER
 
+    @property
+    def has_author(self) -> bool:
+        """Same as has_title, for the author."""
+        return bool(self.author) and self.author != PLACEHOLDER
+
 
 class Part(BaseModel):
     """Shared shape for both branches; the difference is in the prompt

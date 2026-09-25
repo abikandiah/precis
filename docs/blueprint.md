@@ -251,7 +251,8 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    before Stage 2 runs, not silently discarded.
 2. **Draft chapters** (non-fiction full path only) — parallel, bounded
    concurrency (configurable, default **3**). Per chapter: search-ground
-   (`"<title>" "<chapter>" summary`), draft `key_points` + `core_claim`,
+   (`"<short title>" <author> "<chapter>" summary`, with an unquoted
+   fallback), draft `key_points` + `core_claim`,
    critique the draft against the search results, repair-and-retry on
    failure up to a small local cap, falling back to the last schema-valid
    candidate if critique still fails after retries are exhausted — a
@@ -266,6 +267,13 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    pass: it sets `quality_flag` on that chapter (see Book JSON shape below)
    so it surfaces to whoever reviews the output, rather than being
    indistinguishable from a chapter that passed critique cleanly.
+   Only search results about *this book* count: a result must name the
+   author's surname together with the short title, or the full title when
+   it has a subtitle (`search.is_book_relevant`). Topic-only pages (a
+   generic "diet myths" article for a nutrition book) otherwise let
+   critique pass content the author never wrote. A chapter with no
+   book-specific results is drafted from the model's own knowledge,
+   critiqued for distinctness only, and always flagged.
    Critique's distinctness check (does any `key_point` restate another) is
    what actually enforces the anti-padding rule from the draft prompt — the
    42% max-out measurement that motivated this rewrite was against the old

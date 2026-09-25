@@ -26,7 +26,13 @@ def _fiction_known_file() -> KnownFile:
 
 def _search_client_with_results() -> AsyncMock:
     client = AsyncMock()
-    client.search.return_value = [SearchResult(title="t", url="u", content="themes of X and Y")]
+    # Names every fixture author and title, so the book-relevance filter
+    # keeps it whichever known-file a test uses.
+    client.search.return_value = [
+        SearchResult(
+            title="Author, Novelist, Memoirist reviewed", url="u", content="A Book, A Novel, A Memoir: themes of X and Y"
+        )
+    ]
     return client
 
 
@@ -364,3 +370,24 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
     )
     assert result["synopsis"] == "s"
     search_client.search.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_no_book_specific_results_adds_a_warning(monkeypatch):
+    search_client = AsyncMock()
+    search_client.search.return_value = [SearchResult(title="t", url="u", content="generic themes")]
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None, validation_context=None):
+        return Synthesis(
+            synopsis="s",
+            one_line_takeaway="t",
+            tags=["tag1", "tag2"],
+            parts=[Part(title="p", summary="s")],
+        )
+
+    monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
+
+    result = await synthesize.run(
+        {"known_file": _fiction_known_file().model_dump()}, search_client=search_client, llm_client=AsyncMock()
+    )
+    assert result["warnings"] == [synthesize._UNGROUNDED_WARNING]

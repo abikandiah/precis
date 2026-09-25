@@ -110,6 +110,15 @@ def preflight_check(known_file: KnownFile) -> list[str]:
     if not known_file.isbn:
         problems.append("isbn is required")
 
+    # Every search the pipeline runs is built from these, and results are
+    # only trusted if they name the book's author and title (see
+    # search.is_book_relevant) — a missing or placeholder value would search
+    # for "None"/"TODO: fill in by hand" and discard every real result.
+    if not known_file.has_title:
+        problems.append("title is required (still missing or a placeholder)")
+    if not known_file.has_author:
+        problems.append("author is required (still missing or a placeholder)")
+
     if known_file.kind == "fiction" and known_file.narrative:
         problems.append(
             "narrative: true only means something for kind: non-fiction — "

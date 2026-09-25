@@ -149,7 +149,7 @@ def test_progress_messages_for_each_node_shape():
     ]
     assert graph_module._progress_messages(
         "synthesize", {"parts_source": "known", "warnings": ["part 'X': model suggested a different title"]}, 0
-    ) == ["synthesize: synopsis/tags/parts complete (parts: known) — 1 part discrepancy(ies) noted"]
+    ) == ["synthesize: synopsis/tags/parts complete (parts: known) — 1 warning(s) noted"]
     assert graph_module._progress_messages("assemble", {"book": {}}, 0) == ["assemble: book finalized"]
     assert graph_module._progress_messages("some_other_node", {}, 0) == []
 
@@ -176,7 +176,7 @@ async def test_run_whole_book_propagates_run_budget_exceeded(monkeypatch, tmp_pa
 
     monkeypatch.setattr(graph_module, "build_graph", lambda checkpointer: _NeverFinishesGraph())
 
-    known_file = KnownFile(isbn="1", kind="fiction")
+    known_file = KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction")
     with pytest.raises(RunBudgetExceeded, match="run budget"):
         await graph_module.run_whole_book(known_file, trust_known=True)
 
@@ -214,7 +214,7 @@ async def test_run_whole_book_threads_on_progress_through_to_the_real_stream(mon
     monkeypatch.setattr(graph_module, "build_graph", lambda checkpointer: _FakeGraph())
 
     messages: list[str] = []
-    known_file = KnownFile(isbn="1", kind="fiction")
+    known_file = KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction")
     book = await graph_module.run_whole_book(known_file, trust_known=True, on_progress=messages.append)
 
     assert book.title == "T"

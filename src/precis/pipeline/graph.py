@@ -115,8 +115,8 @@ def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -
             for c in node_update.get("chapters", [])
         ]
     if node_name == NODE_SYNTHESIZE:
-        discrepancies = node_update.get("warnings") or []
-        note = f" — {len(discrepancies)} part discrepancy(ies) noted" if discrepancies else ""
+        warnings = node_update.get("warnings") or []
+        note = f" — {len(warnings)} warning(s) noted" if warnings else ""
         return [f"synthesize: synopsis/tags/parts complete (parts: {node_update.get('parts_source')}){note}"]
     if node_name == NODE_ASSEMBLE:
         return ["assemble: book finalized"]
