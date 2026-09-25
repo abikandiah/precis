@@ -28,8 +28,8 @@ only ever true for the non-fiction branches, never fiction). The model
 still answers with the same Synthesis/SynthesisWithClaims shape — asked to
 reuse the given titles/groupings verbatim, in order, rather than invent its
 own — and _finalize_parts then keeps only its summaries, matched back to
-each known part **by position**, discarding whatever title/chapter_numbers
-it echoed back in favor of the known-file's own. Position rather than
+each known part **by position**, discarding whatever title/chapters it
+echoed back in favor of the known-file's own. Position rather than
 title is deliberate: it's immune to the model paraphrasing a title, and
 doesn't require known-file titles to be unique either (though preflight_check
 still flags duplicates as an authoring smell). `summary` is the one field
@@ -39,7 +39,7 @@ known-file fact, not something to re-derive per call.
 
 from langchain_core.runnables import RunnableConfig
 from openai import AsyncOpenAI
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from precis import llm
 from precis.llm import StructuredOutputError
@@ -49,7 +49,7 @@ from precis.pipeline.nodes.common import (
     resolve_search_client,
 )
 from precis.pipeline.state import GraphState
-from precis.schema import KeyClaim, KnownFile, Part
+from precis.schema import KeyClaim, KnownFile, Part, tags_for_kind, validate_tags
 from precis.search import SearchClient, search_and_format, search_results_block
 
 _SYSTEM_PROMPT_NONFICTION = (
@@ -75,12 +75,15 @@ _SYSTEM_PROMPT_FICTION = (
 )
 
 
-# The one validation_context key this module produces and consumes — named
-# rather than an inline literal so the two sides (run()'s dict-building,
-# _check_known_parts_count's .get()) can't silently drift apart from an edit
-# to only one of them, and a typo becomes a NameError instead of the check
-# just silently no-op'ing.
+# validation_context keys this module produces and consumes — named rather
+# than inline literals so the producing and consuming sides can't silently
+# drift apart from an edit to only one of them, and a typo becomes a
+# NameError instead of the check just silently no-op'ing.
 EXPECTED_PART_COUNT_KEY = "expected_part_count"
+# Always present (unlike EXPECTED_PART_COUNT_KEY, known-parts-path only) —
+# every call site knows known_file.kind, so there's always a vocabulary to
+# check tags against. See _check_tags below.
+KIND_KEY = "kind"
 
 
 class Synthesis(BaseModel):
@@ -88,7 +91,7 @@ class Synthesis(BaseModel):
 
     synopsis: str
     one_line_takeaway: str
-    tags: list[str] = Field(min_length=1)
+    tags: list[str] = Field(min_length=2, max_length=4)
     parts: list[Part] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -110,11 +113,28 @@ class Synthesis(BaseModel):
             )
         return self
 
+    @field_validator("tags")
+    @classmethod
+    def _check_tags(cls, tags: list[str], info: ValidationInfo) -> list[str]:
+        """Reuses schema.validate_tags — the same closed-vocabulary/no-repeat
+        check Book's own field_validator (schema.py) runs as a final safety
+        net — so a model that ignores the prompt's allowed-tags list fails
+        fast as a schema-validation error `complete_structured`'s own retry
+        loop already handles, rather than only surfacing at Stage 4's
+        costlier repair-with-an-LLM-call path. `kind` is only absent when a
+        caller validates Synthesis directly without context (e.g. tests
+        exercising the parts-count check in isolation), or when the repair
+        path's own `complete_structured` call omits it — real Stage 3 runs
+        always set KIND_KEY (see run() below).
+        """
+        validate_tags(tags, (info.context or {}).get(KIND_KEY))
+        return tags
+
 
 class SynthesisWithClaims(Synthesis):
     """Full non-fiction path: chapters and key_claims_for_review both exist."""
 
-    key_claims_for_review: list[KeyClaim] = Field(min_length=1)
+    key_claims_for_review: list[KeyClaim] = Field(min_length=3)
 
 
 def _search_query(known_file: KnownFile) -> str:
@@ -132,7 +152,7 @@ def _known_parts_block(known_file: KnownFile) -> str:
     if not known_file.parts:
         return ""
     lines = [
-        f"{p.title!r} — chapters {p.chapter_numbers}" if p.chapter_numbers else repr(p.title)
+        f"{p.title!r} — chapters {p.chapters}" if p.chapters else repr(p.title)
         for p in known_file.parts
     ]
     return (
@@ -143,12 +163,27 @@ def _known_parts_block(known_file: KnownFile) -> str:
     )
 
 
+def _tags_instruction_block(known_file: KnownFile) -> str:
+    """The vocabulary depends on `kind` alone, not the fiction/non-fiction
+    prompt split below — narrative non-fiction shares this function's
+    fiction-shaped prompt (see run()) but must still draw from
+    NONFICTION_TAGS, matching book-keeper's own schema, which likewise
+    discriminates tags by `kind` only.
+    """
+    allowed = tags_for_kind(known_file.kind)
+    return (
+        "Allowed tags — choose 2 to 4, no duplicates, from this exact list "
+        "only (never invent your own): " + ", ".join(allowed) + "\n\n"
+    )
+
+
 def _user_prompt_nonfiction(known_file: KnownFile, chapters: list[dict], search_results: str) -> str:
     header = (
         book_header(known_file)
         + "\n\n"
         + _chapters_block(chapters)
         + _known_parts_block(known_file)
+        + _tags_instruction_block(known_file)
         + search_results_block(search_results)
     )
     parts_instruction = (
@@ -166,7 +201,13 @@ def _user_prompt_nonfiction(known_file: KnownFile, chapters: list[dict], search_
 
 
 def _user_prompt_fiction(known_file: KnownFile, search_results: str) -> str:
-    header = book_header(known_file) + "\n\n" + _known_parts_block(known_file) + search_results_block(search_results)
+    header = (
+        book_header(known_file)
+        + "\n\n"
+        + _known_parts_block(known_file)
+        + _tags_instruction_block(known_file)
+        + search_results_block(search_results)
+    )
     parts_instruction = (
         "parts (a spoiler-safe summary for each of the known parts listed "
         "above, keeping their exact titles)"
@@ -179,7 +220,7 @@ def _user_prompt_fiction(known_file: KnownFile, search_results: str) -> str:
 
 def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[list[dict], str, list[str]]:
     """Splits the two Stage-3 paths' output into (parts, parts_source,
-    warnings). On the known path, title and chapter_numbers come from the
+    warnings). On the known path, title and chapters come from the
     known-file, never the model — only `summary` is taken from its
     response, matched back to each known part **by position**, not by
     title: the prompt presents known parts in a fixed order and asks for
@@ -226,7 +267,7 @@ def _finalize_parts(known_file: KnownFile, result_parts: list[Part]) -> tuple[li
             Part(
                 title=known_part.title,
                 summary=result_part.summary,
-                chapter_numbers=known_part.chapter_numbers,
+                chapters=known_part.chapters,
             ).model_dump()
         )
     return finalized, "known", warnings
@@ -248,11 +289,13 @@ async def run(
     search_results = await search_and_format(_search_query(known_file), client=search_client)
     client = llm_client or llm.build_client()
 
-    # Only set on the known-parts path — absent means "any count is fine"
-    # to Synthesis's model_validator (the generated-parts path).
-    validation_context: dict[str, object] | None = (
-        {EXPECTED_PART_COUNT_KEY: len(known_file.parts)} if known_file.parts else None
-    )
+    # KIND_KEY is always set — every call site knows known_file.kind, so
+    # there's always a tags vocabulary to check against. EXPECTED_PART_COUNT_KEY
+    # is only added on the known-parts path — its absence means "any count is
+    # fine" to Synthesis's model_validator (the generated-parts path).
+    validation_context: dict[str, object] = {KIND_KEY: known_file.kind}
+    if known_file.parts:
+        validation_context[EXPECTED_PART_COUNT_KEY] = len(known_file.parts)
 
     if known_file.is_full_nonfiction_path:
         result = await llm.complete_structured(

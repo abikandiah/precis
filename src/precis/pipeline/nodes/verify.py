@@ -61,7 +61,7 @@ def _parts_block(known_file: KnownFile) -> str:
     if not known_file.parts:
         return ""
     lines = [
-        f"{p.title!r} — chapters {p.chapter_numbers}" if p.chapter_numbers else repr(p.title)
+        f"{p.title!r} — chapters {p.chapters}" if p.chapters else repr(p.title)
         for p in known_file.parts
     ]
     return "parts:\n" + "\n".join(lines) + "\n\n"

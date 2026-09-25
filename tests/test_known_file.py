@@ -53,11 +53,11 @@ def test_preflight_rejects_parts_for_fiction():
     assert any("parts" in p for p in problems)
 
 
-def test_preflight_rejects_chapter_numbers_on_narrative_nonfiction_parts():
+def test_preflight_rejects_chapters_on_narrative_nonfiction_parts():
     problems = preflight_check(
-        _known_file(narrative=True, chapters=[], parts=[KnownPart(title="Part One", chapter_numbers=[1])])
+        _known_file(narrative=True, chapters=[], parts=[KnownPart(title="Part One", chapters=[1])])
     )
-    assert any("chapter_numbers" in p for p in problems)
+    assert any("chapters" in p for p in problems)
 
 
 def test_preflight_allows_title_only_parts_on_narrative_nonfiction():
@@ -65,15 +65,15 @@ def test_preflight_allows_title_only_parts_on_narrative_nonfiction():
     assert problems == []
 
 
-def test_preflight_rejects_empty_chapter_numbers_list_on_narrative_nonfiction_parts():
-    """chapter_numbers=[] is falsy but not None — the check must catch it
+def test_preflight_rejects_empty_chapters_list_on_narrative_nonfiction_parts():
+    """chapters=[] is falsy but not None — the check must catch it
     the same as a non-empty list would, since narrative books have no known
     chapter list to bind against either way.
     """
     problems = preflight_check(
-        _known_file(narrative=True, chapters=[], parts=[KnownPart(title="Part One", chapter_numbers=[])])
+        _known_file(narrative=True, chapters=[], parts=[KnownPart(title="Part One", chapters=[])])
     )
-    assert any("chapter_numbers" in p for p in problems)
+    assert any("chapters" in p for p in problems)
 
 
 def test_preflight_rejects_duplicate_part_titles():
@@ -81,24 +81,24 @@ def test_preflight_rejects_duplicate_part_titles():
         _known_file(
             chapters=["Ch 1", "Ch 2", "Ch 3", "Ch 4"],
             parts=[
-                KnownPart(title="Part One", chapter_numbers=[1, 2]),
-                KnownPart(title="Part One", chapter_numbers=[3, 4]),
+                KnownPart(title="Part One", chapters=[1, 2]),
+                KnownPart(title="Part One", chapters=[3, 4]),
             ],
         )
     )
     assert any("duplicate" in p for p in problems)
 
 
-def test_preflight_rejects_out_of_range_chapter_numbers_on_full_nonfiction_parts():
+def test_preflight_rejects_out_of_range_chapters_on_full_nonfiction_parts():
     problems = preflight_check(
-        _known_file(chapters=["Ch 1"], parts=[KnownPart(title="Part One", chapter_numbers=[1, 2])])
+        _known_file(chapters=["Ch 1"], parts=[KnownPart(title="Part One", chapters=[1, 2])])
     )
     assert any("chapter number 2" in p for p in problems)
 
 
-def test_preflight_allows_valid_chapter_numbers_on_full_nonfiction_parts():
+def test_preflight_allows_valid_chapters_on_full_nonfiction_parts():
     problems = preflight_check(
-        _known_file(chapters=["Ch 1", "Ch 2"], parts=[KnownPart(title="Part One", chapter_numbers=[1, 2])])
+        _known_file(chapters=["Ch 1", "Ch 2"], parts=[KnownPart(title="Part One", chapters=[1, 2])])
     )
     assert problems == []
 

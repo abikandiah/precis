@@ -16,6 +16,20 @@ def _run(args: list[str]) -> int:
     return parsed.func(parsed)
 
 
+def test_write_output_keeps_none_explicit_by_default(tmp_path):
+    known_file = KnownFile(isbn="123", kind="fiction")
+    out = tmp_path / "out.json"
+    cli_module._write_output(known_file, str(out))
+    assert json.loads(out.read_text())["year"] is None
+
+
+def test_write_output_omits_none_fields_when_requested(tmp_path):
+    known_file = KnownFile(isbn="123", kind="fiction")
+    out = tmp_path / "out.json"
+    cli_module._write_output(known_file, str(out), exclude_none=True)
+    assert "year" not in json.loads(out.read_text())
+
+
 def test_generate_with_missing_known_file_reports_clean_error_not_traceback(capsys):
     exit_code = _run(["generate", "/nonexistent/path/does-not-exist.json"])
     assert exit_code == 1

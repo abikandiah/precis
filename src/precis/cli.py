@@ -39,8 +39,12 @@ def _load_known_file_or_report(path: str) -> KnownFile | None:
         return None
 
 
-def _write_output(model: BaseModel, output_path: str | None) -> None:
-    text = model.model_dump_json(indent=2)
+def _write_output(model: BaseModel, output_path: str | None, *, exclude_none: bool = False) -> None:
+    # Known-files keep None explicit (a reader-facing "not filled in yet"
+    # signal — known_file.py's docstring); generation output (book/chapter)
+    # omits it instead, per the "absent, not null" contract documented in
+    # blueprint.md's Book JSON shape section.
+    text = model.model_dump_json(indent=2, exclude_none=exclude_none)
     if output_path:
         with open(output_path, "w") as f:
             f.write(text)
@@ -157,7 +161,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         print(f"generation failed: {exc}", file=sys.stderr)
         return 1
 
-    _write_output(book, args.output)
+    _write_output(book, args.output, exclude_none=True)
     return 0
 
 
@@ -203,7 +207,7 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
             args.chapter, chapter.title, chapter.quality_flag, total_chapters=len(known_file.chapters)
         )
     )
-    _write_output(chapter, args.output)
+    _write_output(chapter, args.output, exclude_none=True)
     return 0
 
 

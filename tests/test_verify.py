@@ -88,7 +88,7 @@ async def test_known_parts_are_included_in_search_query_and_prompt(monkeypatch):
         author="An Author",
         kind="non-fiction",
         chapters=["Ch 1", "Ch 2"],
-        parts=[KnownPart(title="Part One", chapter_numbers=[1, 2])],
+        parts=[KnownPart(title="Part One", chapters=[1, 2])],
     )
     search_client = AsyncMock()
     search_client.search.return_value = [SearchResult(title="t", url="u", content="matches the book")]

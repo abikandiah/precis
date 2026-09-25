@@ -103,16 +103,18 @@ blanket rule over every piece of tooling in this module's orbit. Concretely:
   (`kind: non-fiction`, `narrative: false`) before generation will accept
   the file. Optional/absent for fiction and narrative non-fiction, which
   don't decompose into a per-chapter breakdown at all.
-- `parts: list[{title, chapter_numbers?}]` — optional, non-fiction only
-  (both branches: full and narrative). Same reasoning as `chapters`: when
-  the reader already knows the book's real part structure, that's a fact
-  to supply, not something worth an LLM guessing from chapter titles alone.
-  `chapter_numbers` only means something against a known chapter list, so
-  it's only meaningful (and only checked by the phase-2 preflight) on the
-  full non-fiction path; narrative non-fiction known-parts entries are
-  title-only. Rejected outright by preflight for `kind: fiction` — fiction's
-  parts are spoiler-safe invented beats (see Output below), not a fact the
-  reader could supply even if they wanted to.
+- `parts: list[{title, chapters?}]` — optional, non-fiction only
+  (both branches: full and narrative). Same reasoning as the top-level
+  `chapters` field: when the reader already knows the book's real part
+  structure, that's a fact to supply, not something worth an LLM guessing
+  from chapter titles alone. A part's own `chapters` (a list of chapter
+  *numbers* — named to match the published Part shape below, distinct from
+  the top-level `chapters` list of titles) only means something against a
+  known chapter list, so it's only meaningful (and only checked by the
+  phase-2 preflight) on the full non-fiction path; narrative non-fiction
+  known-parts entries are title-only. Rejected outright by preflight for
+  `kind: fiction` — fiction's parts are spoiler-safe invented beats (see
+  Output below), not a fact the reader could supply even if they wanted to.
 - `kind: "fiction" | "non-fiction"`
 - `narrative: bool` — non-fiction only; routes to the lighter parts-based
   treatment instead of the full chapter/claims study guide. The phase-2
@@ -171,6 +173,18 @@ module's job ends at emitting valid JSON per `schema_version` (below).
     older or newer schema shape has something concrete to check against
     instead of guessing why fields don't match. Whether any given consumer
     bothers to check it is entirely up to that consumer.
+  - `tags`: 2-4 unique entries drawn from one of two closed vocabularies
+    (`NONFICTION_TAGS` / `FICTION_TAGS`, schema.py), chosen by `kind` alone
+    (narrative non-fiction uses the non-fiction list too — the split isn't
+    fiction-vs-narrative, it's fiction-vs-not). Curated from BISAC Subject
+    Headings, mirroring book-keeper's own schema.ts exactly — a closed
+    taxonomy the model picks from, not free-form labels of its own invention.
+    Enforced twice: Stage 3's `Synthesis` model_validator checks it against
+    `known_file.kind` via `validation_context`, so a bad tag is a schema
+    failure `complete_structured`'s own retry already handles (cheap, before
+    the run continues); `Book`'s own model_validator re-checks it at Stage 4
+    as the final safety net, using `self.kind` directly since `Book` always
+    carries it by then.
   - `warnings[]`: run-level notices worth a human's attention — e.g. one
     entry per chapter that fell back to a critique-failed candidate (see
     Stage 2 below). Empty on a clean run. Distinct from `quality_flag`
@@ -193,9 +207,10 @@ module's job ends at emitting valid JSON per `schema_version` (below).
   — not something to drill recall-style, per the original schema's own
   rationale (reading fiction isn't about retaining facts the way non-fiction
   is).
-- `parts`: one shared shape (`title`, `summary`, optional chapter-number
-  references) used by both branches — the difference is entirely in the
-  prompt behind it, not the schema:
+- `parts`: one shared shape (`title`, `summary`, optional `chapters` —
+  chapter-number references, named to match book-keeper's own `partSchema`)
+  used by both branches — the difference is entirely in the prompt behind
+  it, not the schema:
   - Non-fiction: groups already-known chapters into named structural
     sections.
   - Fiction / narrative non-fiction: spoiler-safe, structural beats — what
@@ -203,7 +218,7 @@ module's job ends at emitting valid JSON per `schema_version` (below).
     sketching the story's shape in memory without giving away plot turns.
 - `parts` are AI-generated only when the known-file didn't already supply
   them. When it did (non-fiction, either branch), Stage 3 keeps the
-  known-file's title/chapter_numbers verbatim and asks the model only for
+  known-file's title/chapters verbatim and asks the model only for
   `summary` — never for fiction, whose known-file `parts` is always empty
   (rejected by preflight). `parts_source: "known" | "generated"` on the
   output records which happened, so a consumer doesn't present an

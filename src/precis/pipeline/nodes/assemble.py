@@ -38,7 +38,7 @@ from pydantic import ValidationError
 
 from precis import llm
 from precis.pipeline.nodes.common import book_header, resolve_llm_client
-from precis.pipeline.nodes.synthesize import Synthesis, SynthesisWithClaims
+from precis.pipeline.nodes.synthesize import KIND_KEY, Synthesis, SynthesisWithClaims
 from precis.pipeline.state import GraphState
 from precis.schema import Book, KnownFile
 
@@ -129,6 +129,13 @@ async def _repair(
             {"role": "user", "content": _repair_user_prompt(book_kwargs, known_file, chapters, error)},
         ],
         response_model=response_model,
+        # Without this, a repaired `tags` that's still outside the closed
+        # vocabulary would sail through Synthesis's own field_validator
+        # (which no-ops without KIND_KEY) and only get caught by the second,
+        # final Book.model_validate below — wasting the whole one-shot
+        # repair on a mistake complete_structured's own retry could have
+        # caught and fixed here instead.
+        validation_context={KIND_KEY: known_file.kind},
     )
 
 

@@ -6,6 +6,7 @@ from precis.llm import StructuredOutputError
 from precis.pipeline.nodes import synthesize
 from precis.pipeline.nodes.synthesize import (
     EXPECTED_PART_COUNT_KEY,
+    KIND_KEY,
     Synthesis,
     SynthesisWithClaims,
 )
@@ -33,7 +34,7 @@ def _synthesis_kwargs(count: int) -> dict:
     return {
         "synopsis": "s",
         "one_line_takeaway": "t",
-        "tags": ["tag"],
+        "tags": ["tag1", "tag2"],
         "parts": [{"title": f"p{i}", "summary": f"s{i}"} for i in range(count)],
     }
 
@@ -63,8 +64,12 @@ async def test_nonfiction_path_produces_claims_and_chapter_referencing_parts(mon
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
             tags=["tag1", "tag2"],
-            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
-            parts=[Part(title="Part One", summary="covers ch 1-2", chapter_numbers=[1, 2])],
+            key_claims_for_review=[
+                KeyClaim(prompt="q1", answer="a1"),
+                KeyClaim(prompt="q2", answer="a2"),
+                KeyClaim(prompt="q3", answer="a3"),
+            ],
+            parts=[Part(title="Part One", summary="covers ch 1-2", chapters=[1, 2])],
         )
 
     monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
@@ -78,8 +83,12 @@ async def test_nonfiction_path_produces_claims_and_chapter_referencing_parts(mon
     assert result["synopsis"] == "a synopsis"
     assert result["one_line_takeaway"] == "the takeaway"
     assert result["tags"] == ["tag1", "tag2"]
-    assert result["key_claims_for_review"] == [{"prompt": "q1", "answer": "a1"}]
-    assert result["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapter_numbers": [1, 2]}]
+    assert result["key_claims_for_review"] == [
+        {"prompt": "q1", "answer": "a1"},
+        {"prompt": "q2", "answer": "a2"},
+        {"prompt": "q3", "answer": "a3"},
+    ]
+    assert result["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapters": [1, 2]}]
     assert result["parts_source"] == "generated"
     assert result["warnings"] == []
 
@@ -91,7 +100,7 @@ async def test_fiction_path_produces_parts_but_no_key_claims_key(monkeypatch):
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="Beginning", summary="stakes are introduced")],
         )
 
@@ -104,8 +113,8 @@ async def test_fiction_path_produces_parts_but_no_key_claims_key(monkeypatch):
     )
 
     assert result["synopsis"] == "a synopsis"
-    assert result["tags"] == ["tag1"]
-    assert result["parts"] == [{"title": "Beginning", "summary": "stakes are introduced", "chapter_numbers": None}]
+    assert result["tags"] == ["tag1", "tag2"]
+    assert result["parts"] == [{"title": "Beginning", "summary": "stakes are introduced", "chapters": None}]
     assert result["parts_source"] == "generated"
     assert result["warnings"] == []
     assert "key_claims_for_review" not in result
@@ -114,7 +123,7 @@ async def test_fiction_path_produces_parts_but_no_key_claims_key(monkeypatch):
 @pytest.mark.asyncio
 async def test_known_parts_are_passed_through_verbatim_for_full_nonfiction(monkeypatch):
     known_file = _nonfiction_known_file()
-    known_file.parts = [KnownPart(title="Part One", chapter_numbers=[1, 2])]
+    known_file.parts = [KnownPart(title="Part One", chapters=[1, 2])]
     chapters = [
         {"number": 1, "title": "Ch 1", "key_points": ["a"], "core_claim": "claim 1", "quality_flag": None},
         {"number": 2, "title": "Ch 2", "key_points": ["b"], "core_claim": "claim 2", "quality_flag": None},
@@ -130,9 +139,13 @@ async def test_known_parts_are_passed_through_verbatim_for_full_nonfiction(monke
         return SynthesisWithClaims(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
-            key_claims_for_review=[KeyClaim(prompt="q1", answer="a1")],
-            parts=[Part(title="Part One", summary="covers ch 1-2", chapter_numbers=[1])],
+            tags=["tag1", "tag2"],
+            key_claims_for_review=[
+                KeyClaim(prompt="q1", answer="a1"),
+                KeyClaim(prompt="q2", answer="a2"),
+                KeyClaim(prompt="q3", answer="a3"),
+            ],
+            parts=[Part(title="Part One", summary="covers ch 1-2", chapters=[1])],
         )
 
     monkeypatch.setattr(synthesize.llm, "complete_structured", fake_complete_structured)
@@ -143,10 +156,10 @@ async def test_known_parts_are_passed_through_verbatim_for_full_nonfiction(monke
         llm_client=AsyncMock(),
     )
 
-    assert result["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapter_numbers": [1, 2]}]
+    assert result["parts"] == [{"title": "Part One", "summary": "covers ch 1-2", "chapters": [1, 2]}]
     assert result["parts_source"] == "known"
     assert result["warnings"] == []
-    assert captured_context["value"] == {EXPECTED_PART_COUNT_KEY: 1}
+    assert captured_context["value"] == {KIND_KEY: "non-fiction", EXPECTED_PART_COUNT_KEY: 1}
 
 
 @pytest.mark.asyncio
@@ -161,7 +174,7 @@ async def test_known_parts_are_title_only_for_narrative_nonfiction(monkeypatch):
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="Early Years", summary="spoiler-safe summary")],
         )
 
@@ -173,7 +186,7 @@ async def test_known_parts_are_title_only_for_narrative_nonfiction(monkeypatch):
         llm_client=AsyncMock(),
     )
 
-    assert result["parts"] == [{"title": "Early Years", "summary": "spoiler-safe summary", "chapter_numbers": None}]
+    assert result["parts"] == [{"title": "Early Years", "summary": "spoiler-safe summary", "chapters": None}]
     assert result["parts_source"] == "known"
 
 
@@ -188,7 +201,7 @@ async def test_known_parts_raises_when_model_returns_wrong_count(monkeypatch):
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="Part One", summary="only one part came back")],
         )
 
@@ -217,7 +230,7 @@ async def test_known_parts_match_by_position_not_by_echoed_title(monkeypatch):
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[
                 Part(title="Part One (rephrased)", summary="first summary"),
                 Part(title="Part One, again", summary="second summary"),
@@ -233,8 +246,8 @@ async def test_known_parts_match_by_position_not_by_echoed_title(monkeypatch):
     )
 
     assert result["parts"] == [
-        {"title": "Part One", "summary": "first summary", "chapter_numbers": None},
-        {"title": "Part One", "summary": "second summary", "chapter_numbers": None},
+        {"title": "Part One", "summary": "first summary", "chapters": None},
+        {"title": "Part One", "summary": "second summary", "chapters": None},
     ]
     # Both positions got a title different from the known one — each is a
     # discrepancy worth surfacing, even though the known title always wins.
@@ -254,7 +267,7 @@ async def test_known_parts_with_matching_titles_produce_no_warnings(monkeypatch)
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="Part One", summary="matches exactly")],
         )
 
@@ -270,10 +283,12 @@ async def test_known_parts_with_matching_titles_produce_no_warnings(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_no_validation_context_on_generated_parts_path(monkeypatch):
+async def test_no_expected_part_count_on_generated_parts_path(monkeypatch):
     """Only the known-parts path constrains the model's part count —
-    absent context means Synthesis's model_validator skips the check
-    entirely, matching the generated path's "any count is fine" behavior.
+    EXPECTED_PART_COUNT_KEY absent means Synthesis's model_validator skips
+    that check entirely, matching the generated path's "any count is fine"
+    behavior. KIND_KEY is always present regardless, since every call site
+    knows known_file.kind and there's always a tags vocabulary to check.
     """
     captured_context = {}
 
@@ -282,7 +297,7 @@ async def test_no_validation_context_on_generated_parts_path(monkeypatch):
         return Synthesis(
             synopsis="a synopsis",
             one_line_takeaway="the takeaway",
-            tags=["tag1"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="p1", summary="s1"), Part(title="p2", summary="s2")],
         )
 
@@ -294,7 +309,7 @@ async def test_no_validation_context_on_generated_parts_path(monkeypatch):
         llm_client=AsyncMock(),
     )
 
-    assert captured_context["value"] is None
+    assert captured_context["value"] == {KIND_KEY: "fiction"}
     assert result["parts_source"] == "generated"
 
 
@@ -308,7 +323,7 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
         return Synthesis(
             synopsis="s",
             one_line_takeaway="t",
-            tags=["tag"],
+            tags=["tag1", "tag2"],
             parts=[Part(title="p", summary="s")],
         )
 
