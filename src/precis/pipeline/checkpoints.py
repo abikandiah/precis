@@ -1,11 +1,10 @@
 """Checkpoint-store maintenance: listing and pruning thread history.
 
-Every `precis generate` run gets its own thread in the checkpoint DB (see
-graph.py's `thread_id_for`), and nothing deletes one automatically once the
-run finishes — that's what makes resuming an interrupted run possible
-without any extra bookkeeping, but it also means the DB grows without bound
-across every book (and every edited draft of every known-file) ever run.
-This module is the maintenance side of that tradeoff.
+Every book gets one thread in the checkpoint DB, named after its slug (see
+graph.py's `run_whole_book`), which exists only so an interrupted run can
+resume. `precis generate` deletes it once the finished book is written
+(delete_checkpoint_thread); what's left behind are runs that were
+interrupted and never rerun. This module is the maintenance side of that.
 
 "Safe to prune" here means "has already reached assemble" — i.e. the run
 produced a `book`, so there is nothing left to resume. A thread that hasn't
@@ -14,11 +13,10 @@ on; deleting one doesn't just reclaim disk space, it forfeits resuming that
 interrupted run, so it's excluded unless the caller explicitly opts in via
 `include_incomplete`.
 
-One residual risk `include_incomplete` doesn't cover: `thread_id_for()` is
-content-deterministic, so a *completed* thread's id is reused verbatim if
-`generate` is re-run on that known-file without `--fresh` — "completed" is
-not the same as "dead." `prune_checkpoint_threads` re-fetches each thread's
-latest checkpoint immediately before deleting it and skips any thread that
+One residual risk `include_incomplete` doesn't cover: a thread's id is the
+book's slug, so a rerun of that book reuses it — "completed" is not the
+same as "dead." `prune_checkpoint_threads` re-fetches each thread's latest
+checkpoint immediately before deleting it and skips any thread that
 changed since it was listed, which narrows that race to "a concurrent run
 progressed in between," but there's no cross-process lock here — running
 `--prune` concurrently with a `generate` re-run of the exact same known-file
@@ -91,6 +89,16 @@ async def list_checkpoint_threads() -> list[CheckpointThreadSummary]:
             if tup := await _latest_checkpoint(checkpointer, thread_id):
                 summaries.append(_summarize(thread_id, tup))
     return summaries
+
+
+async def delete_checkpoint_thread(thread_id: str) -> None:
+    """Deletes one thread — what `precis generate` does to a book's thread
+    once its output is written, since a finished run has nothing left to
+    resume (see graph.py's `run_whole_book`).
+    """
+    _ensure_checkpoint_dir()
+    async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
+        await checkpointer.adelete_thread(thread_id)
 
 
 async def prune_checkpoint_threads(

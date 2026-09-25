@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
@@ -19,6 +20,14 @@ from precis.pipeline import checkpoints as pipeline_checkpoints
 from precis.pipeline import graph as pipeline_graph
 from precis.pipeline.nodes import draft
 from precis.schema import Chapter, KnownFile, TagVocabulary
+
+
+def _slug_from_path(path: str) -> str:
+    """The known-file's filename stem — the book's identity for
+    checkpointing, matching the consumer's own convention of naming the
+    known-file and the output after the same slug.
+    """
+    return Path(path).stem
 
 
 def _load_known_file(path: str) -> KnownFile:
@@ -114,7 +123,12 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
         return 1
 
     kind: Literal["fiction", "non-fiction"] = args.kind or _BATCH_KIND_DEFAULT
-    known_files = [(isbn, create_known_file(isbn, kind=kind, narrative=args.narrative)) for isbn in isbns]
+    known_files = []
+    for isbn in isbns:
+        known_file, notes = create_known_file(isbn, kind=kind, narrative=args.narrative)
+        known_files.append((isbn, known_file))
+        for note in notes:
+            _print_progress(f"{isbn}: {note}")
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -143,6 +157,17 @@ def _print_progress(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _unwritable(path: str) -> str | None:
+    parent = os.path.dirname(os.path.abspath(path))
+    if not os.path.isdir(parent):
+        return f"directory {parent!r} doesn't exist"
+    if os.path.isdir(path):
+        return "it's a directory — give a file path"
+    if os.path.exists(path):
+        return None if os.access(path, os.W_OK) else "file isn't writable"
+    return None if os.access(parent, os.W_OK) else f"directory {parent!r} isn't writable"
+
+
 def _cmd_generate(args: argparse.Namespace) -> int:
     known_file = _load_known_file_or_report(args.known_file)
     if known_file is None:
@@ -151,18 +176,46 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     if (exit_code := _report_preflight_problems(known_file)) is not None:
         return exit_code
 
+    # Before any paid work: a finished book that can't be written is lost
+    # (its checkpoint doesn't hand it back — see run_whole_book).
+    if args.output and (problem := _unwritable(args.output)):
+        print(f"can't write --output {args.output!r}: {problem}", file=sys.stderr)
+        return 1
+
+    slug = _slug_from_path(args.known_file)
     try:
         book = asyncio.run(
             pipeline_graph.run_whole_book(
-                known_file, trust_known=args.trust_known, fresh=args.fresh, on_progress=_print_progress
+                known_file,
+                slug=slug,
+                trust_known=args.trust_known,
+                fresh=args.fresh,
+                on_progress=_print_progress,
             )
         )
     except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
         print(f"generation failed: {exc}", file=sys.stderr)
         return 1
 
-    _write_output(book, args.output, exclude_none=True)
-    return 0
+    try:
+        _write_output(book, args.output, exclude_none=True)
+    except OSError as exc:
+        # Checked up front, but a disk can still fill or a mount vanish.
+        # The book is paid for and a finished checkpoint doesn't hand it
+        # back, so put it on stdout — the one place left that the caller
+        # sees — rather than lose it.
+        print(f"couldn't write --output {args.output!r} ({exc}); printing the book to stdout instead", file=sys.stderr)
+        _write_output(book, None, exclude_none=True)
+        exit_code = 1
+    else:
+        exit_code = 0
+    # Only once the book is out somewhere: the checkpoint exists to resume
+    # an interrupted run, and a finished one has nothing left to resume.
+    try:
+        asyncio.run(pipeline_checkpoints.delete_checkpoint_thread(slug))
+    except Exception as exc:  # noqa: BLE001 — the book is written; a stale checkpoint isn't worth failing over
+        print(f"warning: couldn't delete the checkpoint for {slug!r}: {exc}", file=sys.stderr)
+    return exit_code
 
 
 def _cmd_generate_chapter(args: argparse.Namespace) -> int:
@@ -259,7 +312,9 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("known_file")
     generate.add_argument("--output")
     generate.add_argument("--trust-known", action="store_true")
-    generate.add_argument("--fresh", action="store_true")
+    generate.add_argument(
+        "--fresh", action="store_true", help="discard an interrupted run's checkpoint and start over"
+    )
     generate.set_defaults(func=_cmd_generate)
 
     generate_chapter = subparsers.add_parser(

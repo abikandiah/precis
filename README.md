@@ -74,15 +74,25 @@ gets write access to `/data` on a named volume's first creation. A bind
 mount keeps the host directory's own ownership, which will fail to write
 the checkpoint file unless that directory is already owned by uid 1000.
 
-`--trust-known` skips Stage 1 (verify) for a known-file you're already
-confident about; `--fresh` discards any existing checkpoint for that
-known-file instead of resuming it. `generate-chapter` (targeted regeneration
-of one chapter) takes the same mounts.
+Stage 1 (verify) checks the known-file against search results and lists
+every issue it finds. It fails the run only when a source about this exact
+book contradicts the author or the chapter/part list (showing what the
+source says, and its URL), or when no search result mentions the book at
+all. Anything it merely couldn't confirm — and any isbn/year/subtitle
+difference, which vary by edition — is printed as a warning. `--trust-known`
+skips Stage 1 for a known-file you've already checked against the book.
+`generate-chapter` (targeted regeneration of one chapter) takes the same
+mounts.
 
-If a run is interrupted (hits `PRECIS_RUN_BUDGET_SECONDS`, the container is
-killed, etc.), rerunning the identical command against the same
-`precis-checkpoints` volume resumes from the last completed pipeline stage
-rather than starting over.
+The known-file's filename is the book's slug, and a run's checkpoint is
+named after it. The checkpoint only exists to resume an interrupted run
+(`PRECIS_RUN_BUDGET_SECONDS`, a killed container, a failure partway) and is
+deleted once the finished book is written, so rerunning after a success
+generates the book again from scratch. Rerunning an interrupted run on the
+same `precis-checkpoints` volume resumes where it stopped. If you edit the
+known-file (anything but `notes`) after verify has passed, the rerun stops
+and lists what changed; pass `--fresh` to discard the interrupted run and
+start over. A run started with `--trust-known` only resumes with it.
 
 Both `generate` and `generate-chapter` print progress to stderr as they
 run (verify/chapter/synthesize/assemble completions) — stdout stays clean
@@ -90,11 +100,10 @@ JSON, so piping `--output`-less output elsewhere still works.
 
 ## Cleaning up checkpoints
 
-Nothing deletes a run's checkpoint automatically — that's what makes resume
-work, but it also means `precis-checkpoints` grows forever otherwise, since
-every generated book (and every edited draft of every known-file along the
-way) gets its own entry. Same named volume as `generate` above — no other
-mount needed, and no `--env-file` either, since this never calls an LLM:
+`generate` deletes a book's checkpoint once the book is written, so what
+accumulates here is interrupted runs that were never rerun. Same named
+volume as `generate` above — no other mount needed, and no `--env-file`
+either, since this never calls an LLM:
 
 ```
 docker run --rm -v precis-checkpoints:/data precis checkpoints

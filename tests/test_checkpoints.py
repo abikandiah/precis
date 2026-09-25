@@ -106,7 +106,7 @@ async def test_prune_with_no_matches_deletes_nothing(_use_temp_checkpoint_db):
 async def test_prune_skips_thread_that_changed_between_list_and_delete(_use_temp_checkpoint_db, monkeypatch):
     """Simulates a concurrent `generate` run extending a thread's
     checkpoint history in the window between prune's initial scan and its
-    delete step (thread_id_for is content-deterministic, so a "completed"
+    delete step (thread ids are book slugs, so a "completed"
     thread's id is reused verbatim by a re-run without --fresh) — the
     recheck-before-delete guard must skip it rather than delete state the
     concurrent run now depends on.

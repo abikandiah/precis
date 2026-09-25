@@ -35,8 +35,22 @@ historical snapshot once that copy happens, same treatment as
    up the ISBN via Open Library and writes a known-file with `isbn`,
    `title`/`author`/`year`/`page_count` filled in where found (placeholder
    text where not — the reader fills these in by hand when the lookup is
-   wrong, empty, or the wrong edition), and `chapters` left empty for the
-   next phase. Runs on host, not in Docker — see "Docker boundary" below for
+   wrong, empty, or the wrong edition). `chapters` and `parts` are
+   pre-filled from Open Library's `table_of_contents` when it has a clean
+   one — for this edition, or failing that another edition of the same
+   work (the reader is told which) — and left empty otherwise. Coverage is
+   patchy (roughly a third of popular non-fiction in spot checks) and the
+   data is hand-entered, so parsing is conservative: entries that lump
+   several chapters together are rejected outright rather than guessed at,
+   front/back matter (acknowledgements, notes, index…) is dropped, parts
+   come from "Part …"/"Book …" labels or titles, and entry `level`s are
+   read with the most common one as the chapter level — deeper entries
+   are subsections, and a shallower one that isn't a part or an
+   intro/conclusion rejects the whole list (an unlabelled grouping can't
+   be told apart from a chapter). Contents are only borrowed from another
+   edition in the same language, or with no language recorded when this
+   one has none — most works' other editions are mostly translations. Either way it's a starting
+   point for the next phase, not a substitute for it. Runs on host, not in Docker — see "Docker boundary" below for
    why that's fine here.
 2. **The reader fills in `chapters`** (and corrects `title`/`author`/etc. if
    needed, adds `notes`) by hand. A lightweight structural pre-flight check
@@ -244,11 +258,48 @@ module's job ends at emitting valid JSON per `schema_version` (below).
    on mismatch (wrong edition, wrong book, bad chapter list, bad part
    claims) before any expensive per-chapter work runs. Skippable via a
    `--trust-known`-style flag for a known-file the reader is already
-   confident about. The critique's reasoning (`verify_reason`) is always
-   surfaced as this stage's progress line, pass or fail — not just on a
-   hard failure — so a caveat that wasn't enough to fail the check (e.g.
-   "parts look mostly right, though...") is still visible to the reader
-   before Stage 2 runs, not silently discarded.
+   confident about.
+   The model reports a list of issues (kind, what the known-file claims,
+   what the sources say, source URL), each either **contradicted** (a
+   result says otherwise) or **unconfirmed** (the results don't mention
+   it); the pass/fail decision is made in code, not by the model.
+   Unconfirmed is the normal case for a table of contents — search
+   snippets rarely carry a full one — and an earlier single-bool verdict
+   failed correct known-files by treating "not in the results" or unusual
+   chapter titles as fabrication. Every issue is surfaced either way: on a
+   pass as this stage's progress line, on a fail in the error, with a
+   pointer to fix the known-file or rerun with `--trust-known`.
+   - **Search:** "deep" (fuller page excerpts), on the short title +
+     author with a title-only fallback query — a quoted full title/ISBN
+     filters out most pages that list a book's contents. Results are kept
+     if they name the short title, deliberately not filtered on the
+     claimed author: that's one of the claims being checked, and filtering
+     on it would hide every page crediting the real author. If no result
+     names the book at all, verify **fails** before the model call ("couldn't
+     find this book online") — a mistyped or made-up title would otherwise
+     pass as "unconfirmed" and pay for every chapter draft; `--trust-known`
+     is the way past it for a book the web really doesn't know. (A search
+     that returns nothing at all is reported as a search-service problem
+     instead.) The short title drops a parenthetical ("(Revised
+     Edition)") as well as the subtitle.
+   - **What can fail the run:** only a contradiction with an actual
+     contrary value, for three kinds, each held to a source that pins the
+     claim to this book (the model cites results by their `[n]` number,
+     not by copying a URL that can drift):
+     - *author* — a source that identifies this exact book (full title
+       including subtitle, or the ISBN), so a different "Range" or "Grit"
+       can't overrule it;
+     - *chapter* / *part* — a source that names the claimed author too
+       (`is_book_relevant`) *and* reproduces the book's real table of
+       contents (the model flags this per issue). Summary and "key
+       takeaways" sites reword books into their own section headings, and
+       one of them "contradicted" The Diet Myth's correct chapter list.
+       Chapters are shown to the model unnumbered (unless parts refer to
+       them by number) and compared by title and order only — contents
+       listings number their own way and include front/back matter.
+     `title` (only the subtitle can differ, since every result names the
+     short title), `isbn`, `year` and `page_count` vary by edition, and
+     results often describe a different one, so they only ever warn.
 2. **Draft chapters** (non-fiction full path only) — parallel, bounded
    concurrency (configurable, default **3**). Per chapter: search-ground
    (`"<short title>" <author> "<chapter>" summary`, with an unquoted
@@ -319,9 +370,13 @@ skipping the rest.
 
 ```
 precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh]
-    → whole-book mode, writes a validated book JSON. Auto-resumes from an
-      existing checkpoint for this known-file's thread_id if one exists;
-      --fresh discards it and starts clean instead.
+    → whole-book mode, writes a validated book JSON. The known-file's
+      filename stem is the book's slug and names its checkpoint thread,
+      which is deleted once the book is written; a rerun of an interrupted
+      run resumes it (see Run identity below). --fresh discards an
+      interrupted run's checkpoint and starts clean. An unwritable
+      --output is refused up front, before any paid work — a finished book
+      that can't be written isn't recoverable from its checkpoint.
 
 precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
     → single-chapter mode, writes just that chapter object, validated
@@ -395,14 +450,33 @@ ever writes a standalone JSON file, never merges into an existing one.
     the checkpointer captures state after each node completes, including
     per-branch state in Stage 2's parallel fan-out, so a resumed run only
     redoes chapters that hadn't finished, not the whole batch.
-  - **Run identity:** a `thread_id` derived deterministically from the
-    known-file's content (e.g. a hash of its canonical JSON) — the same
-    known-file resolves to the same thread, so resuming is "run the same
-    command again," not a separate resume-specific invocation the caller
-    has to construct.
-  - **CLI:** `precis generate` auto-detects an existing checkpoint for that
-    known-file's `thread_id` and resumes from it; `--fresh` forces a clean
-    run and discards any existing checkpoint for that thread instead.
+  - **Run identity:** the known-file's slug (its filename stem — the same
+    name the consumer gives the output), so a book has exactly one thread
+    and editing its known-file doesn't silently start a new one.
+  - **Lifetime:** a thread exists only to resume an interrupted run. The
+    CLI deletes it once the finished book is written (only after — a
+    failed write keeps it), so a finished book is never handed back from
+    a checkpoint: re-publishing and history are the consumer's job, and a
+    leftover finished book would only resurface a rejected or stale one.
+  - **On a rerun:** no checkpoint, one that never got past verify (only
+    verify's search + model call spent), or a finished one that outlived
+    a failed write, starts clean — which is also what lets `--trust-known`
+    or a known-file edit take effect after a failed verify. Past verify,
+    the saved known-file is compared with the current one: unchanged
+    resumes where it stopped (passing `None` as the graph input — passing
+    the input state again would restart from START and re-append every
+    chapter); changed aborts with the list of changed fields unless
+    `--fresh` is given, since resuming would mix chapters drafted from two
+    different known-files. `notes` is exempt: no stage reads it (it's
+    copied verbatim into `reader_notes`), so a notes edit resumes and the
+    current notes go into the book. It also aborts when the saved
+    known-file has a different `isbn` (a slug collision, not an edit), or
+    when the saved run skipped verify via `--trust-known` and this one
+    doesn't pass it — resuming would otherwise finish a book that was
+    never verified.
+  - **CLI:** resuming is "run the same command again," not a separate
+    resume-specific invocation; `--fresh` discards the interrupted run
+    instead.
 - **Run budget:** unchanged at a wall-clock ceiling of **1 hour** for a
   whole-book run, plus a **~2 minute** timeout on each individual LLM call
   — still a circuit breaker for a genuinely hung run, not a constraint

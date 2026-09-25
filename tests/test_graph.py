@@ -7,7 +7,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from precis.pipeline import graph as graph_module
 from precis.pipeline.graph import RunBudgetExceeded, build_graph
-from precis.schema import KnownFile
+from precis.schema import Book, KnownFile
 
 
 def test_building_the_graph_raises_no_config_typing_warning():
@@ -178,7 +178,7 @@ async def test_run_whole_book_propagates_run_budget_exceeded(monkeypatch, tmp_pa
 
     known_file = KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction")
     with pytest.raises(RunBudgetExceeded, match="run budget"):
-        await graph_module.run_whole_book(known_file, trust_known=True)
+        await graph_module.run_whole_book(known_file, slug="a-novel", trust_known=True)
 
 
 @pytest.mark.asyncio
@@ -215,10 +215,180 @@ async def test_run_whole_book_threads_on_progress_through_to_the_real_stream(mon
 
     messages: list[str] = []
     known_file = KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction")
-    book = await graph_module.run_whole_book(known_file, trust_known=True, on_progress=messages.append)
+    book = await graph_module.run_whole_book(known_file, slug="a-novel", trust_known=True, on_progress=messages.append)
 
     assert book.title == "T"
     assert messages == [
         "verify: known-file confirmed against search results",
         "assemble: book finalized",
     ]
+
+
+_FAKE_BOOK = {
+    "schema_version": "1",
+    "title": "T",
+    "author": "A",
+    "isbn": "1",
+    "kind": "fiction",
+    "one_line_takeaway": "takeaway",
+    "synopsis": "synopsis",
+    "tags": ["fantasy", "adventure"],
+}
+
+
+class _StubbedPipeline:
+    """Real graph + real SQLite checkpointer, with every node replaced by a
+    stub that records its calls — exercises run_whole_book's resume rules
+    end to end without any LLM/search.
+    """
+
+    def __init__(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            graph_module,
+            "settings",
+            dataclasses.replace(
+                graph_module.settings,
+                checkpoint_db_path=str(tmp_path / "checkpoints.sqlite"),
+            ),
+        )
+        monkeypatch.setattr(graph_module, "build_search_client", lambda: object())
+        monkeypatch.setattr(graph_module.llm, "build_client", lambda: object())
+        self.calls: list[str] = []
+        self.fail_verify = False
+        self.fail_chapter: int | None = None
+
+        async def verify_run(state, config=None):
+            self.calls.append(f"verify(trust_known={state['trust_known']})")
+            if self.fail_verify:
+                raise ValueError("Stage 1 verify failed")
+            return {"verified": True, "verify_reason": "ok"}
+
+        async def draft_run_one(state, config=None):
+            n = state["chapter_number"]
+            self.calls.append(f"draft {n}")
+            if n == self.fail_chapter:
+                raise RuntimeError("chapter failed")
+            return {"chapters": [{"number": n}]}
+
+        async def synthesize_run(state, config=None):
+            self.calls.append("synthesize")
+            return {}
+
+        async def assemble_run(state, config=None):
+            self.calls.append(f"assemble ({len(state['chapters'])} chapters)")
+            return {"book": _FAKE_BOOK}
+
+        monkeypatch.setattr(graph_module.verify, "run", verify_run)
+        monkeypatch.setattr(graph_module.draft, "run_one", draft_run_one)
+        monkeypatch.setattr(graph_module.synthesize, "run", synthesize_run)
+        monkeypatch.setattr(graph_module.assemble, "run", assemble_run)
+
+    async def run(self, known_file: KnownFile, **kwargs) -> Book:
+        self.calls.clear()
+        return await graph_module.run_whole_book(known_file, slug="the-book", **kwargs)
+
+
+def _nonfiction(**overrides) -> KnownFile:
+    return KnownFile(
+        **{
+            "isbn": "1",
+            "title": "B",
+            "author": "A",
+            "kind": "non-fiction",
+            "chapters": ["One", "Two"],
+            **overrides,
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_rerun_resumes_only_the_unfinished_work(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_chapter = 2
+    with pytest.raises(RuntimeError):
+        await pipeline.run(_nonfiction())
+
+    pipeline.fail_chapter = None
+    await pipeline.run(_nonfiction())
+    assert pipeline.calls == ["draft 2", "synthesize", "assemble (2 chapters)"]
+
+
+@pytest.mark.asyncio
+async def test_leftover_finished_thread_is_never_handed_back(monkeypatch, tmp_path):
+    # The CLI deletes a finished thread once the book is written; one that
+    # outlived a failed write just starts over.
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    await pipeline.run(_nonfiction())
+
+    await pipeline.run(_nonfiction(chapters=["One", "Two", "Three"]))
+    assert pipeline.calls[0] == "verify(trust_known=False)"
+    assert pipeline.calls[-1] == "assemble (3 chapters)"
+
+
+@pytest.mark.asyncio
+async def test_changed_known_file_after_verify_aborts_unless_fresh(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_chapter = 2
+    with pytest.raises(RuntimeError):
+        await pipeline.run(_nonfiction())
+    pipeline.fail_chapter = None
+
+    with pytest.raises(graph_module.CheckpointMismatch, match=r"\(chapters\).*--fresh"):
+        await pipeline.run(_nonfiction(chapters=["One", "Two", "Three"], notes="new"))
+
+    await pipeline.run(_nonfiction(chapters=["One", "Two", "Three"], notes="new"), fresh=True)
+    assert pipeline.calls[0] == "verify(trust_known=False)"
+    assert pipeline.calls[-1] == "assemble (3 chapters)"
+
+
+@pytest.mark.asyncio
+async def test_failed_verify_restarts_cleanly_so_trust_known_applies(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_verify = True
+    with pytest.raises(ValueError, match="verify failed"):
+        await pipeline.run(_nonfiction())
+
+    pipeline.fail_verify = False
+    await pipeline.run(_nonfiction(notes="edited too"), trust_known=True)
+    assert pipeline.calls[0] == "verify(trust_known=True)"
+    assert pipeline.calls[-1] == "assemble (2 chapters)"
+
+
+@pytest.mark.asyncio
+async def test_run_started_with_trust_known_wont_resume_without_it(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_chapter = 2
+    with pytest.raises(RuntimeError):
+        await pipeline.run(_nonfiction(), trust_known=True)
+    pipeline.fail_chapter = None
+
+    with pytest.raises(graph_module.CheckpointMismatch, match="--trust-known"):
+        await pipeline.run(_nonfiction())
+
+    await pipeline.run(_nonfiction(), trust_known=True)
+    assert pipeline.calls == ["draft 2", "synthesize", "assemble (2 chapters)"]
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_for_a_different_book_with_the_same_slug_is_refused(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_chapter = 2
+    with pytest.raises(RuntimeError):
+        await pipeline.run(_nonfiction())
+
+    with pytest.raises(graph_module.CheckpointMismatch, match="different book"):
+        await pipeline.run(_nonfiction(isbn="2"))
+
+
+
+@pytest.mark.asyncio
+async def test_editing_only_notes_resumes_and_uses_the_new_notes(monkeypatch, tmp_path):
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    pipeline.fail_chapter = 2
+    with pytest.raises(RuntimeError):
+        await pipeline.run(_nonfiction(notes="old"))
+    pipeline.fail_chapter = None
+
+    book = await pipeline.run(_nonfiction(notes="new"))
+    assert pipeline.calls == ["draft 2", "synthesize", "assemble (2 chapters)"]
+    assert book.reader_notes == "new"

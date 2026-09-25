@@ -6,6 +6,7 @@ from precis.schema import PLACEHOLDER
 from precis.search import (
     SearchResult,
     _author_surnames,
+    identifies_book,
     is_book_relevant,
     search_book,
     short_title,
@@ -21,6 +22,8 @@ def _result(content: str, title: str = "t", url: str = "https://example.org") ->
 def test_short_title_drops_subtitle_and_placeholder():
     assert short_title(DIET_MYTH) == "The Diet Myth"
     assert short_title("Brain") == "Brain"
+    assert short_title("Thinking, Fast and Slow (Revised Edition)") == "Thinking, Fast and Slow"
+    assert short_title("The (Mis)Behavior of Markets: A Fractal View") == "The (Mis)Behavior of Markets"
     assert short_title(None) == ""
     assert short_title(PLACEHOLDER) == ""
 
@@ -121,7 +124,7 @@ async def test_search_book_returns_first_query_with_relevant_results():
     client = _client([_OFF_TOPIC, _ON_TOPIC], [_ON_TOPIC])
     results = await search_book(["q1", "q2"], title=DIET_MYTH, author="Tim Spector", client=client)
     assert results == [_ON_TOPIC]
-    client.search.assert_called_once_with("q1", max_results=10)
+    client.search.assert_called_once_with("q1", max_results=10, deep=False)
 
 
 @pytest.mark.asyncio
@@ -136,3 +139,22 @@ async def test_search_book_falls_through_empty_and_off_topic_batches():
 async def test_search_book_returns_empty_when_nothing_is_about_the_book():
     client = _client([_OFF_TOPIC], [_OFF_TOPIC])
     assert await search_book(["q1", "q2"], title=DIET_MYTH, author="Tim Spector", client=client) == []
+
+
+@pytest.mark.parametrize(
+    "printed", ["978-0-393-31755-8", "9780393317558", "ISBN-13 9780393317558", "ISBN-13: 978-0393317558", "0393317552"]
+)
+def test_identifies_book_by_isbn_however_its_printed(printed):
+    result = SearchResult(title="Guns", url="https://x", content=f"ISBN {printed}")
+    assert identifies_book(result, title="Guns", isbn="9780393317558")
+
+
+def test_identifies_book_rejects_an_isbn_embedded_in_a_longer_number():
+    result = SearchResult(title="Guns", url="https://x", content="order 197803933175581")
+    assert not identifies_book(result, title="Guns", isbn="9780393317558")
+
+
+@pytest.mark.parametrize("printed", ["https://example.com/range-9781594484964", "ISBN9781594484964"])
+def test_identifies_book_by_isbn_glued_to_a_slug_or_label(printed):
+    result = SearchResult(title="Range", url="https://x", content=printed)
+    assert identifies_book(result, title="Range", isbn="9781594484964")

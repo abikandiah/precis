@@ -7,7 +7,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from precis import cli as cli_module
 from precis.cli import _known_file_filename, build_parser
 from precis.pipeline.state import COMPLETED_STATE_KEY
-from precis.schema import FICTION_TAGS, NONFICTION_TAGS, SCHEMA_VERSION, KnownFile
+from precis.schema import FICTION_TAGS, NONFICTION_TAGS, SCHEMA_VERSION, Book, KnownFile
 
 
 def _run(args: list[str]) -> int:
@@ -191,3 +191,86 @@ def test_known_file_filename_resolves_repeated_collisions_for_the_same_isbn():
 
     assert names == ["same-book.json", "same-book-123.json", "same-book-123-2.json"]
     assert len(set(names)) == 3
+
+
+def test_generate_deletes_the_checkpoint_only_after_writing_the_book(tmp_path, monkeypatch):
+    known_file_path = tmp_path / "the-book.json"
+    known_file_path.write_text(KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction").model_dump_json())
+    output_path = tmp_path / "out.json"
+    book = Book(
+        schema_version="1", title="T", author="A", isbn="1", kind="fiction",
+        one_line_takeaway="takeaway", synopsis="synopsis", tags=["fantasy", "adventure"],
+    )  # fmt: skip
+
+    async def fake_run_whole_book(known_file, *, slug, trust_known, fresh, on_progress):
+        return book
+
+    deleted = []
+
+    async def fake_delete(thread_id):
+        assert output_path.exists(), "checkpoint deleted before the book was written"
+        deleted.append(thread_id)
+
+    monkeypatch.setattr(cli_module.pipeline_graph, "run_whole_book", fake_run_whole_book)
+    monkeypatch.setattr(cli_module.pipeline_checkpoints, "delete_checkpoint_thread", fake_delete)
+
+    assert _run(["generate", str(known_file_path), "--output", str(output_path)]) == 0
+    assert deleted == ["the-book"]
+
+
+def test_generate_refuses_an_unwritable_output_before_any_work(tmp_path, monkeypatch, capsys):
+    known_file_path = tmp_path / "the-book.json"
+    known_file_path.write_text(KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction").model_dump_json())
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("generation started despite an unwritable --output")
+
+    monkeypatch.setattr(cli_module.pipeline_graph, "run_whole_book", fail_if_called)
+    assert _run(["generate", str(known_file_path), "--output", str(tmp_path / "missing" / "out.json")]) == 1
+    assert "doesn't exist" in capsys.readouterr().err
+
+
+def test_generate_refuses_a_directory_as_output(tmp_path, monkeypatch, capsys):
+    known_file_path = tmp_path / "the-book.json"
+    known_file_path.write_text(KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction").model_dump_json())
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("generation started despite a directory --output")
+
+    monkeypatch.setattr(cli_module.pipeline_graph, "run_whole_book", fail_if_called)
+    assert _run(["generate", str(known_file_path), "--output", str(tmp_path)]) == 1
+    assert "directory" in capsys.readouterr().err
+
+
+def test_generate_prints_the_book_when_the_final_write_fails(tmp_path, monkeypatch, capsys):
+    known_file_path = tmp_path / "the-book.json"
+    known_file_path.write_text(KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction").model_dump_json())
+    book = Book(
+        schema_version="1", title="T", author="A", isbn="1", kind="fiction",
+        one_line_takeaway="takeaway", synopsis="synopsis", tags=["fantasy", "adventure"],
+    )  # fmt: skip
+
+    async def fake_run_whole_book(known_file, *, slug, trust_known, fresh, on_progress):
+        return book
+
+    real_write = cli_module._write_output
+
+    def failing_write(model, output_path, *, exclude_none=False):
+        if output_path:
+            raise OSError(28, "No space left on device")
+        real_write(model, output_path, exclude_none=exclude_none)
+
+    deleted = []
+
+    async def fake_delete(thread_id):
+        deleted.append(thread_id)
+
+    monkeypatch.setattr(cli_module.pipeline_graph, "run_whole_book", fake_run_whole_book)
+    monkeypatch.setattr(cli_module, "_write_output", failing_write)
+    monkeypatch.setattr(cli_module.pipeline_checkpoints, "delete_checkpoint_thread", fake_delete)
+
+    assert _run(["generate", str(known_file_path), "--output", str(tmp_path / "out.json")]) == 1
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["title"] == "T"
+    assert "printing the book to stdout instead" in captured.err
+    assert deleted == ["the-book"]

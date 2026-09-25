@@ -9,7 +9,6 @@ or resume across container restarts doesn't work (config.settings.checkpoint_db_
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import os
 from collections.abc import Callable
 
@@ -24,7 +23,7 @@ from precis import llm
 from precis.config import settings
 from precis.known_file import ensure_ready
 from precis.pipeline.nodes import assemble, draft, synthesize, verify
-from precis.pipeline.state import GraphState
+from precis.pipeline.state import COMPLETED_STATE_KEY, GraphState
 from precis.schema import Book, KnownFile
 from precis.search import build_search_client
 
@@ -54,17 +53,53 @@ class RunBudgetExceeded(TimeoutError):
     """
 
 
-def thread_id_for(known_file: KnownFile, *, trust_known: bool) -> str:
-    """Deterministic run identity: the same known-file content and
-    trust_known setting resolve to the same thread, so re-running
-    `precis generate` unchanged resumes an interrupted run rather than
-    starting over. trust_known is part of the identity, not just the
-    known-file, because it changes what Stage 1 does — resuming a thread
-    that already ran verify with the old value would otherwise silently
-    keep the old behavior even though a new value was just requested.
+class CheckpointMismatch(ValueError):
+    """The book's checkpoint got past verify but can't be resumed as-is —
+    the known-file was edited (resuming would mix chapters drafted from two
+    different files), it names a different book, or the saved run skipped
+    verify and this one doesn't. Raised instead of guessing; `--fresh` is
+    the explicit way out.
     """
-    canonical = known_file.model_dump_json() + f"|trust_known={trust_known}"
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+# Known-file fields no pipeline stage reads — `notes` is only copied
+# verbatim into the finished book's `reader_notes` (see run_whole_book), so
+# editing it mid-run doesn't invalidate any drafted chapter.
+_PASS_THROUGH_FIELDS = {"notes"}
+
+
+def _changed_fields(saved: dict, current: dict) -> list[str]:
+    keys = (saved.keys() | current.keys()) - _PASS_THROUGH_FIELDS
+    return sorted(k for k in keys if saved.get(k) != current.get(k))
+
+
+def _finish(book: dict, known_file: KnownFile) -> Book:
+    # A resumed or reused run carries the notes from when it started;
+    # the reader's current notes win.
+    return Book.model_validate({**book, "reader_notes": known_file.notes})
+
+
+def _resume_blocker(slug: str, saved_values: dict, current: dict, *, trust_known: bool) -> str | None:
+    """Why a checkpoint that got past verify can't be resumed as-is, or None."""
+    saved_known = saved_values.get("known_file") or {}
+    if saved_known.get("isbn") != current.get("isbn"):
+        return (
+            f"the checkpoint named {slug!r} belongs to a different book (isbn {saved_known.get('isbn')!r}, "
+            f"not {current.get('isbn')!r}). Rename this known-file, or rerun with --fresh to discard that checkpoint."
+        )
+    if changed := _changed_fields(saved_known, current):
+        return (
+            f"known-file for {slug!r} changed since its checkpoint was saved ({', '.join(changed)}). "
+            "Rerun with --fresh to discard the checkpoint and start over, or undo the change to resume."
+        )
+    # Verify was skipped on the saved run; resuming without --trust-known
+    # would finish (or hand back) a book that was never checked.
+    if saved_values.get("trust_known") and not trust_known:
+        return (
+            f"{slug!r} was started with --trust-known, so verify never ran. Rerun with --trust-known to resume, "
+            "or with --fresh to start over and verify it."
+        )
+    return None
 
 
 def _route_after_verify(state: GraphState) -> str | list[Send]:
@@ -125,7 +160,7 @@ def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -
 
 async def _stream_with_budget(
     graph: CompiledStateGraph,
-    input_state: dict,
+    input_state: dict | None,
     config: RunnableConfig,
     *,
     total_chapters: int,
@@ -188,10 +223,16 @@ def build_graph(checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
 async def run_whole_book(
     known_file: KnownFile,
     *,
+    slug: str,
     trust_known: bool = False,
     fresh: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> Book:
+    """Runs (or resumes) the whole-book pipeline for `slug` — the book's
+    one identity, shared by its known-file, its output and its checkpoint
+    thread. See docs/blueprint.md's Orchestration section for the resume
+    rules implemented below.
+    """
     # Enforced here, not just by the CLI's own preflight_check call, since
     # run_whole_book is itself a public entrypoint per the module boundary
     # (docs/blueprint.md) — a caller other than this repo's CLI could invoke
@@ -200,38 +241,64 @@ async def run_whole_book(
     # Stage 2 fan-out dispatches zero Send()s and the graph never reaches
     # assemble) instead of failing with a clear message.
     ensure_ready(known_file)
+    if not slug:
+        raise ValueError("slug is required — it names the book's checkpoint thread")
 
     checkpoint_dir = os.path.dirname(settings.checkpoint_db_path)
     if checkpoint_dir:
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # Built once per run and threaded through every node via config — see
-    # verify.run/draft.run_one, which read config["configurable"] — rather
-    # than each of the (potentially many, for draft's per-chapter fan-out)
-    # node invocations constructing its own client independently. Never
-    # touches the checkpoint DB: config passed to astream() is per-run,
-    # not part of the persisted state the checkpointer serializes.
-    search_client = build_search_client()
-    llm_client = llm.build_client()
+    def progress(message: str) -> None:
+        if on_progress:
+            on_progress(message)
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
         graph = build_graph(checkpointer)
-        thread_id = thread_id_for(known_file, trust_known=trust_known)
+        config: RunnableConfig = {"configurable": {"thread_id": slug}}
+        current = known_file.model_dump()
 
-        if fresh:
-            await checkpointer.adelete_thread(thread_id)
+        saved = None if fresh else await checkpointer.aget_tuple(config)
+        saved_values = saved.checkpoint["channel_values"] if saved else {}
+
+        # None resumes the saved thread where it stopped; passing the input
+        # state again would restart it from START instead — re-running
+        # verify and every chapter, and appending a second copy of each
+        # chapter through the `add` reducer.
+        input_state: dict | None = {
+            "known_file": current,
+            "trust_known": trust_known,
+            "chapters": [],
+            "warnings": [],
+        }
+        if saved and saved_values.get("verified") and COMPLETED_STATE_KEY not in saved_values:
+            if blocker := _resume_blocker(slug, saved_values, current, trust_known=trust_known):
+                raise CheckpointMismatch(blocker)
+            progress(f"resuming {slug!r} from its checkpoint")
+            input_state = None
+        elif saved or fresh:
+            # Nothing worth keeping: either verify never passed (only its
+            # cheap search + model call has run — this is also what lets a
+            # rerun with --trust-known take effect after verify failed), or
+            # the run finished and its thread outlived a failed output write.
+            # A finished book is never handed back from here; the caller
+            # deletes the thread once the book is written.
+            await checkpointer.adelete_thread(slug)
+
+        # Built once per run and threaded through every node via config — see verify.run/draft.run_one, which read
+        # config["configurable"] — rather than each of the (potentially
+        # many, for draft's per-chapter fan-out) node invocations
+        # constructing its own client independently. Never touches the
+        # checkpoint DB: config passed to astream() is per-run, not part of
+        # the persisted state the checkpointer serializes.
+        search_client = build_search_client()
+        llm_client = llm.build_client()
 
         result = await _stream_with_budget(
             graph,
-            {
-                "known_file": known_file.model_dump(),
-                "trust_known": trust_known,
-                "chapters": [],
-                "warnings": [],
-            },
+            input_state,
             {
                 "configurable": {
-                    "thread_id": thread_id,
+                    "thread_id": slug,
                     "search_client": search_client,
                     "llm_client": llm_client,
                 },
@@ -240,4 +307,4 @@ async def run_whole_book(
             total_chapters=len(known_file.chapters),
             on_progress=on_progress,
         )
-        return Book.model_validate(result["book"])
+        return _finish(result["book"], known_file)
