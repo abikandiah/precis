@@ -200,6 +200,7 @@ async def test_run_whole_book_threads_on_progress_through_to_the_real_stream(mon
         "title": "T",
         "author": "A",
         "isbn": "1",
+        "kind": "fiction",
         "one_line_takeaway": "takeaway",
         "synopsis": "synopsis",
         "tags": ["tag"],

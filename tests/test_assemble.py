@@ -67,6 +67,8 @@ async def test_nonfiction_path_valid_on_first_attempt_no_repair_called(monkeypat
     assert book["title"] == "A Book"
     assert book["author"] == "An Author"
     assert book["isbn"] == "123"
+    assert book["kind"] == "non-fiction"
+    assert book["narrative"] is False
     assert book["one_line_takeaway"] == "the takeaway"
     assert book["synopsis"] == "a synopsis"
     assert book["tags"] == ["tag1", "tag2"]
@@ -89,6 +91,7 @@ async def test_fiction_path_with_empty_chapters_list_becomes_none(monkeypatch):
     book = result["book"]
     assert book["chapters"] is None
     assert book["key_claims_for_review"] is None
+    assert book["kind"] == "fiction"
 
 
 @pytest.mark.asyncio

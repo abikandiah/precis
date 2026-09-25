@@ -174,6 +174,8 @@ async def run(
         "year": known_file.year,
         "isbn": known_file.isbn,
         "page_count": known_file.page_count,
+        "kind": known_file.kind,
+        "narrative": known_file.narrative,
         "one_line_takeaway": state["one_line_takeaway"],
         "synopsis": state["synopsis"],
         "tags": state["tags"],

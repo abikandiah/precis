@@ -32,6 +32,7 @@ def _base_book_kwargs() -> dict:
         "title": "Some Book",
         "author": "Some Author",
         "isbn": "123",
+        "kind": "non-fiction",
         "one_line_takeaway": "takeaway",
         "synopsis": "synopsis",
         "tags": ["tag"],

@@ -109,6 +109,8 @@ class Book(BaseModel):
     year: int | None = None
     isbn: str
     page_count: int | None = None
+    kind: Literal["fiction", "non-fiction"]
+    narrative: bool = False
     one_line_takeaway: str
     synopsis: str
     tags: list[str]

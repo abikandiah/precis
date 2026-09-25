@@ -152,8 +152,14 @@ schema or otherwise) is that consumer's concern, not this module's — the
 module's job ends at emitting valid JSON per `schema_version` (below).
 
 - Common: `schema_version`, `title`, `author`, `year`, `isbn`, `page_count`,
-  `one_line_takeaway`, `synopsis`, `tags`, `parts?`, `parts_source?`
-  (`"known" | "generated"`), `reader_notes?`, `warnings[]`.
+  `kind` (`"fiction" | "non-fiction"`), `narrative`, `one_line_takeaway`,
+  `synopsis`, `tags`, `parts?`, `parts_source?` (`"known" | "generated"`),
+  `reader_notes?`, `warnings[]`.
+  `kind`/`narrative` are passed through verbatim from the known-file, same
+  as `title`/`author`/`page_count` — they're facts about the book a consumer
+  needs (book-keeper's own storage schema discriminates on `kind`), not
+  merely an internal routing input, even though generation itself only ever
+  reads them to decide which pipeline path to run.
   `date_added`/`verified` are not generation output at all —
   set by whatever consumes the output (this project's publish tooling sets
   `date_added` itself and always defaults `verified: false`; a different
