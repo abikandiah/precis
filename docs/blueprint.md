@@ -1,5 +1,8 @@
 # Part 6 — Generation Module Rewrite (Python)
 
+> **Redesign in progress** — see [v2-plan.md](v2-plan.md). This doc describes
+> the current (v1) pipeline until each v2 phase lands and is folded in here.
+
 **Context:** A ground-up rewrite of the AI generation pipeline as a
 standalone, generic Python module — not a port of, and not designed around,
 the existing TypeScript/LangGraph.js pipeline (`scripts/generate-book.ts` and
