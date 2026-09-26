@@ -10,6 +10,7 @@ from openai.types.chat.chat_completion_message_function_tool_call import (
 from pydantic import BaseModel, ValidationInfo, model_validator
 
 from precis.llm import (
+    ProviderError,
     StructuredOutputError,
     TransientLLMError,
     complete,
@@ -207,3 +208,77 @@ async def test_validation_context_mismatch_raises_after_exhausting_attempts():
             validation_context={"expected_count": 2},
         )
     assert client.chat.completions.create.call_count == 2
+
+
+def _error_finish_response(error: dict | None = None) -> MagicMock:
+    response = _response_with_tool_calls(None, content="", finish_reason="error")
+    response.choices[0].model_extra = {"error": error} if error is not None else {}
+    return response
+
+
+def _no_choices_response(error: dict) -> MagicMock:
+    response = MagicMock()
+    response.model = None
+    response.choices = []
+    response.model_extra = {"error": error}
+    return response
+
+
+@pytest.fixture
+def no_backoff(monkeypatch):
+    monkeypatch.setattr("precis.llm._sleep", AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_error_finish_reason_is_retried_as_transient_not_as_a_missing_tool_call(no_backoff):
+    client = _mock_client_with_sequence(
+        _error_finish_response(),
+        _error_finish_response(),
+        _response_with_tool_calls([_tool_call('{"verified": true, "reason": "matches"}')]),
+    )
+    verdict = await complete_structured(client, messages=[], response_model=_Verdict, max_attempts=1)
+    assert verdict == _Verdict(verified=True, reason="matches")
+    assert client.chat.completions.create.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_retryable_provider_error_raises_transient_with_provider_message_once_retries_run_out(no_backoff):
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(
+        return_value=_error_finish_response(
+            {"code": 502, "message": "Provider returned error", "metadata": {"raw": "upstream overloaded"}}
+        )
+    )
+    with pytest.raises(TransientLLMError, match=r"after 3 retries.*502: upstream overloaded"):
+        await complete_structured(client, messages=[], response_model=_Verdict)
+    assert client.chat.completions.create.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_provider_error_raises_at_once(no_backoff):
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(
+        return_value=_error_finish_response({"code": 400, "message": "context length exceeded"})
+    )
+    with pytest.raises(ProviderError, match=r"400: context length exceeded"):
+        await complete_structured(client, messages=[], response_model=_Verdict)
+    assert client.chat.completions.create.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_error_body_with_no_choices_is_a_provider_error_not_a_crash(no_backoff):
+    ok = _response_with_tool_calls(None, content="hello")
+    client = _mock_client_with_sequence(_no_choices_response({"code": 503, "message": "no capacity"}), ok)
+    assert await complete(client, messages=[]) == "hello"
+
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=_no_choices_response({"code": 403, "message": "flagged"}))
+    with pytest.raises(ProviderError, match=r"403: flagged"):
+        await complete(client, messages=[])
+
+
+@pytest.mark.asyncio
+async def test_complete_also_retries_error_finish_reason(no_backoff):
+    ok = _response_with_tool_calls(None, content="hello")
+    client = _mock_client_with_sequence(_error_finish_response(), ok)
+    assert await complete(client, messages=[]) == "hello"
