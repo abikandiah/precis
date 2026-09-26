@@ -5,7 +5,7 @@ import pytest
 from precis.schema import PLACEHOLDER
 from precis.search import (
     SearchResult,
-    _author_surnames,
+    author_surnames,
     identifies_book,
     is_book_relevant,
     search_book,
@@ -35,6 +35,7 @@ def test_short_title_drops_subtitle_and_placeholder():
         ("Martin Luther King Jr.", ["king"]),
         ("Carl Sagan and Ann Druyan", ["sagan", "druyan"]),
         ("Carl Sagan & Ann Druyan", ["sagan", "druyan"]),
+        ("Tim Spector with Jane Doe", ["spector", "doe"]),
         ("Richard P. Feynman; Ralph Leighton", ["feynman", "leighton"]),
         ("Richard P. Feynman, Ralph Leighton", ["feynman", "leighton"]),
         ("Tim Spector (Author), Jane Doe (Translator)", ["spector", "doe"]),
@@ -46,7 +47,7 @@ def test_short_title_drops_subtitle_and_placeholder():
     ],
 )
 def test_author_surnames(author, expected):
-    assert _author_surnames(author) == expected
+    assert author_surnames(author) == expected
 
 
 @pytest.mark.parametrize(

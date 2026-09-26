@@ -131,8 +131,46 @@ def format_chapter_progress(
     doesn't have (or want to show) a "N/total" position.
     """
     position = f"{number}/{total_chapters}" if total_chapters is not None else str(number)
-    flag = f" (flagged: {quality_flag})" if quality_flag else ""
+    flag = f" (flagged: {_preview(quality_flag)})" if quality_flag else ""
     return f"chapter {position} drafted: {title!r}{flag}"
+
+
+# A flag carries the critique's whole feedback — the full text belongs in
+# the book's warnings[], not in a progress line.
+_FLAG_PREVIEW_CHARS = 100
+
+
+def _preview(text: str) -> str:
+    # One line: feedback with its own line breaks would otherwise spill
+    # fragments that read as separate progress lines.
+    text = " ".join(text.split())
+    return text if len(text) <= _FLAG_PREVIEW_CHARS else text[:_FLAG_PREVIEW_CHARS].rstrip() + "…"
+
+
+def _drafting_message(total_chapters: int, *, resuming: bool = False) -> str:
+    chapters = f"{total_chapters} chapter{'s' if total_chapters != 1 else ''}"
+    what = f"any not yet drafted of {chapters}" if resuming else chapters
+    return f"drafting {what}, up to {settings.concurrency} at a time..."
+
+
+def _verify_messages(reason: str, total_chapters: int) -> list[str]:
+    # The report's first line is the verdict; any differences follow,
+    # indented under it so they read as part of this stage.
+    first, *rest = reason.splitlines() or [""]
+    messages = [f"verify: {first}", *(f"  {line}" for line in rest)]
+    if total_chapters:
+        messages.append(_drafting_message(total_chapters))
+    return messages
+
+
+def _assemble_message(book: dict) -> str:
+    # Flagged chapters aren't counted separately: each already has its own
+    # entry in warnings[] (see draft._finalize).
+    chapters = book.get("chapters") or []
+    details = [f"{len(chapters)} chapters"] if chapters else []
+    if warnings := book.get("warnings"):
+        details.append(f"{len(warnings)} warning(s) — see the book's warnings")
+    return "assemble: book finalized" + (f" ({', '.join(details)})" if details else "")
 
 
 def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -> list[str]:
@@ -143,7 +181,7 @@ def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -
     already produces.
     """
     if node_name == NODE_VERIFY:
-        return [f"verify: {node_update.get('verify_reason', 'known-file confirmed')}"]
+        return _verify_messages(node_update.get("verify_reason", "known-file confirmed"), total_chapters)
     if node_name == NODE_DRAFT_CHAPTER:
         return [
             format_chapter_progress(c["number"], c["title"], c.get("quality_flag"), total_chapters=total_chapters)
@@ -154,7 +192,7 @@ def _progress_messages(node_name: str, node_update: dict, total_chapters: int) -
         note = f" — {len(warnings)} warning(s) noted" if warnings else ""
         return [f"synthesize: synopsis/tags/parts complete (parts: {node_update.get('parts_source')}){note}"]
     if node_name == NODE_ASSEMBLE:
-        return ["assemble: book finalized"]
+        return [_assemble_message(node_update.get("book") or {})]
     return []
 
 
@@ -252,6 +290,9 @@ async def run_whole_book(
         if on_progress:
             on_progress(message)
 
+    # Only the full non-fiction path drafts chapters one by one.
+    total_chapters = len(known_file.chapters) if known_file.is_full_nonfiction_path else 0
+
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
         graph = build_graph(checkpointer)
         config: RunnableConfig = {"configurable": {"thread_id": slug}}
@@ -274,6 +315,10 @@ async def run_whole_book(
             if blocker := _resume_blocker(slug, saved_values, current, trust_known=trust_known):
                 raise CheckpointMismatch(blocker)
             progress(f"resuming {slug!r} from its checkpoint")
+            # Verify already ran, so its update (which announces drafting)
+            # won't stream again.
+            if total_chapters:
+                progress(_drafting_message(total_chapters, resuming=True))
             input_state = None
         elif saved or fresh:
             # Nothing worth keeping: either verify never passed (only its
@@ -283,6 +328,8 @@ async def run_whole_book(
             # A finished book is never handed back from here; the caller
             # deletes the thread once the book is written.
             await checkpointer.adelete_thread(slug)
+        if input_state is not None and not trust_known:
+            progress("verify: checking the known-file against web search...")
 
         # Built once per run and threaded through every node via config — see verify.run/draft.run_one, which read
         # config["configurable"] — rather than each of the (potentially
@@ -304,7 +351,7 @@ async def run_whole_book(
                 },
                 "max_concurrency": settings.concurrency,
             },
-            total_chapters=len(known_file.chapters),
+            total_chapters=total_chapters,
             on_progress=on_progress,
         )
         return _finish(result["book"], known_file)

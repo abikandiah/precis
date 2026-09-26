@@ -115,6 +115,7 @@ async def test_stream_with_budget_calls_on_progress_for_each_update():
     assert result == {"book": {"sentinel": True}}
     assert messages == [
         "verify: known-file confirmed against search results",
+        f"drafting 1 chapter, up to {graph_module.settings.concurrency} at a time...",
         "chapter 1/1 drafted: 'Ch 1'",
         "assemble: book finalized",
     ]
@@ -129,11 +130,30 @@ def test_format_chapter_progress_with_and_without_total_and_flag():
     # No total_chapters given (generate-chapter without a known count) —
     # bare chapter number, same title/flag wording otherwise.
     assert graph_module.format_chapter_progress(2, "Ch 2", None) == "chapter 2 drafted: 'Ch 2'"
+    # A critique's whole feedback is cut short — it's in the book's warnings.
+    long_flag = "critique failed after 3 attempts: " + "x" * 200
+    line = graph_module.format_chapter_progress(2, "Ch 2", long_flag)
+    assert line.startswith("chapter 2 drafted: 'Ch 2' (flagged: critique failed after 3 attempts: xxx")
+    assert line.endswith("…)")
+    assert "x" * 200 not in line
+    # Kept to one line even when the feedback has its own line breaks.
+    assert graph_module.format_chapter_progress(2, "Ch 2", "Issues:\n- claim X\n- claim Y") == (
+        "chapter 2 drafted: 'Ch 2' (flagged: Issues: - claim X - claim Y)"
+    )
 
 
 def test_progress_messages_for_each_node_shape():
     assert graph_module._progress_messages("verify", {"verified": True, "verify_reason": "looks right"}, 0) == [
         "verify: looks right"
+    ]
+    # Differences are indented under the verdict, then drafting is announced.
+    assert graph_module._progress_messages(
+        "verify", {"verified": True, "verify_reason": "right book\nDifferences:\n  - year: 2020 vs 2015"}, 3
+    ) == [
+        "verify: right book",
+        "  Differences:",
+        "    - year: 2020 vs 2015",
+        f"drafting 3 chapters, up to {graph_module.settings.concurrency} at a time...",
     ]
     assert graph_module._progress_messages("verify", {"verified": True}, 0) == ["verify: known-file confirmed"]
     assert graph_module._progress_messages(
@@ -151,6 +171,13 @@ def test_progress_messages_for_each_node_shape():
         "synthesize", {"parts_source": "known", "warnings": ["part 'X': model suggested a different title"]}, 0
     ) == ["synthesize: synopsis/tags/parts complete (parts: known) — 1 warning(s) noted"]
     assert graph_module._progress_messages("assemble", {"book": {}}, 0) == ["assemble: book finalized"]
+    book = {
+        "chapters": [{"quality_flag": None}, {"quality_flag": "critique failed"}],
+        "warnings": ["chapter 2: critique failed"],
+    }
+    assert graph_module._progress_messages("assemble", {"book": book}, 2) == [
+        "assemble: book finalized (2 chapters, 1 warning(s) — see the book's warnings)"
+    ]
     assert graph_module._progress_messages("some_other_node", {}, 0) == []
 
 

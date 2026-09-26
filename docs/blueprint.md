@@ -248,27 +248,33 @@ module's job ends at emitting valid JSON per `schema_version` (below).
 
 ## Pipeline stages (whole-book mode)
 
-1. **Verify** — one search + one model critique against the known-file's
-   `isbn`/`chapters`/`parts` (when supplied), scoped narrowly to confirming
-   edition/chapter-list/part-structure correctness (not general thematic
-   research — see Stage 3). `parts` gets checked here for the same reason
-   `chapters` is: once Stage 3 passes it through as fact instead of
-   inventing it, this is the one point that confirms it's actually the
-   book's real structure, not a reader's typo or misremembering. Fail fast
-   on mismatch (wrong edition, wrong book, bad chapter list, bad part
-   claims) before any expensive per-chapter work runs. Skippable via a
-   `--trust-known`-style flag for a known-file the reader is already
-   confident about.
+1. **Verify** — one search + one model call confirming this is a real
+   book by the claimed author, before any expensive per-chapter work
+   runs (not general thematic research — see Stage 3). Skippable via
+   `--trust-known` for a known-file the reader is already confident
+   about.
+   **The known-file owns the chapter list and parts.** They're pre-filled
+   from Open Library's catalog data or entered by the reader, and
+   reviewed when the known-file is made (phase 1) — that's where
+   checking contents belongs, not generation. Web search can't settle a
+   table of contents: snippets rarely carry one, and summary sites
+   (sobrief, bookey, …) label their own headings "Chapter 1", "Chapter
+   2". Letting those contradictions fail the run twice failed The Diet
+   Myth's correct, hand-checked chapter list, and every patch (a
+   model-judged "is this a real contents listing" flag, then a proposed
+   domain blocklist) only moved which unreliable pages got through.
+   Chapter and part differences are still reported, as warnings.
    The model reports a list of issues (kind, what the known-file claims,
-   what the sources say, source URL), each either **contradicted** (a
-   result says otherwise) or **unconfirmed** (the results don't mention
-   it); the pass/fail decision is made in code, not by the model.
-   Unconfirmed is the normal case for a table of contents — search
-   snippets rarely carry a full one — and an earlier single-bool verdict
-   failed correct known-files by treating "not in the results" or unusual
-   chapter titles as fabrication. Every issue is surfaced either way: on a
-   pass as this stage's progress line, on a fail in the error, with a
-   pointer to fix the known-file or rerun with `--trust-known`.
+   what the sources say, which numbered result), each either
+   **contradicted** (a result says otherwise) or **unconfirmed** (the
+   results don't mention it); the pass/fail decision is made in code, not
+   by the model. Only differences are shown — the verdict line, then
+   "Differences from search results (warnings only …)" — as indented
+   progress lines on a pass, in the error on a fail. Unconfirmed issues
+   aren't listed: "not in the results" is the normal case for most
+   fields and buried the differences that matter. More than 3
+   chapter/part differences from one source collapse to one line naming
+   it, since that's a summary site's headings, not typos.
    - **Search:** "deep" (fuller page excerpts), on the short title +
      author with a title-only fallback query — a quoted full title/ISBN
      filters out most pages that list a book's contents. Results are kept
@@ -282,24 +288,19 @@ module's job ends at emitting valid JSON per `schema_version` (below).
      that returns nothing at all is reported as a search-service problem
      instead.) The short title drops a parenthetical ("(Revised
      Edition)") as well as the subtitle.
-   - **What can fail the run:** only a contradiction with an actual
-     contrary value, for three kinds, each held to a source that pins the
-     claim to this book (the model cites results by their `[n]` number,
-     not by copying a URL that can drift):
-     - *author* — a source that identifies this exact book (full title
-       including subtitle, or the ISBN), so a different "Range" or "Grit"
-       can't overrule it;
-     - *chapter* / *part* — a source that names the claimed author too
-       (`is_book_relevant`) *and* reproduces the book's real table of
-       contents (the model flags this per issue). Summary and "key
-       takeaways" sites reword books into their own section headings, and
-       one of them "contradicted" The Diet Myth's correct chapter list.
-       Chapters are shown to the model unnumbered (unless parts refer to
-       them by number) and compared by title and order only — contents
-       listings number their own way and include front/back matter.
-     `title` (only the subtitle can differ, since every result names the
-     short title), `isbn`, `year` and `page_count` vary by edition, and
-     results often describe a different one, so they only ever warn.
+   - **What can fail the run:** no result naming the book (above), or
+     an *author* contradiction backed by a source that identifies this
+     exact book (full title including subtitle, or the ISBN — the model
+     cites results by their `[n]` number, not a URL that can drift), so
+     a different "Range" or "Grit" can't overrule it — and only when the
+     cited author shares no surname with the claimed one, so "Timothy
+     Spector" or "Tim Spector with Jane Doe" never fails "Tim Spector"
+     (`search.author_surnames`). The error names the
+     difference and says to fix the author or rerun with `--trust-known`.
+     Everything else only warns: chapters and parts (above), `title`
+     (only the subtitle can differ, since every result names the short
+     title), and `isbn`, `year` and `page_count`, which vary by edition
+     while results often describe a different one.
 2. **Draft chapters** (non-fiction full path only) — parallel, bounded
    concurrency (configurable, default **3**). Per chapter: search-ground
    (`"<short title>" <author> "<chapter>" summary`, with an unquoted

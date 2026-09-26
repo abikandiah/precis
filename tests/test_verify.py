@@ -6,7 +6,7 @@ from precis.pipeline.nodes import verify
 from precis.schema import KnownFile, KnownPart
 from precis.search import SearchResult
 
-# Names the title, the author and the ISBN, so it can back any fatal
+# Names the title, the author and the ISBN, so it can back an author
 # contradiction (see verify._Sources).
 _BOOK_RESULT = SearchResult(
     title="A Book by An Author — contents", url="https://example.com/toc", content="A Book, ISBN 978-0-00-000000-2"
@@ -69,22 +69,21 @@ async def test_clients_from_config_are_used_when_not_passed_explicitly(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_unverified_verdict_raises_with_reason(monkeypatch):
+async def test_author_contradiction_raises_with_the_difference_and_a_way_out(monkeypatch):
     search_client = AsyncMock()
     search_client.search.return_value = [_BOOK_RESULT]
 
     async def fake_complete_structured(client, *, messages, response_model, model=None):
         return response_model(
-            summary="wrong edition",
+            summary="wrong book",
             issues=[
                 verify.VerifyIssue(
-                    kind="chapter",
-                    field="chapter 1",
-                    claimed="Ch 1",
+                    kind="author",
+                    field="author",
+                    claimed="An Author",
                     status="contradicted",
-                    expected="Chapter One Real Title",
+                    expected="Real Writer",
                     source=1,
-                    source_is_table_of_contents=True,
                 )
             ],
         )
@@ -98,10 +97,11 @@ async def test_unverified_verdict_raises_with_reason(monkeypatch):
             llm_client=AsyncMock(),
         )
     message = str(exc_info.value)
-    assert "wrong edition" in message
+    assert message.startswith("verify failed: the known-file's author doesn't match the book found online:\n")
     assert (
-        "chapter 1: known-file says 'Ch 1'; sources say 'Chapter One Real Title' (https://example.com/toc)" in message
+        "author: known-file says 'An Author'; search results say 'Real Writer' (https://example.com/toc)" in message
     )
+    assert "wrong book" in message
     assert "--trust-known" in message
 
 
@@ -123,26 +123,19 @@ async def _run_with_issues(
 
 
 @pytest.mark.asyncio
-async def test_unconfirmed_issues_pass_and_are_reported(monkeypatch):
-    # The Diet Myth case: chapters that just aren't in the search snippets
-    # must not fail the run.
+async def test_unconfirmed_issues_are_not_listed(monkeypatch):
+    # "Not in the search results" is the normal case for most fields —
+    # listing it buried the differences that matter.
     result = await _run_with_issues(
         monkeypatch,
-        [verify.VerifyIssue(kind="chapter", field="chapter 1", claimed="Ch 1", status="unconfirmed")],
+        [
+            verify.VerifyIssue(kind="chapter", field="chapter 1", claimed="Ch 1", status="unconfirmed"),
+            verify.VerifyIssue(kind="year", field="year", claimed="2020", status="unconfirmed"),
+            # A "contradiction" with nothing to contradict it with.
+            verify.VerifyIssue(kind="author", field="author", claimed="An Author", status="contradicted"),
+        ],
     )
-    assert result["verified"] is True
-    assert "Unconfirmed (not a failure by itself):" in result["verify_reason"]
-    assert "chapter 1: known-file says 'Ch 1' — not found in search results" in result["verify_reason"]
-
-
-@pytest.mark.asyncio
-async def test_contradiction_without_evidence_is_downgraded_to_unconfirmed(monkeypatch):
-    result = await _run_with_issues(
-        monkeypatch,
-        [verify.VerifyIssue(kind="chapter", field="chapter 1", claimed="Ch 1", status="contradicted")],
-    )
-    assert result["verified"] is True
-    assert "Unconfirmed" in result["verify_reason"]
+    assert result == {"verified": True, "verify_reason": "right book"}
 
 
 @pytest.mark.asyncio
@@ -155,7 +148,7 @@ async def test_edition_level_contradictions_never_fail(monkeypatch, kind):
         [verify.VerifyIssue(kind=kind, field="publication year", claimed="2020", status="contradicted", expected="2015")],
     )
     assert result["verified"] is True
-    assert "publication year: known-file says '2020'; sources say '2015'" in result["verify_reason"]
+    assert "publication year: known-file says '2020'; search results say '2015'" in result["verify_reason"]
 
 
 @pytest.mark.asyncio
@@ -186,7 +179,7 @@ async def test_wrong_author_is_caught_from_results_crediting_someone_else(monkey
     # Results aren't filtered on the claimed author, so a page crediting the
     # real author still reaches the model.
     real = SearchResult(title="A Book by Real Writer", url="https://real", content="A Book, ISBN 978-0-00-000000-2")
-    with pytest.raises(ValueError, match="Stage 1 verify failed"):
+    with pytest.raises(ValueError, match="verify failed"):
         await _run_with_issues(
             monkeypatch,
             [
@@ -201,27 +194,6 @@ async def test_wrong_author_is_caught_from_results_crediting_someone_else(monkey
             ],
             results=[real],
         )
-
-
-@pytest.mark.asyncio
-async def test_same_title_book_by_another_author_cant_contradict_chapters(monkeypatch):
-    other = SearchResult(title="A Book by Someone Else", url="https://same-title", content="A Book contents")
-    result = await _run_with_issues(
-        monkeypatch,
-        [
-            verify.VerifyIssue(
-                kind="chapter",
-                field="chapter 1",
-                claimed="Ch 1",
-                status="contradicted",
-                expected="Something else",
-                source=2,
-                source_is_table_of_contents=True,
-            )
-        ],
-        results=[_BOOK_RESULT, other],
-    )
-    assert result["verified"] is True
 
 
 @pytest.mark.asyncio
@@ -365,46 +337,58 @@ async def test_no_parts_question_when_known_file_has_no_parts(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_chapter_contradiction_from_a_summary_site_does_not_fail(monkeypatch):
-    # The Diet Myth case: a summary site's own section headings "contradict"
-    # every real chapter title.
+@pytest.mark.parametrize("kind", ["chapter", "part"])
+async def test_chapter_and_part_contradictions_only_warn(monkeypatch, kind):
+    # The known-file owns the chapter list and parts. Even a source that
+    # looks like a real contents listing for this book only warns — summary
+    # sites label their own headings "Chapter 1", "Chapter 2" too.
     result = await _run_with_issues(
         monkeypatch,
         [
             verify.VerifyIssue(
-                kind="chapter",
-                field="chapter 1",
-                claimed="Introduction: A Bad Taste",
-                status="contradicted",
-                expected="Microbes: The Hidden Influence on Our Health and Diet",
-                source=1,
+                kind=kind, field=f"{kind} 1", claimed="Ch 1", status="contradicted", expected="Chapter One", source=1
             )
         ],
     )
     assert result["verified"] is True
+    assert result["verify_reason"] == (
+        "right book\n"
+        "Differences from search results (warnings only — the known-file is used as written):\n"
+        f"  - {kind} 1: known-file says 'Ch 1'; search results say 'Chapter One' (https://example.com/toc)"
+    )
 
 
 @pytest.mark.asyncio
-async def test_author_contradiction_fails_without_a_contents_listing(monkeypatch):
-    with pytest.raises(ValueError, match="Stage 1 verify failed"):
+async def test_many_chapter_differences_from_one_source_collapse_to_one_line(monkeypatch):
+    # The Diet Myth case: a summary site's own headings "differ" from most
+    # real chapter titles — one line, not a wall of them.
+    summary_site = SearchResult(title="A Book summary", url="https://summaries.example/a-book", content="A Book")
+    issues = [
+        verify.VerifyIssue(
+            kind="chapter", field=f"chapter {n}", claimed=f"Ch {n}", status="contradicted",
+            expected=f"Heading {n}", source=2,
+        )
+        for n in range(1, 5)
+    ]
+    issues.append(
+        verify.VerifyIssue(
+            kind="chapter", field="chapter 9", claimed="Ch 9", status="contradicted", expected="Chapter Nine", source=1
+        )
+    )
+    reason = (await _run_with_issues(monkeypatch, issues, results=[_BOOK_RESULT, summary_site]))["verify_reason"]
+    assert "chapter 9: known-file says 'Ch 9'; search results say 'Chapter Nine'" in reason
+    assert "  - 4 chapter/part titles differ from https://summaries.example/a-book" in reason
+    assert "Heading" not in reason
+
+
+@pytest.mark.asyncio
+async def test_author_contradiction_from_a_source_naming_this_book_fails(monkeypatch):
+    with pytest.raises(ValueError, match="verify failed"):
         await _run_with_issues(
             monkeypatch,
             [verify.VerifyIssue(kind="author", field="author", claimed="An Author", status="contradicted",
                                 expected="Someone Else", source=1)],
         )
-
-
-@pytest.mark.asyncio
-async def test_many_unconfirmed_chapters_collapse_to_one_line(monkeypatch):
-    issues = [
-        verify.VerifyIssue(kind="chapter", field=f"chapter {n}", claimed=f"Ch {n}", status="unconfirmed")
-        for n in range(1, 6)
-    ]
-    issues.append(verify.VerifyIssue(kind="year", field="year", claimed="2020", status="unconfirmed"))
-    reason = (await _run_with_issues(monkeypatch, issues))["verify_reason"]
-    assert "  - 5 chapters: not found in search results" in reason
-    assert "year: known-file says '2020'" in reason
-    assert "Ch 1" not in reason
 
 
 @pytest.mark.asyncio
@@ -427,21 +411,63 @@ async def test_out_of_range_source_number_cant_back_a_contradiction(monkeypatch)
                             expected="Someone Else", source=7)],
     )
     assert result["verified"] is True
-    assert "sources say 'Someone Else'" in result["verify_reason"]
+    assert "search results say 'Someone Else'" in result["verify_reason"]
 
 
 @pytest.mark.asyncio
-async def test_non_fatal_contradiction_is_shown_as_disputed_not_unconfirmed(monkeypatch):
-    reason = (
-        await _run_with_issues(
-            monkeypatch,
-            [
-                verify.VerifyIssue(kind="year", field="year", claimed="2020", status="contradicted", expected="2015"),
-                verify.VerifyIssue(kind="chapter", field="chapter 1", claimed="Ch 1", status="unconfirmed"),
-            ],
+@pytest.mark.parametrize("expected", ["Timothy Spector", "Tim Spector with Jane Doe", "T. D. Spector"])
+async def test_another_form_of_the_same_author_never_fails(monkeypatch, expected):
+    known_file = KnownFile(isbn="9780000000002", title="A Book", author="Tim Spector", kind="non-fiction", chapters=["Ch 1"])
+    search_client = AsyncMock()
+    search_client.search.return_value = [_BOOK_RESULT]
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        issue = verify.VerifyIssue(
+            kind="author", field="author", claimed="Tim Spector", status="contradicted", expected=expected, source=1
         )
-    )["verify_reason"]
-    disputed, unconfirmed = reason.split("Unconfirmed (not a failure by itself):")
-    assert "Contradicted, but not by a source that settles it" in disputed
-    assert "year: known-file says '2020'; sources say '2015'" in disputed
-    assert "chapter 1" in unconfirmed
+        return response_model(summary="right book", issues=[issue])
+
+    monkeypatch.setattr(verify.llm, "complete_structured", fake_complete_structured)
+    result = await verify.run(
+        {"known_file": known_file.model_dump(), "trust_known": False},
+        search_client=search_client,
+        llm_client=AsyncMock(),
+    )
+    assert result["verified"] is True
+    assert f"search results say {expected!r}" in result["verify_reason"]
+
+
+@pytest.mark.asyncio
+async def test_chapter_differences_without_a_citable_source_are_listed_not_collapsed(monkeypatch):
+    # With no source number they may come from several pages — naming one
+    # "summary site" for all of them would be a guess.
+    issues = [
+        verify.VerifyIssue(
+            kind="chapter", field=f"chapter {n}", claimed=f"Ch {n}", status="contradicted", expected=f"Heading {n}"
+        )
+        for n in range(1, 5)
+    ]
+    reason = (await _run_with_issues(monkeypatch, issues))["verify_reason"]
+    assert all(f"chapter {n}: known-file says 'Ch {n}'" in reason for n in range(1, 5))
+    assert "chapter/part titles differ from" not in reason
+
+
+@pytest.mark.asyncio
+async def test_author_with_no_comparable_surname_never_fails(monkeypatch):
+    known_file = KnownFile(isbn="9780000000002", title="A Book", author="X", kind="non-fiction", chapters=["Ch 1"])
+    search_client = AsyncMock()
+    search_client.search.return_value = [_BOOK_RESULT]
+
+    async def fake_complete_structured(client, *, messages, response_model, model=None):
+        issue = verify.VerifyIssue(
+            kind="author", field="author", claimed="X", status="contradicted", expected="Someone Else", source=1
+        )
+        return response_model(summary="right book", issues=[issue])
+
+    monkeypatch.setattr(verify.llm, "complete_structured", fake_complete_structured)
+    result = await verify.run(
+        {"known_file": known_file.model_dump(), "trust_known": False},
+        search_client=search_client,
+        llm_client=AsyncMock(),
+    )
+    assert result["verified"] is True

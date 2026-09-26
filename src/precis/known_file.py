@@ -40,9 +40,9 @@ def create_known_file(
     when it has a clean one (see parse_table_of_contents) — for this
     edition, or failing that another edition of the same work, which the
     notes call out. Otherwise they're left empty for the reader to fill in.
-    Either way the reader still reviews them before phase 2: Stage 1 checks
-    them against search results, but they're treated as known fact from
-    then on.
+    Either way the reader reviews them before phase 2 — this is where the
+    chapter list gets checked. From then on they're known fact: Stage 1
+    only warns when search results list them differently.
     """
     data = _lookup_open_library(isbn, want_toc=kind == "non-fiction")
     notes: list[str] = []

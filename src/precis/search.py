@@ -124,15 +124,15 @@ def _title_key(title: str) -> str:
     return " ".join(words)
 
 
-def _author_surnames(author: str | None) -> list[str]:
+def author_surnames(author: str | None) -> list[str]:
     if not author or author == PLACEHOLDER:
         return []
     author = re.sub(r"\([^)]*\)", " ", author)
-    pieces = [p.strip() for p in re.split(r",|;|&|\band\b", author) if p.strip()]
+    pieces = [p.strip() for p in re.split(r",|;|&|\band\b|\bwith\b", author) if p.strip()]
     # "Spector, Tim" is one person written last-name-first, not two authors
     # "Spector" and "Tim" — the only comma form with a one-word first piece.
     # (Open Library's multi-author join is "Full Name, Full Name".)
-    if "," in author and len(pieces) == 2 and len(pieces[0].split()) == 1 and not re.search(r";|&|\band\b", author):
+    if "," in author and len(pieces) == 2 and len(pieces[0].split()) == 1 and not re.search(r";|&|\band\b|\bwith\b", author):
         pieces = pieces[:1]
     surnames = []
     for piece in pieces:
@@ -144,8 +144,9 @@ def _author_surnames(author: str | None) -> list[str]:
 
 @functools.lru_cache(maxsize=256)
 def _result_text(result: SearchResult) -> str:
-    # Cached: one result goes through mentions_title, identifies_book and
-    # is_book_relevant in turn (Stage 1), and normalizing is the costly part.
+    # Cached: one result goes through several of these checks in turn
+    # (mentions_title and identifies_book in Stage 1), and normalizing is
+    # the costly part.
     return normalize_text(f"{result.title} {result.url} {result.content}")
 
 
@@ -214,7 +215,7 @@ def is_book_relevant(result: SearchResult, *, title: str | None, author: str | N
     alone also counts when it has a subtitle, which is distinctive by itself.
     """
     text = _result_text(result)
-    surnames = _author_surnames(author)
+    surnames = author_surnames(author)
     short = _title_key(short_title(title))
     if short and _names_full_title(text, title):
         return True
