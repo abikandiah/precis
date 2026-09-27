@@ -49,6 +49,7 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, ValidationError
 
+from precis import usage
 from precis.config import settings
 
 _TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, InternalServerError)
@@ -59,6 +60,10 @@ _TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, InternalServerError)
 # `openrouter/free` — can land on one that ignores tool_choice and replies
 # in prose. Gateways that don't know the field ignore it.
 _REQUIRE_TOOL_SUPPORT = {"provider": {"require_parameters": True}}
+
+# Asks OpenRouter to report each call's cost in `usage.cost` (see usage.py).
+# Gateways that don't know the field ignore it.
+_USAGE_ACCOUNTING = {"usage": {"include": True}}
 
 # A provider error returned inside a 200 response (see _create) is invisible
 # to the SDK's retry, so it gets its own small, fixed budget — deliberately
@@ -177,12 +182,17 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
     errored choice would look like the model declining to call the tool.
     Retryable ones get _PROVIDER_ERROR_RETRIES retries with backoff, then
     TransientLLMError; the rest raise ProviderError at once.
+
+    Every response is recorded to the current usage scope, errored ones
+    included — a provider can bill for a generation that failed partway.
     """
+    kwargs["extra_body"] = {**_USAGE_ACCOUNTING, **kwargs.get("extra_body", {})}
     for retry in range(_PROVIDER_ERROR_RETRIES + 1):
         try:
             response = await client.chat.completions.create(**kwargs)
         except _TRANSIENT_ERRORS as exc:
             raise _transient_error(exc) from exc
+        usage.record_llm_response(response)
         error = _provider_error(response)
         if error is None:
             return response

@@ -98,6 +98,37 @@ Both `generate` and `generate-chapter` print progress to stderr as they
 run (verify/chapter/synthesize/assemble completions) — stdout stays clean
 JSON, so piping `--output`-less output elsewhere still works.
 
+At the end of every `generate`/`generate-chapter` run (successful or not),
+a `usage:` line on stderr reports LLM calls, tokens, the gateway-reported
+cost and searches used.
+
+## Evals
+
+`evals/` holds the eval set — 8 well-known books (`books/`, checked
+known-files) with a reference summary each (`references/`) — and the runs
+generated from it (`runs/<label>/`). See [evals/README.md](evals/README.md).
+Both commands call paid models, so they run in Docker like `generate`,
+with the repo's `evals/` bind-mounted at `/evals`:
+
+```
+docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop=ALL --security-opt no-new-privileges --pids-limit=256 \
+  --memory=512m --memory-swap=512m \
+  --env-file .env \
+  -v "$(pwd)/evals:/evals" \
+  -v precis-checkpoints:/data \
+  precis eval run v1-sonnet-5
+# generates every eval book into evals/runs/v1-sonnet-5/ with PRECIS_LLM_MODEL,
+# skipping books already there; --book <slug> for just one
+
+docker run --rm ... --env-file .env -v "$(pwd)/evals:/evals" \
+  precis eval judge v2-sonnet-5 v1-sonnet-5
+# judges the first run against the second with PRECIS_JUDGE_MODEL
+```
+
+`evals/` must be writable by uid 1000 (the image's user), since it's a
+bind mount.
+
 ## Cleaning up checkpoints
 
 `generate` deletes a book's checkpoint once the book is written, so what

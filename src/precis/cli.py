@@ -15,6 +15,12 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from precis import usage
+from precis.config import settings
+from precis.eval import data as eval_data
+from precis.eval import judge as eval_judge
+from precis.eval import metrics as eval_metrics
+from precis.eval import runner as eval_runner
 from precis.known_file import create_known_file, preflight_check, slugify_title
 from precis.pipeline import checkpoints as pipeline_checkpoints
 from precis.pipeline import graph as pipeline_graph
@@ -183,19 +189,23 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         return 1
 
     slug = _slug_from_path(args.known_file)
-    try:
-        book = asyncio.run(
-            pipeline_graph.run_whole_book(
-                known_file,
-                slug=slug,
-                trust_known=args.trust_known,
-                fresh=args.fresh,
-                on_progress=_print_progress,
+    # Printed on failure too: a failed run has still spent money.
+    with usage.track() as run_usage:
+        try:
+            book = asyncio.run(
+                pipeline_graph.run_whole_book(
+                    known_file,
+                    slug=slug,
+                    trust_known=args.trust_known,
+                    fresh=args.fresh,
+                    on_progress=_print_progress,
+                )
             )
-        )
-    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-        print(f"generation failed: {exc}", file=sys.stderr)
-        return 1
+        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
+            print(f"generation failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            _print_progress(run_usage.summary())
 
     try:
         _write_output(book, args.output, exclude_none=True)
@@ -237,23 +247,26 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
     chapter_title = known_file.chapters[args.chapter - 1]
     _print_progress(f"drafting chapter {args.chapter} ({chapter_title!r})...")
 
-    try:
-        result = asyncio.run(
-            draft.run_one(
-                {
-                    "known_file": known_file.model_dump(),
-                    "chapter_number": args.chapter,
-                    "chapter_title": chapter_title,
-                }
+    with usage.track() as run_usage:
+        try:
+            result = asyncio.run(
+                draft.run_one(
+                    {
+                        "known_file": known_file.model_dump(),
+                        "chapter_number": args.chapter,
+                        "chapter_title": chapter_title,
+                    }
+                )
             )
-        )
-        chapter_dicts = result.get("chapters") or []
-        if not chapter_dicts:
-            raise ValueError("chapter drafting returned no chapter — this is a bug in Stage 2, not user error")
-        chapter = Chapter.model_validate(chapter_dicts[0])
-    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-        print(f"chapter generation failed: {exc}", file=sys.stderr)
-        return 1
+            chapter_dicts = result.get("chapters") or []
+            if not chapter_dicts:
+                raise ValueError("chapter drafting returned no chapter — this is a bug in Stage 2, not user error")
+            chapter = Chapter.model_validate(chapter_dicts[0])
+        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
+            print(f"chapter generation failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            _print_progress(run_usage.summary())
 
     _print_progress(
         pipeline_graph.format_chapter_progress(
@@ -266,6 +279,60 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
 
 def _cmd_tags(args: argparse.Namespace) -> int:
     _write_output(TagVocabulary(), args.output)
+    return 0
+
+
+def _cmd_eval_run(args: argparse.Namespace) -> int:
+    try:
+        books = eval_data.load_books(args.evals_dir, args.book)
+    except (OSError, ValueError) as exc:
+        print(f"could not load the eval set: {exc}", file=sys.stderr)
+        return 1
+    for book in books:
+        if problems := preflight_check(book.known_file):
+            print(f"eval book {book.slug!r} is not ready: {'; '.join(problems)}", file=sys.stderr)
+            return 1
+    results = asyncio.run(
+        eval_runner.run_eval(
+            args.evals_dir,
+            args.label,
+            books,
+            pipeline=args.pipeline,
+            trust_known=args.trust_known,
+            on_progress=_print_progress,
+        )
+    )
+    _print_progress(eval_metrics.format_summary(args.label, eval_metrics.summarize(results)))
+    return 1 if any(r.get("error") for r in results) else 0
+
+
+def _cmd_eval_judge(args: argparse.Namespace) -> int:
+    model = args.judge_model or settings.judge_model
+    if not model:
+        print("no judge model: set PRECIS_JUDGE_MODEL or pass --judge-model", file=sys.stderr)
+        return 1
+    try:
+        books = eval_data.load_books(args.evals_dir, args.book)
+        judgement = asyncio.run(
+            eval_judge.judge_runs(
+                args.evals_dir,
+                args.candidate,
+                args.baseline,
+                books,
+                model=model,
+                concurrency=settings.concurrency,
+                on_progress=_print_progress,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
+        print(f"judging failed: {exc}", file=sys.stderr)
+        return 1
+    for label in (args.candidate, args.baseline):
+        run_metrics = [
+            m for book in books if (m := eval_data.read_json(eval_runner.metrics_path(args.evals_dir, label, book.slug)))
+        ]
+        _print_progress(eval_metrics.format_summary(label, eval_metrics.summarize(run_metrics)))
+    _print_progress(eval_judge.format_judgement(judgement))
     return 0
 
 
@@ -350,6 +417,27 @@ def build_parser() -> argparse.ArgumentParser:
         "deleting one forfeits resuming that interrupted run, not just reclaiming disk space",
     )
     checkpoints_cmd.set_defaults(func=_cmd_checkpoints)
+
+    eval_cmd = subparsers.add_parser("eval", help="run the eval set and judge runs against each other")
+    eval_subparsers = eval_cmd.add_subparsers(dest="eval_command", required=True)
+
+    eval_run = eval_subparsers.add_parser(
+        "run", help="generate every eval book into runs/<label>/ (books already there are skipped)"
+    )
+    eval_run.add_argument("label", help="names the run, e.g. v1-sonnet-5")
+    eval_run.add_argument("--pipeline", choices=sorted(eval_runner.PIPELINES), default="v1")
+    eval_run.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
+    eval_run.add_argument("--trust-known", action="store_true")
+    eval_run.add_argument("--evals-dir", default=settings.evals_dir)
+    eval_run.set_defaults(func=_cmd_eval_run)
+
+    eval_judge_cmd = eval_subparsers.add_parser("judge", help="pairwise-judge a candidate run against a baseline run")
+    eval_judge_cmd.add_argument("candidate")
+    eval_judge_cmd.add_argument("baseline")
+    eval_judge_cmd.add_argument("--judge-model", help="defaults to PRECIS_JUDGE_MODEL")
+    eval_judge_cmd.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
+    eval_judge_cmd.add_argument("--evals-dir", default=settings.evals_dir)
+    eval_judge_cmd.set_defaults(func=_cmd_eval_judge)
 
     return parser
 

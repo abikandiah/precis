@@ -1,0 +1,262 @@
+{
+  "title": "Atomic Habits",
+  "author": "James Clear",
+  "one_line_takeaway": "Lasting change comes from tiny habits that compound, built into systems and identity using four laws: make it obvious, attractive, easy and satisfying.",
+  "synopsis": "James Clear argues that small habits compound like interest: getting one percent better each day adds up to a transformation, but the results arrive late, after a long plateau. Rather than setting goals, he says to build systems and to anchor habits in identity, since every action is a vote for the kind of person you want to become. Every habit runs through a four-step loop — cue, craving, response, reward — which yields four laws of behavior change: make it obvious, make it attractive, make it easy and make it satisfying, and their inversions for breaking bad habits. Each law gets practical tools: the Habits Scorecard, implementation intentions and habit stacking, environment design, temptation bundling, joining a culture where the behavior is normal, the Two-Minute Rule, commitment devices, habit tracking and accountability contracts. A final section on advanced tactics covers matching habits to your genes and personality, staying in the Goldilocks zone of difficulty, and pairing habits with reflection so that automaticity doesn't stop improvement.",
+  "parts": [
+    {
+      "title": "The Fundamentals: Why Tiny Changes Make a Big Difference",
+      "summary": "Habits compound, systems beat goals, identity drives lasting change, and every habit follows a cue-craving-response-reward loop that yields four laws.",
+      "chapters": [1, 2, 3]
+    },
+    {
+      "title": "The 1st Law: Make It Obvious",
+      "summary": "Notice your habits, give new ones a clear time and place, stack them onto existing habits, and design your environment so good cues are visible and bad ones hidden.",
+      "chapters": [4, 5, 6, 7]
+    },
+    {
+      "title": "The 2nd Law: Make It Attractive",
+      "summary": "Habits are driven by the dopamine of anticipation, so bundle them with things you want, join groups where the behavior is normal, and reframe what you associate with a habit.",
+      "chapters": [8, 9, 10]
+    },
+    {
+      "title": "The 3rd Law: Make It Easy",
+      "summary": "Repetition, not time, forms habits, so reduce friction, scale habits down to two minutes, and use automation and one-time decisions to lock in good behavior.",
+      "chapters": [11, 12, 13, 14]
+    },
+    {
+      "title": "The 4th Law: Make It Satisfying",
+      "summary": "What is immediately rewarded is repeated, so add instant rewards, track habits visibly, never miss twice, and use accountability to make bad habits painful.",
+      "chapters": [15, 16, 17]
+    },
+    {
+      "title": "Advanced Tactics: How to Go from Being Merely Good to Being Truly Great",
+      "summary": "Choose habits that suit your nature, stay motivated by working at the edge of your ability, and keep improving through reflection once habits become automatic.",
+      "chapters": [18, 19, 20]
+    }
+  ],
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Surprising Power of Atomic Habits",
+      "core_claim": "Tiny improvements compound into remarkable results over time, so success depends on the systems you follow, not the goals you set.",
+      "key_points": [
+        "British Cycling under Dave Brailsford pursued the 'aggregation of marginal gains' — improving many small things by one percent — and went from mediocrity to Tour de France and Olympic dominance.",
+        "Getting one percent better every day makes you about 37 times better after a year, while one percent worse each day declines you nearly to zero.",
+        "Habit results lag behind effort, so people quit in the 'valley of disappointment' before crossing the 'plateau of latent potential'.",
+        "Winners and losers share the same goals, so goals can't be what differentiates them; 'you do not rise to the level of your goals, you fall to the level of your systems'.",
+        "Goals restrict happiness to a future moment and create a yo-yo effect once reached, whereas a commitment to the process keeps you improving."
+      ]
+    },
+    {
+      "number": 2,
+      "title": "How Your Habits Shape Your Identity (and Vice Versa)",
+      "core_claim": "The most durable way to change your habits is to change your identity, because behavior that conflicts with who you believe you are won't last.",
+      "key_points": [
+        "Change happens at three layers — outcomes, processes and identity — and most people start with outcomes rather than identity.",
+        "Identity-based habits start from who you want to become: a person trying to quit smoking who says 'I'm not a smoker' has changed their identity, not just their behavior.",
+        "Every action is a vote for the type of person you wish to become; no single vote decides it, but the votes accumulate into evidence of a new identity.",
+        "The two-step process: decide the type of person you want to be, then prove it to yourself with small wins.",
+        "Habits matter because they are how you embody an identity, not merely how you get results."
+      ]
+    },
+    {
+      "number": 3,
+      "title": "How to Build Better Habits in 4 Simple Steps",
+      "core_claim": "Every habit runs through a four-step loop of cue, craving, response and reward, which yields four laws for building good habits and breaking bad ones.",
+      "key_points": [
+        "Edward Thorndike's cats learned to escape puzzle boxes faster with each trial, showing how behaviors followed by satisfying consequences become automatic.",
+        "Habits are mental shortcuts learned from experience; automating routine behavior frees the conscious mind for other things.",
+        "The habit loop has four stages: cue, craving, response and reward.",
+        "The four laws of behavior change: make it obvious, make it attractive, make it easy, make it satisfying — and inverted to break a bad habit: make it invisible, unattractive, difficult and unsatisfying."
+      ]
+    },
+    {
+      "number": 4,
+      "title": "The Man Who Didn't Look Right",
+      "core_claim": "Because habits run on autopilot, the first step to changing them is becoming aware of the cues and behaviors you no longer notice.",
+      "key_points": [
+        "A former paramedic noticed at a family gathering that her father-in-law's face 'didn't look right' and urged him to hospital, where he was found to have a life-threatening heart problem — pattern recognition built through experience.",
+        "With enough practice the brain picks up cues without conscious thought, which is why habits need to be made visible again before they can be changed.",
+        "Japanese railway workers use 'Pointing-and-Calling', saying their actions aloud, which sharply reduces mistakes by raising awareness.",
+        "The Habits Scorecard: list your daily habits and mark each positive, negative or neutral according to whether it serves the person you want to be."
+      ]
+    },
+    {
+      "number": 5,
+      "title": "The Best Way to Start a New Habit",
+      "core_claim": "New habits start more reliably when you specify exactly when and where you'll do them, and link them to habits you already have.",
+      "key_points": [
+        "Implementation intentions — 'I will [behavior] at [time] in [location]' — make follow-through far more likely; in a British exercise study, people who wrote down when and where they'd exercise were much more likely to do it.",
+        "Vague plans fail because people lack clarity, not motivation.",
+        "The Diderot Effect: after Denis Diderot received a fine scarlet robe he replaced his other possessions to match it, showing how one behavior triggers the next.",
+        "Habit stacking, drawn from BJ Fogg's work: 'After [current habit], I will [new habit]', using an existing habit as the cue."
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Motivation Is Overrated; Environment Often Matters More",
+      "core_claim": "Environment shapes behavior more than motivation does, so design your surroundings to make cues for good habits visible.",
+      "key_points": [
+        "At Massachusetts General Hospital, Anne Thorndike rearranged the cafeteria to put bottled water beside the registers and in every refrigerator; water sales rose and soda sales fell with no appeal to willpower.",
+        "Vision is the most powerful sense, so small changes in what you see drive what you do: put the guitar in the middle of the room, the fruit on the counter.",
+        "Habits become tied to contexts rather than single triggers, so a new space makes it easier to start a new habit.",
+        "One space, one use: keep particular places for particular activities so their cues stay clear."
+      ]
+    },
+    {
+      "number": 7,
+      "title": "The Secret to Self-Control",
+      "core_claim": "People with apparent self-control mostly avoid tempting situations, so the practical way to break a bad habit is to make its cues invisible.",
+      "key_points": [
+        "Many American soldiers used heroin in Vietnam, but research led by Lee Robins found only about 5 percent relapsed within a year of returning home, because the environmental cues were gone.",
+        "Disciplined people structure their lives so they don't need heroic willpower rather than resisting temptation more often.",
+        "Once a habit is encoded, its cue can trigger the urge again — 'cue-induced wanting' — so you can break a habit but you're unlikely to forget it.",
+        "Inversion of the first law: make it invisible by removing the cues for bad habits from your environment."
+      ]
+    },
+    {
+      "number": 8,
+      "title": "How to Make a Habit Irresistible",
+      "core_claim": "Habits are driven by the anticipation of reward, so making a habit attractive — linking it to something you already want — makes you more likely to act.",
+      "key_points": [
+        "Niko Tinbergen found herring gull chicks peck harder at an exaggerated red spot than at a real beak — a supernormal stimulus, like junk food engineered to be irresistible.",
+        "Dopamine is released in anticipation of a reward, not only on receiving it; wanting, not liking, drives action.",
+        "Temptation bundling pairs an action you want to do with one you need to do, as when an engineer rigged his exercise bike so Netflix only played while he pedaled.",
+        "Temptation bundling can be combined with habit stacking, drawing on the Premack principle that more probable behaviors reinforce less probable ones."
+      ]
+    },
+    {
+      "number": 9,
+      "title": "The Role of Family and Friends in Shaping Your Habits",
+      "core_claim": "We adopt the habits our culture praises, so join groups where your desired behavior is normal.",
+      "key_points": [
+        "László Polgár believed geniuses are made and raised his three daughters immersed in chess; all became exceptional players, and Judit became one of the strongest players ever.",
+        "We imitate three groups: the close (family and friends), the many (the tribe) and the powerful (those with status).",
+        "Solomon Asch's line experiments showed people will deny what their eyes tell them to conform to a group.",
+        "The most effective move is to join a culture where your desired behavior is the normal behavior and you already have something in common with the group."
+      ]
+    },
+    {
+      "number": 10,
+      "title": "How to Find and Fix the Causes of Your Bad Habits",
+      "core_claim": "Every habit is a surface-level craving serving a deeper motive, so reframing what you associate with a habit changes how attractive it feels.",
+      "key_points": [
+        "Cravings are specific ways of satisfying deeper underlying motives such as conserving energy, obtaining food, winning social acceptance or reducing uncertainty.",
+        "Allen Carr's approach to quitting smoking reframes what smoking means rather than relying on willpower.",
+        "Changing 'I have to' into 'I get to' reframes a burden as an opportunity.",
+        "A motivation ritual — pairing a habit with something you enjoy so the pairing becomes a cue — can make hard habits more attractive."
+      ]
+    },
+    {
+      "number": 11,
+      "title": "Walk Slowly, but Never Backward",
+      "core_claim": "Habits form through the number of repetitions, not the time elapsed, so practice beats planning.",
+      "key_points": [
+        "Jerry Uelsmann split a photography class into a group graded on quantity and one graded on quality; the quantity group produced the best photos because they practiced more.",
+        "Motion (planning, researching) feels productive but doesn't deliver results; action does.",
+        "Repetition makes behavior automatic through long-term potentiation — the brain physically adapts, as in London taxi drivers' enlarged hippocampi.",
+        "There is no magic number of days to form a habit; what matters is how often you perform it."
+      ]
+    },
+    {
+      "number": 12,
+      "title": "The Law of Least Effort",
+      "core_claim": "People naturally choose the option requiring the least work, so reducing friction for good habits and adding it to bad ones reshapes behavior.",
+      "key_points": [
+        "Jared Diamond's observation that crops spread faster along Eurasia's east-west axis than along the Americas' north-south axis shows how behavior follows the path of least resistance.",
+        "Habits are easier to build when they fit into the flow of life — a gym on your route to work gets visited more.",
+        "Reducing friction, as Japanese manufacturers did in eliminating wasted steps from production, is 'addition by subtraction'.",
+        "Prime your environment for the next action: set out what you need in advance so the good habit is the easy one."
+      ]
+    },
+    {
+      "number": 13,
+      "title": "How to Stop Procrastinating by Using the Two-Minute Rule",
+      "core_claim": "Scaling a new habit down to something that takes under two minutes gets you started, and mastering the habit of showing up comes before optimizing it.",
+      "key_points": [
+        "Habits often hinge on decisive moments — small choices like putting on workout clothes that set the course for what follows.",
+        "Choreographer Twyla Tharp's habit is hailing a cab to the gym each morning; the ritual, not the workout, is the habit.",
+        "The Two-Minute Rule: 'read before bed each night' becomes 'read one page'; 'run three miles' becomes 'tie my running shoes'.",
+        "A habit must be established before it can be improved — standardize before you optimize — and a gateway habit can then be scaled up gradually (habit shaping)."
+      ]
+    },
+    {
+      "number": 14,
+      "title": "How to Make Good Habits Inevitable and Bad Habits Impossible",
+      "core_claim": "Commitment devices, automation and one-time choices lock in good behavior by removing future decisions.",
+      "key_points": [
+        "Victor Hugo locked away his clothes so he'd stay home and finish writing The Hunchback of Notre Dame — a commitment device.",
+        "John Henry Patterson's cash register made theft by store clerks difficult, reshaping behavior by design rather than relying on honesty.",
+        "One-time choices — buying a better mattress, enrolling in automatic savings, unsubscribing from emails — pay off repeatedly.",
+        "Technology can automate good habits and make bad ones impossible, though it can also make harmful behaviors frictionless."
+      ]
+    },
+    {
+      "number": 15,
+      "title": "The Cardinal Rule of Behavior Change",
+      "core_claim": "What is immediately rewarded is repeated and what is immediately punished is avoided, so good habits need an immediate reward.",
+      "key_points": [
+        "Stephen Luby's team in Karachi, Pakistan, handed out a premium soap that was pleasant to use; handwashing became satisfying and rates of diarrhea and pneumonia among children fell sharply.",
+        "We evolved in an immediate-return environment but live in a delayed-return one, so costs of bad habits come later while their pleasures come now.",
+        "Add an immediate reward to habits whose payoff is delayed, as in saving money into an account labeled for something you want.",
+        "Make it unsatisfying to break bad habits by attaching an immediate cost."
+      ]
+    },
+    {
+      "number": 16,
+      "title": "How to Stick with Good Habits Every Day",
+      "core_claim": "Tracking habits visibly gives an immediate sense of progress, and a rule of never missing twice keeps lapses from becoming new habits.",
+      "key_points": [
+        "A stockbroker moved a paper clip from one jar to another after each sales call — the 'paper clip strategy' — giving a visual measure of progress.",
+        "Habit tracking makes behavior obvious, attractive and satisfying at once; 'don't break the chain'.",
+        "Never miss twice: missing once is an accident, missing twice is the start of a new habit.",
+        "Goodhart's Law warns that when a measure becomes a target it stops being a good measure, so don't let tracking replace the real goal."
+      ]
+    },
+    {
+      "number": 17,
+      "title": "How an Accountability Partner Can Change Everything",
+      "core_claim": "Making the consequences of a bad habit immediate and public — through accountability partners and habit contracts — makes it painful to repeat.",
+      "key_points": [
+        "Roger Fisher proposed implanting the nuclear launch codes next to a volunteer's heart so a president would have to kill a person to use them — making the cost of an action immediate and vivid.",
+        "Laws and fines work because they add an immediate cost to behavior people would otherwise repeat.",
+        "A habit contract states a commitment and the penalty for breaking it, signed by accountability partners, as Bryan Harris did with his wife and trainer.",
+        "Knowing someone is watching is a powerful motivator."
+      ]
+    },
+    {
+      "number": 18,
+      "title": "The Truth About Talent (When Genes Matter and When They Don't)",
+      "core_claim": "Genes don't determine destiny but they determine areas of opportunity, so choose habits and fields that suit your nature.",
+      "key_points": [
+        "Michael Phelps and Hicham El Guerrouj have very different body types suited to swimming and running respectively — the right habit in the right field is what matters.",
+        "Personality traits such as the Big Five shape which habits feel natural, so build habits that fit your personality.",
+        "Explore early and exploit what works: ask what feels like fun to you but work to others, and what makes you lose track of time.",
+        "Where you can't win by being better, win by being different — combine skills to create a niche where you have an edge."
+      ]
+    },
+    {
+      "number": 19,
+      "title": "The Goldilocks Rule: How to Stay Motivated in Life and Work",
+      "core_claim": "Motivation peaks when working on tasks of just manageable difficulty, and the greatest threat to success is boredom, not failure.",
+      "key_points": [
+        "Steve Martin built his comedy career over years of refining his act in small increments at the edge of his ability.",
+        "The Goldilocks Rule: humans experience peak motivation on tasks right on the edge of their current abilities — not too hard, not too easy.",
+        "The greatest threat to success is boredom, as habits become routine and less exciting.",
+        "Professionals stick to the schedule even when they don't feel like it; amateurs let life get in the way."
+      ]
+    },
+    {
+      "number": 20,
+      "title": "The Downside of Creating Good Habits",
+      "core_claim": "Habits create automaticity, which can halt improvement, so mastery requires pairing habits with deliberate practice and regular reflection.",
+      "key_points": [
+        "Habits plus deliberate practice equal mastery; once a skill becomes automatic you stop paying attention to small errors.",
+        "Pat Riley's Career Best Effort program for the Los Angeles Lakers tracked players' performance and pushed each to improve by a small percentage.",
+        "Clear conducts an annual review and an integrity report to reflect on his habits and values.",
+        "Keep your identity loose: an identity that becomes rigid makes it harder to adapt when circumstances change."
+      ]
+    }
+  ]
+}

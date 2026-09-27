@@ -51,6 +51,12 @@ class Settings:
     llm_model: str = field(default_factory=lambda: _env_str("PRECIS_LLM_MODEL", ""))
     llm_max_retries: int = field(default_factory=lambda: _env_int("PRECIS_LLM_MAX_RETRIES", 5))
 
+    # `precis eval` only: the model that judges two runs against each other
+    # (a stronger one than the models under test), and where the eval set
+    # and its runs live — see docs/v2-plan.md's Eval set section.
+    judge_model: str = field(default_factory=lambda: _env_str("PRECIS_JUDGE_MODEL", ""))
+    evals_dir: str = field(default_factory=lambda: _env_str("PRECIS_EVALS_DIR", "evals"))
+
     # Search: provider-agnostic key name on purpose — swapping the concrete
     # SearchClient implementation (see search.py) shouldn't require
     # renaming this.

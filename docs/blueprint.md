@@ -411,6 +411,26 @@ precis tags [--output <path>]
       see the "Mirrors book-keeper's own schema.ts" comment on those two
       tuples in schema.py.
 
+precis eval run <label> [--pipeline v1] [--book <slug>]... [--trust-known]
+    → generates every book of the eval set (evals/, see docs/v2-plan.md's
+      Eval set section) into evals/runs/<label>/: each book's JSON plus a
+      <slug>.metrics.json with its measured cost (the gateway's reported
+      usage.cost, plus search credits), duration, flags, duplicate-point
+      rate and citation coverage. Books run one after another; a book whose
+      output is already there is skipped, so a rerun finishes a partial run
+      without paying twice. Exits non-zero if any book failed.
+
+precis eval judge <candidate> <baseline> [--judge-model <id>] [--book <slug>]...
+    → pairwise judgement of two runs by PRECIS_JUDGE_MODEL, book by book,
+      against a rubric (accuracy, specificity, distinctness, scope,
+      coverage vs the reference summary). Each book is judged twice with
+      the order swapped; a pick counts only when both orders agree, else
+      it's a tie. Writes evals/runs/<candidate>/judge-vs-<baseline>.json
+      and prints both runs' metrics and the candidate's score (1 per win,
+      0.5 per tie; above 0.5 beats the baseline). The judge replies in text
+      ending with a JSON verdict, not a forced tool call, so any model can
+      judge.
+
 precis checkpoints [--prune] [--older-than-days <n>] [--include-incomplete]
     → lists every thread in the checkpoint store (thread id, last-updated
       timestamp, done/in-progress) with no args. `--prune` deletes matching
@@ -423,6 +443,11 @@ precis checkpoints [--prune] [--older-than-days <n>] [--include-incomplete]
       not just reclaiming disk space, so it's opt-in. `--older-than-days`
       narrows either set by the last checkpoint's age.
 ```
+
+`generate` and `generate-chapter` end by printing the run's usage to
+stderr — LLM calls, tokens (cached included), the gateway-reported cost,
+and searches with their credits — on failure too, since a failed run has
+still spent money (usage.py).
 
 Errors (verify-stage mismatch, exhausted retries on the whole-book assemble
 step, run-budget timeout) are a non-zero exit code plus a message on

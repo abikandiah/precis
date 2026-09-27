@@ -98,6 +98,7 @@ async def delete_checkpoint_thread(thread_id: str) -> None:
     """
     _ensure_checkpoint_dir()
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
+        await checkpointer.setup()  # a new DB has no tables to delete from yet
         await checkpointer.adelete_thread(thread_id)
 
 

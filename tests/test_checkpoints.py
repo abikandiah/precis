@@ -131,3 +131,10 @@ async def test_prune_skips_thread_that_changed_between_list_and_delete(_use_temp
     assert deleted == []
     remaining = await checkpoints_module.list_checkpoint_threads()
     assert [t.thread_id for t in remaining] == ["done-thread"]
+
+
+async def test_delete_checkpoint_thread_on_a_new_db(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        checkpoints_module, "settings", dataclasses.replace(checkpoints_module.settings, checkpoint_db_path=str(tmp_path / "new.sqlite"))
+    )
+    await checkpoints_module.delete_checkpoint_thread("never-created")

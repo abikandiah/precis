@@ -294,6 +294,9 @@ async def run_whole_book(
     total_chapters = len(known_file.chapters) if known_file.is_full_nonfiction_path else 0
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as checkpointer:
+        # Creates the tables on a new DB; only a first write would otherwise,
+        # and --fresh deletes the thread before anything is written.
+        await checkpointer.setup()
         graph = build_graph(checkpointer)
         config: RunnableConfig = {"configurable": {"thread_id": slug}}
         current = known_file.model_dump()

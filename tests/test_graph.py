@@ -419,3 +419,11 @@ async def test_editing_only_notes_resumes_and_uses_the_new_notes(monkeypatch, tm
     book = await pipeline.run(_nonfiction(notes="new"))
     assert pipeline.calls == ["draft 2", "synthesize", "assemble (2 chapters)"]
     assert book.reader_notes == "new"
+
+
+async def test_fresh_run_works_on_a_new_checkpoint_db(monkeypatch, tmp_path):
+    # --fresh deletes the thread before anything is written, which used to
+    # fail with "no such table" on a DB that didn't exist yet.
+    pipeline = _StubbedPipeline(monkeypatch, tmp_path)
+    await pipeline.run(_nonfiction(), fresh=True)
+    assert pipeline.calls[-1] == "assemble (2 chapters)"

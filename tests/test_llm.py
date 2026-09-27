@@ -97,7 +97,7 @@ async def test_complete_structured_requires_providers_supporting_tool_choice():
     client = _mock_client_returning([_tool_call('{"verified": true, "reason": "matches"}')])
     await complete_structured(client, messages=[], response_model=_Verdict)
     extra_body = client.chat.completions.create.call_args.kwargs["extra_body"]
-    assert extra_body == {"provider": {"require_parameters": True}}
+    assert extra_body == {"usage": {"include": True}, "provider": {"require_parameters": True}}
 
 
 @pytest.mark.asyncio

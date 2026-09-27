@@ -19,6 +19,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from precis import usage
 from precis.config import settings
 from precis.schema import PLACEHOLDER
 
@@ -46,6 +47,7 @@ class TavilySearchClient:
     async def search(self, query: str, max_results: int = 5, *, deep: bool = False) -> list[SearchResult]:
         depth = "advanced" if deep else "basic"
         response = await self._client.search(query, max_results=max_results, search_depth=depth)
+        usage.record_search(deep=deep)
         return [
             SearchResult(
                 title=result.get("title", ""),

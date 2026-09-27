@@ -1,0 +1,24 @@
+{
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "one_line_takeaway": "Through Elizabeth Bennet and Mr. Darcy, Austen shows how pride and hasty judgment distort how people see each other, and how self-knowledge makes both love and a good marriage possible.",
+  "synopsis": "In Regency-era England, the Bennets of Longbourn have five daughters and no son, so their estate is entailed to a male cousin, and Mrs. Bennet is desperate to see her daughters married well. When the wealthy, amiable Mr. Bingley rents nearby Netherfield, he is drawn to the eldest daughter, Jane, while his proud friend Mr. Darcy offends the quick-witted second daughter, Elizabeth, at a ball. Elizabeth's dislike of Darcy is sharpened by the charming officer George Wickham's account of Darcy's supposed mistreatment of him, while the pompous clergyman Mr. Collins, heir to the Bennet estate, arrives in search of a wife. Across visits, letters and social gatherings in Hertfordshire, Kent and Derbyshire, Elizabeth must reconsider her first impressions as family embarrassments and the ill-judged conduct of her younger sisters threaten the family's reputation. With irony and wit, Austen explores marriage, class, money and reputation, and the difficulty of seeing others — and oneself — clearly.",
+  "parts": [
+    {
+      "title": "First Impressions",
+      "summary": "New arrivals in the neighborhood stir hopes of marriage, and a slight at a ball sets Elizabeth firmly against Mr. Darcy."
+    },
+    {
+      "title": "Proposals and Revelations",
+      "summary": "Unexpected offers and a letter force Elizabeth to question judgments she had been certain of."
+    },
+    {
+      "title": "Pemberley and Crisis",
+      "summary": "A visit to Derbyshire shows Elizabeth another side of Darcy, just as a family scandal threatens the Bennets' reputation and prospects."
+    },
+    {
+      "title": "Resolution",
+      "summary": "The consequences of the crisis play out, testing whether pride and prejudice can be overcome on both sides."
+    }
+  ]
+}

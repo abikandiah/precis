@@ -1,0 +1,258 @@
+{
+  "title": "Sapiens",
+  "author": "Yuval Noah Harari",
+  "one_line_takeaway": "Homo sapiens came to rule the world because it can cooperate flexibly in vast numbers by believing shared fictions — money, empires, religions, nations — and three revolutions built on that ability have given us enormous power without making us clearly happier.",
+  "synopsis": "Yuval Noah Harari tells the history of humankind through three revolutions. The Cognitive Revolution, about 70,000 years ago, gave Sapiens a language able to gossip and to describe things that don't exist, letting strangers cooperate around shared myths; our species spread across the globe, displacing other humans and wiping out much of the world's megafauna. The Agricultural Revolution, which Harari calls history's biggest fraud, produced more food but harder, less healthy lives for most people, and supported the imagined orders, writing and hierarchies on which large societies rest. Over millennia, money, empires and universal religions pulled humankind toward a single global order. The Scientific Revolution, beginning about 500 years ago, rested on admitting ignorance, and its alliance with European imperialism and capitalism transformed the world through credit, industry and consumerism, dissolving family and community into states and markets. Harari asks whether all this power has made us happier and ends by warning that biotechnology and computing may soon replace Homo sapiens altogether, asking what we want to want.",
+  "parts": [
+    {
+      "title": "The Cognitive Revolution",
+      "summary": "A new capacity for language and shared fiction let Sapiens cooperate in large numbers, outcompete other humans and spread across the globe, reshaping ecosystems as it went.",
+      "chapters": [1, 2, 3, 4]
+    },
+    {
+      "title": "The Agricultural Revolution",
+      "summary": "Farming multiplied human numbers but worsened most individual lives, and sustained large societies through imagined orders, writing and unjust hierarchies.",
+      "chapters": [5, 6, 7, 8]
+    },
+    {
+      "title": "The Unification of Humankind",
+      "summary": "Money, empires and universal religions — the three great unifiers — drew humanity's many cultures toward a single global order.",
+      "chapters": [9, 10, 11, 12, 13]
+    },
+    {
+      "title": "The Scientific Revolution",
+      "summary": "Admitting ignorance unleashed science, which in alliance with empire and capital transformed industry, society and daily life, and may now remake humanity itself.",
+      "chapters": [14, 15, 16, 17, 18, 19, 20]
+    }
+  ],
+  "chapters": [
+    {
+      "number": 1,
+      "title": "An Animal of No Significance",
+      "core_claim": "For most of their existence humans were unremarkable animals, and Homo sapiens was just one of several human species until it alone survived.",
+      "key_points": [
+        "Humans first evolved in East Africa about 2.5 million years ago, and several human species coexisted, including Neanderthals, Homo erectus, Homo floresiensis and Denisovans.",
+        "Large brains are costly — about a quarter of the body's energy at rest — and their payoff was not obvious for most of human history.",
+        "Domesticating fire and cooking let humans eat more foods, spend less time chewing and digesting, and support smaller guts.",
+        "Harari weighs the interbreeding theory against the replacement theory of how Sapiens related to Neanderthals, noting genetic evidence of some interbreeding.",
+        "Other human species likely vanished because Sapiens outcompeted or killed them."
+      ]
+    },
+    {
+      "number": 2,
+      "title": "The Tree of Knowledge",
+      "core_claim": "The Cognitive Revolution gave Sapiens a unique language able to describe things that don't exist, and shared belief in such fictions allows flexible cooperation among huge numbers of strangers.",
+      "key_points": [
+        "Between roughly 70,000 and 30,000 years ago, Sapiens gained new ways of thinking and communicating, possibly through genetic mutations.",
+        "The gossip theory holds that language evolved to share information about other people, which keeps groups cohesive up to about 150 people.",
+        "Beyond that natural limit, cooperation rests on shared myths — gods, nations, money, human rights — that exist only in collective imagination.",
+        "Peugeot, a limited liability company, is a legal fiction that exists because people believe in it, like a lawyer's story or a priest's ritual.",
+        "Because imagined realities can change quickly, Sapiens' behavior and social structures can change far faster than genes, bypassing evolution."
+      ]
+    },
+    {
+      "number": 3,
+      "title": "A Day in the Life of Adam and Eve",
+      "core_claim": "Our minds were shaped by tens of thousands of years of foraging, and those foragers probably lived healthier, more varied and more leisurely lives than most farmers who followed.",
+      "key_points": [
+        "Evolutionary psychology argues our instincts, such as gorging on sweet, high-calorie food, were adapted to forager life.",
+        "Scholars disagree about forager social life, such as the 'ancient commune' theory that there were no monogamous couples or nuclear families.",
+        "Foragers typically enjoyed a more varied diet, shorter working hours and fewer infectious diseases than later farmers.",
+        "Many foragers were likely animists, but we know very little about their beliefs and politics.",
+        "Foragers already transformed their world, for example by using fire to manage landscapes."
+      ]
+    },
+    {
+      "number": 4,
+      "title": "The Flood",
+      "core_claim": "Wherever Sapiens arrived, a wave of extinctions followed, making our species the deadliest in the history of life on Earth.",
+      "key_points": [
+        "Sapiens reached Australia about 45,000 years ago, and within a few thousand years most of its large animals, such as the diprotodon and giant kangaroos, were gone.",
+        "Large animals reproduce slowly, so even modest hunting, plus fire-driven landscape change, could drive them extinct.",
+        "Sapiens reached the Americas around 16,000 years ago, and mammoths, giant ground sloths and other megafauna soon disappeared.",
+        "The first wave of extinctions came from foragers, followed by waves caused by farmers and then industrial activity."
+      ]
+    },
+    {
+      "number": 5,
+      "title": "History's Biggest Fraud",
+      "core_claim": "The Agricultural Revolution increased the total amount of food but left most individuals with harder, less healthy and less secure lives — wheat domesticated us rather than the reverse.",
+      "key_points": [
+        "Around 10,000 years ago people began farming, and wheat spread across the world by manipulating Sapiens into caring for it.",
+        "Farmers worked harder than foragers for a less varied diet, and suffered more from disease, famine and violence.",
+        "The luxury trap: each small improvement meant to make life easier added new obligations, and there was no way back as populations grew.",
+        "Göbekli Tepe, a monumental site built before farming, suggests cultural or religious motives may have driven settlement.",
+        "Domesticated animals like sheep, pigs and cattle multiplied in number but lived lives of extraordinary suffering."
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Building Pyramids",
+      "core_claim": "Farming societies supported large-scale cooperation through imagined orders — shared beliefs in laws and hierarchies — that people sustain because they believe in them.",
+      "key_points": [
+        "Farming focused people on the future and created surpluses that elites seized to fund armies, palaces and pyramids.",
+        "The Code of Hammurabi and the American Declaration of Independence both claim universal truth, but both are imagined orders.",
+        "Imagined orders are sustained by being embedded in the material world, by shaping our desires, and by being intersubjective — existing in the shared imagination of many people.",
+        "Romantic consumerism shapes modern desires, such as spending on travel experiences, in ways people rarely recognize as learned."
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Memory Overload",
+      "core_claim": "Writing was invented to store the data large societies needed to function, and it went on to transform how humans think and organize.",
+      "key_points": [
+        "The Sumerians invented writing about 5,000 years ago to record economic data, such as taxes and debts.",
+        "One of the earliest known names in history, 'Kushim', appears on a clay tablet recording quantities of barley.",
+        "Early scripts were partial, recording numbers and accounts rather than full language.",
+        "Bureaucracy and filing systems changed how people think, and mathematical scripts, from Arabic numerals to binary code, now dominate record keeping."
+      ]
+    },
+    {
+      "number": 8,
+      "title": "There is No Justice in History",
+      "core_claim": "Large societies depend on imagined hierarchies that are presented as natural but are unjust cultural inventions sustained by vicious circles.",
+      "key_points": [
+        "Hierarchies such as the Hindu caste system and racial division in America are justified by claims of natural order.",
+        "A vicious circle entrenches them: an arbitrary starting distinction leads to discrimination, which produces outcomes that seem to confirm the distinction.",
+        "Across most cultures men have been ranked above women, and Harari examines why patriarchy has been so universal.",
+        "Biology enables, culture forbids: many things called 'unnatural' are cultural rules, not biological limits."
+      ]
+    },
+    {
+      "number": 9,
+      "title": "The Arrow of History",
+      "core_claim": "Culture is constantly changing, and over the long run history has moved steadily toward unity, driven by three universal orders.",
+      "key_points": [
+        "Cultures are never static; their internal contradictions drive change.",
+        "Over millennia, many small cultures have merged into fewer, larger ones, moving toward a single global culture.",
+        "Three universal orders could in principle include all humans: the monetary order of merchants, the imperial order of conquerors and the religious order of prophets.",
+        "Today almost all humans share the same geopolitical, economic, legal and scientific systems."
+      ]
+    },
+    {
+      "number": 10,
+      "title": "The Scent of Money",
+      "core_claim": "Money is the most universal and efficient system of mutual trust ever devised, enabling cooperation among strangers — but it also corrodes community and intimate values.",
+      "key_points": [
+        "Money is not a material reality but a psychological construct based on trust.",
+        "Early forms included barley money in Sumer, the silver shekel and cowry shells; coins stamped by rulers guaranteed value.",
+        "Spanish conquistadors' obsession with gold puzzled the Aztecs, yet money's universal convertibility made it trusted across cultures.",
+        "Christians and Muslims who disagreed on religion agreed on gold, showing how money bridges cultural divides.",
+        "Because money makes everything exchangeable, it can erode traditions, family bonds and community values."
+      ]
+    },
+    {
+      "number": 11,
+      "title": "Imperial Visions",
+      "core_claim": "Empires have been the world's most common political order for 2,500 years, and while often brutal they also spread and blended cultures on a vast scale.",
+      "key_points": [
+        "An empire rules many distinct peoples and has flexible borders and an appetite for expansion.",
+        "The siege of Numantia by Rome ended with the city's destruction, yet later Spaniards celebrated Numantia in Latin-derived Spanish — the conquered adopting the conqueror's culture.",
+        "Cyrus the Great introduced the idea of an empire ruling for the benefit of all its subjects; China's Mandate of Heaven served a similar role.",
+        "Imperial cultures were adopted by conquered peoples, whose descendants often rejected the idea that the empire was foreign.",
+        "Harari argues we are moving toward a global empire not governed by any single nation."
+      ]
+    },
+    {
+      "number": 12,
+      "title": "The Law of Religion",
+      "core_claim": "Religion — a system of human norms justified by belief in a superhuman order — was the third great unifier, and modern ideologies such as liberalism, communism and capitalism are religions in this sense.",
+      "key_points": [
+        "Religions become universal and missionary to unite large populations; polytheism was often tolerant of other gods.",
+        "Monotheism emerged from polytheism, and dualist religions such as Manichaeism tried to explain evil.",
+        "Buddhism teaches that suffering comes from craving, and ending craving ends suffering, without relying on gods.",
+        "Modern natural-law religions — liberalism, socialism, nationalism, capitalism and evolutionary humanism, including Nazism — are built on belief in a superhuman order."
+      ]
+    },
+    {
+      "number": 13,
+      "title": "The Secret of Success",
+      "core_claim": "History cannot be explained deterministically or predicted, and the cultures that won out did not necessarily benefit humans.",
+      "key_points": [
+        "Hindsight makes outcomes like Christianity's rise seem inevitable, but at the time they were unlikely.",
+        "History is a second-order chaotic system: predictions about it change the outcome.",
+        "Cultures may be like mental parasites (memes) that spread whether or not they benefit their hosts.",
+        "We study history not to predict the future but to understand that our present was not inevitable."
+      ]
+    },
+    {
+      "number": 14,
+      "title": "The Discovery of Ignorance",
+      "core_claim": "The Scientific Revolution began when Europeans admitted how much they didn't know, which drove the pursuit of new knowledge and new power.",
+      "key_points": [
+        "Modern science differs from earlier traditions in admitting ignorance, centering observation and mathematics, and seeking new powers.",
+        "The Waldseemüller map of 1507, which left unknown areas blank, captured this new willingness to admit ignorance.",
+        "The idea of progress emerged: problems such as poverty and even death came to be seen as technical problems to solve.",
+        "Science depends on funding from states and businesses, which choose which research is pursued according to ideology and profit."
+      ]
+    },
+    {
+      "number": 15,
+      "title": "The Marriage of Science and Empire",
+      "core_claim": "Modern science and European imperialism grew together, each fueling the other.",
+      "key_points": [
+        "James Cook's expedition combined scientific observation, including the transit of Venus and naval medicine, with territorial conquest.",
+        "Europeans' willingness to admit ignorance drove exploration and conquest.",
+        "Napoleon's invasion of Egypt brought scientists along, and William Jones' linguistic research on Indo-European languages served imperial rule.",
+        "Imperial science produced knowledge — and racial theories — that justified empire."
+      ]
+    },
+    {
+      "number": 16,
+      "title": "The Capitalist Creed",
+      "core_claim": "Capitalism rests on trust in future growth, expressed through credit, and this trust fueled both economic expansion and imperial exploitation.",
+      "key_points": [
+        "Credit lets people spend future wealth today, which only works if people trust the economic pie will grow.",
+        "Adam Smith argued that private profit, when reinvested, increases collective wealth.",
+        "Joint-stock companies such as the Dutch East India Company (VOC) financed conquest and trade.",
+        "The Mississippi Bubble in France showed how credit can collapse when trust fails.",
+        "Capitalism has caused great suffering, including the Atlantic slave trade run by joint-stock companies and Belgian King Leopold's Congo Free State."
+      ]
+    },
+    {
+      "number": 17,
+      "title": "The Wheels of Industry",
+      "core_claim": "The Industrial Revolution was a revolution in energy conversion that produced abundance, industrial farming's vast animal suffering, and a new consumerist ethic.",
+      "key_points": [
+        "The steam engine turned heat into motion, unlocking seemingly limitless energy and raw materials.",
+        "Industrial agriculture treats animals as machines, causing enormous suffering to chickens, pigs and cattle.",
+        "Capitalist and consumerist ethics work together: the rich are told to invest and everyone else to buy.",
+        "Consumerism made self-indulgence a virtue, reversing traditional ethics of frugality."
+      ]
+    },
+    {
+      "number": 18,
+      "title": "A Permanent Revolution",
+      "core_claim": "The modern era has replaced family and community with the state and market, and has brought unprecedented peace alongside constant upheaval.",
+      "key_points": [
+        "Industrial time, standardized to run trains and factories, came to govern daily life.",
+        "The state and market took over the roles once played by family and community, offering individuals independence.",
+        "Nations and consumer tribes are imagined communities that fill the gap left by intimate communities.",
+        "Violence has fallen sharply; nuclear weapons have made war between great powers nearly unthinkable — a 'Pax Atomica'."
+      ]
+    },
+    {
+      "number": 19,
+      "title": "And They Lived Happily Ever After",
+      "core_claim": "Historians have largely ignored whether all this progress made people happier, and the answers — biological, psychological or spiritual — suggest it may not have.",
+      "key_points": [
+        "Subjective well-being studies suggest happiness depends on expectations as much as objective conditions.",
+        "Biochemical theories say happiness is regulated by serotonin, dopamine and oxytocin, keeping us near a set point.",
+        "Meaning may matter more than pleasure, even if it rests on delusion.",
+        "Buddhism argues that happiness comes from ending the pursuit of feelings altogether.",
+        "It is unclear whether modern humans are happier than foragers."
+      ]
+    },
+    {
+      "number": 20,
+      "title": "The End of Homo Sapiens",
+      "core_claim": "Humans are replacing natural selection with intelligent design, and biotechnology and computing may soon transform or replace Sapiens altogether.",
+      "key_points": [
+        "Biological engineering, such as the glowing green rabbit Alba, shows humans reshaping life at will.",
+        "Cyborg engineering merges organic and inorganic parts, and entirely inorganic life may become possible through computing.",
+        "The Frankenstein prophecy: future beings may be so different from us that our categories stop applying.",
+        "Harari argues that the real question is not what we want to become but what we want to want."
+      ]
+    }
+  ]
+}

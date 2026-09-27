@@ -1,0 +1,99 @@
+"""The eval set on disk: one known-file and one reference summary per book,
+and a directory per labelled run.
+
+```
+evals/
+  books/<slug>.json                  checked known-file
+  references/<slug>.json             reference summary (Reference below)
+  runs/<label>/<slug>.json           the book a run generated
+  runs/<label>/<slug>.metrics.json   its cost, duration and quality metrics
+  runs/<label>/judge-vs-<baseline>.json
+```
+
+A reference is written by hand (Claude, in-session) in the output's own
+field names, so the judge renders it the same way as a generated book. It is
+a guide to what a good summary covers, not ground truth.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from precis.schema import KnownFile
+
+
+class ReferencePart(BaseModel):
+    title: str
+    summary: str
+    chapters: list[int] | None = None
+
+
+class ReferenceChapter(BaseModel):
+    number: int
+    title: str
+    core_claim: str
+    key_points: list[str] = Field(min_length=1, max_length=6)
+
+
+class Reference(BaseModel):
+    title: str
+    author: str
+    one_line_takeaway: str
+    synopsis: str
+    parts: list[ReferencePart] = Field(default_factory=list)
+    chapters: list[ReferenceChapter] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EvalBook:
+    slug: str
+    known_file: KnownFile
+    reference: Reference
+
+
+def books_dir(evals_dir: str | Path) -> Path:
+    return Path(evals_dir) / "books"
+
+
+def references_dir(evals_dir: str | Path) -> Path:
+    return Path(evals_dir) / "references"
+
+
+def run_dir(evals_dir: str | Path, label: str) -> Path:
+    return Path(evals_dir) / "runs" / label
+
+
+def load_books(evals_dir: str | Path, slugs: list[str] | None = None) -> list[EvalBook]:
+    """Every book in the eval set, or just `slugs`, in slug order. Raises
+    ValueError for an unknown slug or a book without its reference.
+    """
+    available = sorted(p.stem for p in books_dir(evals_dir).glob("*.json"))
+    if not available:
+        raise ValueError(f"no eval books found in {books_dir(evals_dir)}")
+    if slugs:
+        if unknown := sorted(set(slugs) - set(available)):
+            raise ValueError(f"not in the eval set: {', '.join(unknown)} (have: {', '.join(available)})")
+        available = sorted(set(slugs))
+    books = []
+    for slug in available:
+        known_file = KnownFile.model_validate_json((books_dir(evals_dir) / f"{slug}.json").read_text())
+        reference_path = references_dir(evals_dir) / f"{slug}.json"
+        if not reference_path.exists():
+            raise ValueError(f"eval book {slug!r} has no reference summary at {reference_path}")
+        reference = Reference.model_validate_json(reference_path.read_text())
+        books.append(EvalBook(slug=slug, known_file=known_file, reference=reference))
+    return books
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")

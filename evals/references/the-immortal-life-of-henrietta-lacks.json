@@ -1,0 +1,20 @@
+{
+  "title": "The Immortal Life of Henrietta Lacks",
+  "author": "Rebecca Skloot",
+  "one_line_takeaway": "The cells taken without consent from a poor Black woman in 1951 became one of medicine's most important tools, while her family was left uninformed and uncompensated — a story of scientific progress entangled with race, poverty and the ethics of consent.",
+  "synopsis": "In 1951 Henrietta Lacks, a young Black mother of five from a tobacco-farming family in Virginia, was treated for cervical cancer at Johns Hopkins Hospital, where a sample of her tumor was taken without her knowledge. In the lab of George Gey, her cells became the first human cells to grow indefinitely in culture — the HeLa line — and went on to help develop the polio vaccine, map genes, study cancer and viruses, and generate a vast research industry. Henrietta died that same year, and her family did not learn for decades that her cells were alive and being bought and sold, while many of them couldn't afford health care. Rebecca Skloot interweaves three stories: Henrietta's life in Clover and Turner Station, the science and business built on HeLa, and her own decade-long effort to earn the trust of the Lacks family, especially Henrietta's daughter Deborah, who struggled to understand what had happened to her mother and her sister Elsie. The book examines the history of medical research on Black Americans, the evolution of informed consent, and unresolved questions about who owns human tissue.",
+  "parts": [
+    {
+      "title": "Life",
+      "summary": "Henrietta's upbringing in rural Virginia, her marriage and move to Baltimore, and her cancer diagnosis and treatment at Johns Hopkins, where her cells are taken."
+    },
+    {
+      "title": "Death",
+      "summary": "As HeLa cells begin to transform science — from the polio vaccine to mass production of cells — Henrietta's family lives on unaware of what their mother's cells have become."
+    },
+    {
+      "title": "Immortality",
+      "summary": "The family learns about the cells, and Skloot works alongside Deborah to uncover Henrietta's story, confronting questions of consent, ownership and the family's lasting pain."
+    }
+  ]
+}

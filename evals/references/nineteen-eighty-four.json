@@ -1,0 +1,20 @@
+{
+  "title": "Nineteen Eighty-Four",
+  "author": "George Orwell",
+  "one_line_takeaway": "A totalitarian state that controls information, language and memory can control reality itself, and Orwell's warning about surveillance and the manipulation of truth remains a touchstone for understanding power.",
+  "synopsis": "In the superstate of Oceania, perpetually at war, the Party led by the ever-watching Big Brother rules through constant surveillance by telescreens, the Thought Police, and relentless propaganda. Winston Smith, a low-ranking member of the Outer Party in London, works at the Ministry of Truth rewriting historical records so that the past always matches the Party's current line. Privately he doubts the Party's version of reality and begins a secret diary, an act of thoughtcrime. His rebellion deepens when he begins a forbidden relationship with Julia, a younger Party worker, and is drawn toward the idea of an underground resistance known as the Brotherhood and the mysterious figure of O'Brien, a member of the Inner Party. The novel introduces Newspeak, doublethink, the Two Minutes Hate and the slogan 'War is Peace, Freedom is Slavery, Ignorance is Strength', exploring how a regime can dominate not only behavior but thought, memory and truth itself.",
+  "parts": [
+    {
+      "title": "The World of the Party",
+      "summary": "Winston's daily life under constant surveillance and his work falsifying records establish the Party's control — and his first private act of rebellion."
+    },
+    {
+      "title": "Rebellion and Love",
+      "summary": "A secret relationship and the promise of a resistance give Winston hope, raising the stakes of every hidden act of defiance."
+    },
+    {
+      "title": "The Party's Response",
+      "summary": "Winston's rebellion collides with the full power of the Party, testing whether any part of a person can remain beyond its reach."
+    }
+  ]
+}
