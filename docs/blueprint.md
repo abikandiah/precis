@@ -403,6 +403,19 @@ precis generate-chapter <known-file.json> --chapter <n> [--output <path>]
       source of truth for the chapter list, so nothing else is needed to
       ground the regeneration.
 
+precis research <known-file.json> [--trust-known] [--fresh]
+    → v2's research step on its own (src/precis/research.py; docs/v2-plan.md,
+      Target pipeline step 1): three advanced searches with full page text,
+      cached per known-file slug under PRECIS_CACHE_DIR/research/, reused
+      until --fresh or the known-file's title, author or kind changes.
+      Keeps pages naming both the book and its author, dedupes, excerpts
+      each (~3k tokens, cut from just before the page first names the
+      book) and caps the total at ~30k tokens, numbered S1…. Fails when no
+      page names the book, or pages name it but none names the author;
+      --trust-known makes both warnings. Prints the rendered research to
+      stdout, sources and warnings to stderr. Not wired into `generate`
+      yet — v2's write call (Phase 3) consumes it.
+
 precis tags [--output <path>]
     → prints the closed tag vocabulary (`schema_version`, `non_fiction_tags`,
       `fiction_tags` — see TagVocabulary in schema.py) as JSON. Exists so a

@@ -41,6 +41,8 @@ VOLUME /data
 # `precis eval` reads the eval set and writes its runs here — bind-mount
 # the repo's evals/ directory (README.md's Evals section).
 ENV PRECIS_EVALS_DIR=/evals
+# Research cache (research.py) on the persistent volume, so reruns reuse it.
+ENV PRECIS_CACHE_DIR=/data/cache
 USER precis
 
 ENTRYPOINT ["precis"]

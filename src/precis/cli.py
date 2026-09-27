@@ -15,6 +15,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from precis import research as book_research
 from precis import usage
 from precis.config import settings
 from precis.eval import data as eval_data
@@ -277,6 +278,32 @@ def _cmd_generate_chapter(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_research(args: argparse.Namespace) -> int:
+    known_file = _load_known_file_or_report(args.known_file)
+    if known_file is None:
+        return 1
+    with usage.track() as run_usage:
+        try:
+            found = asyncio.run(
+                book_research.research(
+                    known_file,
+                    slug=_slug_from_path(args.known_file),
+                    trust_known=args.trust_known,
+                    fresh=args.fresh,
+                    on_progress=_print_progress,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
+            print(f"research failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            _print_progress(run_usage.summary())
+    for source in found.sources:
+        _print_progress(f"  {source.id}: {source.url} ({len(source.text):,} chars)")
+    print(found.render())
+    return 0
+
+
 def _cmd_tags(args: argparse.Namespace) -> int:
     _write_output(TagVocabulary(), args.output)
     return 0
@@ -391,6 +418,14 @@ def build_parser() -> argparse.ArgumentParser:
     generate_chapter.add_argument("--chapter", type=int, required=True)
     generate_chapter.add_argument("--output")
     generate_chapter.set_defaults(func=_cmd_generate_chapter)
+
+    research_cmd = subparsers.add_parser(
+        "research", help="search the web for a book (or reuse its cache) and print the research the notes are written from"
+    )
+    research_cmd.add_argument("known_file")
+    research_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
+    research_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the cache")
+    research_cmd.set_defaults(func=_cmd_research)
 
     tags_cmd = subparsers.add_parser(
         "tags", help="print the closed tag vocabulary, for a consumer repo to sync its own copy against"

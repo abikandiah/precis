@@ -29,13 +29,19 @@ class SearchResult:
     title: str
     url: str
     content: str
+    # The page's full text, only fetched when asked for (`raw=True`) —
+    # research reads whole pages; everything else grounds on `content`, the
+    # provider's query-relevant excerpt. Relevance checks never look at it.
+    raw_content: str = ""
 
 
 class SearchClient(Protocol):
     # `deep` trades an extra search credit for fuller page excerpts — worth
     # it where the answer is a specific list (Stage 1's table of contents),
     # not for general grounding.
-    async def search(self, query: str, max_results: int = 5, *, deep: bool = False) -> list[SearchResult]: ...
+    async def search(
+        self, query: str, max_results: int = 5, *, deep: bool = False, raw: bool = False
+    ) -> list[SearchResult]: ...
 
 
 class TavilySearchClient:
@@ -44,15 +50,20 @@ class TavilySearchClient:
 
         self._client = AsyncTavilyClient(api_key=api_key or settings.search_api_key)
 
-    async def search(self, query: str, max_results: int = 5, *, deep: bool = False) -> list[SearchResult]:
+    async def search(
+        self, query: str, max_results: int = 5, *, deep: bool = False, raw: bool = False
+    ) -> list[SearchResult]:
         depth = "advanced" if deep else "basic"
-        response = await self._client.search(query, max_results=max_results, search_depth=depth)
+        response = await self._client.search(
+            query, max_results=max_results, search_depth=depth, include_raw_content="text" if raw else False
+        )
         usage.record_search(deep=deep)
         return [
             SearchResult(
-                title=result.get("title", ""),
-                url=result.get("url", ""),
-                content=result.get("content", ""),
+                title=result.get("title") or "",
+                url=result.get("url") or "",
+                content=result.get("content") or "",
+                raw_content=result.get("raw_content") or "",
             )
             for result in response.get("results", [])
         ]
@@ -119,7 +130,7 @@ def _contains(haystack: str, needle: str) -> bool:
     return bool(needle) and f" {needle} " in f" {haystack} "
 
 
-def _title_key(title: str) -> str:
+def title_key(title: str) -> str:
     words = normalize_text(title).split()
     if len(words) > 1 and words[0] in _ARTICLES:
         words = words[1:]
@@ -144,12 +155,20 @@ def author_surnames(author: str | None) -> list[str]:
     return surnames
 
 
-@functools.lru_cache(maxsize=256)
 def _result_text(result: SearchResult) -> str:
+    # Not raw_content: a whole page (a "best books" list, say) names many
+    # books, so relevance is judged on the excerpt the provider matched to
+    # the query.
+    return _normalized_result_text(result.title, result.url, result.content)
+
+
+@functools.lru_cache(maxsize=256)
+def _normalized_result_text(title: str, url: str, content: str) -> str:
     # Cached: one result goes through several of these checks in turn
     # (mentions_title and identifies_book in Stage 1), and normalizing is
-    # the costly part.
-    return normalize_text(f"{result.title} {result.url} {result.content}")
+    # the costly part. Keyed on the fields used, not the whole result, so
+    # the cache never holds a result's full page text.
+    return normalize_text(f"{title} {url} {content}")
 
 
 def mentions_title(result: SearchResult, title: str | None) -> bool:
@@ -157,7 +176,7 @@ def mentions_title(result: SearchResult, title: str | None) -> bool:
     author — looser than is_book_relevant, for checking the author claim
     itself (see Stage 1).
     """
-    return _contains(_result_text(result), _title_key(short_title(title)))
+    return _contains(_result_text(result), title_key(short_title(title)))
 
 
 def _isbn13(isbn: str) -> str | None:
@@ -193,7 +212,7 @@ def _names_full_title(text: str, title: str | None) -> bool:
     """A normalize_text()d result names the full title — only meaningful
     (distinctive) when the title has a subtitle.
     """
-    return title is not None and ":" in title and _contains(text, _title_key(title))
+    return title is not None and ":" in title and _contains(text, title_key(title))
 
 
 def identifies_book(result: SearchResult, *, title: str | None, isbn: str) -> bool:
@@ -218,7 +237,7 @@ def is_book_relevant(result: SearchResult, *, title: str | None, author: str | N
     """
     text = _result_text(result)
     surnames = author_surnames(author)
-    short = _title_key(short_title(title))
+    short = title_key(short_title(title))
     if short and _names_full_title(text, title):
         return True
     if not surnames:

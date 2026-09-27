@@ -62,6 +62,11 @@ class Settings:
     # renaming this.
     search_api_key: str = field(default_factory=lambda: _env_str("PRECIS_SEARCH_API_KEY", ""))
 
+    # Research cache: each book's raw search results, kept so a rerun
+    # doesn't search again (see research.py). In Docker this is on the
+    # /data volume; the relative default is for local/dev runs.
+    cache_dir: str = field(default_factory=lambda: _env_str("PRECIS_CACHE_DIR", ".precis/cache"))
+
     # Stage 2 fan-out.
     concurrency: int = field(default_factory=lambda: _env_int("PRECIS_CONCURRENCY", 3))
 

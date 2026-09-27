@@ -102,6 +102,20 @@ At the end of every `generate`/`generate-chapter` run (successful or not),
 a `usage:` line on stderr reports LLM calls, tokens, the gateway-reported
 cost and searches used.
 
+## Research
+
+`precis research` runs v2's research step alone and prints what the notes
+will be written from — the pages found, excerpted and numbered S1…. Its
+search results are cached under `/data/cache`, so run it with the same
+volume as `generate` to reuse them; `--fresh` searches again.
+
+```
+docker run --rm ... --env-file .env \
+  -v "$(pwd)/known-files:/input:ro" \
+  -v precis-checkpoints:/data \
+  precis research /input/mybook.json > research.txt
+```
+
 ## Evals
 
 `evals/` holds the eval set — 8 well-known books (`books/`, checked

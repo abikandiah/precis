@@ -196,10 +196,16 @@ run against the stored baseline.
     rendering on ideas/claims, with per-kind criteria (`review_deck`,
     `spoiler_safety`); metrics on ideas. v1 removed from `eval run` — no
     pipeline is registered until Phase 4.
-- [ ] **2. Research** — research step + cache + code-based book/author
-  checks.
+- [x] **2. Research** — `research.py` + `precis research`: three
+  parallel advanced searches with raw page text, raw results cached per
+  slug (filtering is a pure function over the cache, so changing it never
+  refetches), identity checks in code. A real but wrong author named
+  alongside the book on some page passes the code check — Phase 3's write
+  call is the backstop.
 - [ ] **3. Write** — schema v2 (`Book`, slimmed `KnownFile`), the write call
-  and its prompts (non-fiction and fiction).
+  and its prompts (non-fiction and fiction). The write call reports when
+  the research shows the book is by someone other than the known-file's
+  author, and that fails the run (the identity backstop from Phase 2).
 - [ ] **4. Checks + review + validate** — code checks, the review call,
   plain async orchestration. v2 now runs end to end: first eval run becomes
   the baseline; confirm < $0.50; OpenRouter reports `usage.cost`.
