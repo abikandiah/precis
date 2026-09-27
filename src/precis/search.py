@@ -137,7 +137,11 @@ def title_key(title: str) -> str:
     return " ".join(words)
 
 
-def author_surnames(author: str | None) -> list[str]:
+def author_names(author: str | None) -> list[list[str]]:
+    """Each credited person's name as normalize_text() words, given names
+    first, without role words ("editor", "Jr.") — "Spector, Tim" is
+    ["tim", "spector"]. Empty for a missing or placeholder author.
+    """
     if not author or author == PLACEHOLDER:
         return []
     author = re.sub(r"\([^)]*\)", " ", author)
@@ -146,13 +150,16 @@ def author_surnames(author: str | None) -> list[str]:
     # "Spector" and "Tim" — the only comma form with a one-word first piece.
     # (Open Library's multi-author join is "Full Name, Full Name".)
     if "," in author and len(pieces) == 2 and len(pieces[0].split()) == 1 and not re.search(r";|&|\band\b|\bwith\b", author):
-        pieces = pieces[:1]
-    surnames = []
+        pieces = [f"{pieces[1]} {pieces[0]}"]
+    names = []
     for piece in pieces:
-        words = [w for w in normalize_text(piece).split() if w not in _NOT_A_SURNAME]
-        if words and len(words[-1]) >= 2:
-            surnames.append(words[-1])
-    return surnames
+        if words := [w for w in normalize_text(piece).split() if w not in _NOT_A_SURNAME]:
+            names.append(words)
+    return names
+
+
+def author_surnames(author: str | None) -> list[str]:
+    return [words[-1] for words in author_names(author) if len(words[-1]) >= 2]
 
 
 def _result_text(result: SearchResult) -> str:

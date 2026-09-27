@@ -282,3 +282,49 @@ async def test_complete_also_retries_error_finish_reason(no_backoff):
     ok = _response_with_tool_calls(None, content="hello")
     client = _mock_client_with_sequence(_error_finish_response(), ok)
     assert await complete(client, messages=[]) == "hello"
+
+
+@pytest.mark.asyncio
+async def test_a_retry_after_a_validation_failure_shows_the_model_its_call_and_the_error():
+    client = _mock_client_with_sequence(
+        _response_with_tool_calls([_tool_call('{"items": ["a"]}')]),
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}')]),
+    )
+    original = [{"role": "user", "content": "go"}]
+    await complete_structured(
+        client, messages=original, response_model=_CountConstrained, validation_context={"expected_count": 2}
+    )
+    first, second = (call.kwargs["messages"] for call in client.chat.completions.create.await_args_list)
+    assert first == original
+    assert second[0] == original[0]
+    assert second[1]["tool_calls"][0]["function"]["arguments"] == '{"items": ["a"]}'
+    assert second[2]["role"] == "tool" and second[2]["tool_call_id"] == "call_1"
+    assert "expected 2 items, got 1" in second[2]["content"]
+
+
+@pytest.mark.asyncio
+async def test_unparseable_arguments_are_retried_without_echoing_them():
+    client = _mock_client_with_sequence(
+        _response_with_tool_calls([_tool_call('{"items": ["a"')]),  # cut off mid-JSON
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}')]),
+    )
+    original = [{"role": "user", "content": "go"}]
+    await complete_structured(client, messages=original, response_model=_CountConstrained)
+    assert [call.kwargs["messages"] for call in client.chat.completions.create.await_args_list] == [original, original]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [300, 0])
+async def test_timeout_seconds_overrides_the_default(timeout):
+    client = _mock_client_returning([_tool_call('{"verified": true, "reason": "r"}')])
+    await complete_structured(client, messages=[], response_model=_Verdict, timeout_seconds=timeout)
+    assert client.chat.completions.create.await_args.kwargs["timeout"] == timeout
+
+
+@pytest.mark.asyncio
+async def test_max_tokens_is_sent_only_when_given():
+    client = _mock_client_returning([_tool_call('{"verified": true, "reason": "r"}')])
+    await complete_structured(client, messages=[], response_model=_Verdict)
+    assert "max_tokens" not in client.chat.completions.create.await_args.kwargs
+    await complete_structured(client, messages=[], response_model=_Verdict, max_tokens=16_000)
+    assert client.chat.completions.create.await_args.kwargs["max_tokens"] == 16_000

@@ -5,6 +5,7 @@ import pytest
 from precis.schema import PLACEHOLDER
 from precis.search import (
     SearchResult,
+    author_names,
     author_surnames,
     identifies_book,
     is_book_relevant,
@@ -159,3 +160,17 @@ def test_identifies_book_rejects_an_isbn_embedded_in_a_longer_number():
 def test_identifies_book_by_isbn_glued_to_a_slug_or_label(printed):
     result = SearchResult(title="Range", url="https://x", content=printed)
     assert identifies_book(result, title="Range", isbn="9781594484964")
+
+
+@pytest.mark.parametrize(
+    ("author", "expected"),
+    [
+        ("Daniel Kahneman", [["daniel", "kahneman"]]),
+        ("Spector, Tim", [["tim", "spector"]]),
+        ("J.K. Rowling", [["j", "k", "rowling"]]),
+        ("Carl Sagan and Ann Druyan (editor)", [["carl", "sagan"], ["ann", "druyan"]]),
+        (None, []),
+    ],
+)
+def test_author_names_gives_each_person_given_names_first(author, expected):
+    assert author_names(author) == expected

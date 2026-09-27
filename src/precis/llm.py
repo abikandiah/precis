@@ -78,6 +78,9 @@ _PROVIDER_ERROR_MAX_DELAY_SECONDS = 8.0
 # How much of a non-tool-call reply to quote in StructuredOutputError.
 _REPLY_EXCERPT_CHARS = 200
 
+# How much of a validation error to hand back to the model on a retry.
+_VALIDATION_FEEDBACK_CHARS = 2_000
+
 
 class TransientLLMError(Exception):
     """Raised when a temporary failure outlasts its retries: either the
@@ -207,6 +210,38 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
     )
 
 
+def _excerpt(text: str, limit: int) -> str:
+    return text[:limit] + "..." if len(text) > limit else text
+
+
+def _validation_feedback(
+    call: ChatCompletionMessageFunctionToolCall, tool_name: str, exc: Exception
+) -> list[ChatCompletionMessageParam]:
+    """The rejected tool call and why it was rejected, as the turn a retry
+    continues from.
+    """
+    error = _excerpt(str(exc), _VALIDATION_FEEDBACK_CHARS)
+    return [
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {"name": call.function.name, "arguments": call.function.arguments},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": call.id,
+            "content": f"Rejected — the result didn't validate:\n{error}\n\n"
+            f"Call {tool_name} again with the whole result, corrected.",
+        },
+    ]
+
+
 def build_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=settings.llm_base_url,
@@ -238,6 +273,8 @@ async def complete_structured[T: BaseModel](
     model: str | None = None,
     max_attempts: int = 2,
     validation_context: dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
+    max_tokens: int | None = None,
 ) -> T:
     """Forces schema-shaped output via tool-calling rather than free-form
     JSON-in-prose: `response_model`'s own JSON schema becomes the tool's
@@ -258,7 +295,17 @@ async def complete_structured[T: BaseModel](
     real schema failure that this retry loop already handles, rather than
     a separate check the caller does after the fact with no chance to
     retry. See synthesize.py's known-parts count check for the motivating
-    case.
+    case. A retry after a validation failure shows the model its rejected
+    call and the error, so it can fix the specific problem rather than
+    rolling the dice again.
+
+    Only a call that parsed but didn't validate is shown back: unparseable
+    arguments (a reply cut off mid-JSON) can't be echoed as a tool call —
+    providers that parse tool input reject the request — so that retry
+    resends the original request.
+
+    `timeout_seconds` overrides PRECIS_LLM_CALL_TIMEOUT_SECONDS, and
+    `max_tokens` caps the reply, for a call known to generate long output.
     """
     tool_name = f"emit_{response_model.__name__.lower()}"
     tool: ChatCompletionFunctionToolParam = {
@@ -271,15 +318,17 @@ async def complete_structured[T: BaseModel](
     }
     tool_choice: ChatCompletionNamedToolChoiceParam = {"type": "function", "function": {"name": tool_name}}
 
+    attempt_messages = list(messages)
     for attempt in range(max_attempts):
         response = await _create(
             client,
             model=model or settings.llm_model,
-            messages=messages,
+            messages=attempt_messages,
             tools=[tool],
             tool_choice=tool_choice,
-            timeout=settings.llm_call_timeout_seconds,
+            timeout=settings.llm_call_timeout_seconds if timeout_seconds is None else timeout_seconds,
             extra_body=_REQUIRE_TOOL_SUPPORT,
+            **({} if max_tokens is None else {"max_tokens": max_tokens}),
         )
 
         choice = response.choices[0]
@@ -287,9 +336,7 @@ async def complete_structured[T: BaseModel](
         call = tool_calls[0] if tool_calls else None
         if call is None or not isinstance(call, ChatCompletionMessageFunctionToolCall):
             if attempt == max_attempts - 1:
-                reply = (choice.message.content or "").strip()
-                if len(reply) > _REPLY_EXCERPT_CHARS:
-                    reply = reply[:_REPLY_EXCERPT_CHARS] + "..."
+                reply = _excerpt((choice.message.content or "").strip(), _REPLY_EXCERPT_CHARS)
                 raise StructuredOutputError(
                     f"model did not call the expected tool {tool_name!r} after {max_attempts} attempts "
                     f"(model {response.model!r}, finish_reason {choice.finish_reason!r}, replied {reply!r})"
@@ -305,6 +352,10 @@ async def complete_structured[T: BaseModel](
                     f"model's tool call for {tool_name!r} didn't match {response_model.__name__} "
                     f"after {max_attempts} attempts: {exc}"
                 ) from exc
+            if isinstance(exc, ValidationError):
+                attempt_messages = [*messages, *_validation_feedback(call, tool_name, exc)]
+            else:
+                attempt_messages = list(messages)
             continue
 
     raise StructuredOutputError(f"complete_structured called with max_attempts={max_attempts} < 1")

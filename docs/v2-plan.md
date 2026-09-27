@@ -202,10 +202,17 @@ run against the stored baseline.
   refetches), identity checks in code. A real but wrong author named
   alongside the book on some page passes the code check — Phase 3's write
   call is the backstop.
-- [ ] **3. Write** — schema v2 (`Book`, slimmed `KnownFile`), the write call
-  and its prompts (non-fiction and fiction). The write call reports when
-  the research shows the book is by someone other than the known-file's
-  author, and that fails the run (the identity backstop from Phase 2).
+- [x] **3. Write** — `write.py`: one structured call writes the notes
+  from the research; `Notes`/`Idea` (schema v2) in schema.py beside v1's
+  `Book`, which the switch replaces. The system message (preamble + book +
+  research) carries `cache_control` and holds nothing task-specific, so
+  the review call shares its cached prefix. Counts per kind, tags and
+  citation IDs are validated on the call's response model, and a retry now
+  shows the model its rejected call and the error. The model reports an
+  author the research credits instead (`author_mismatch`), which fails
+  the run unless `--trust-known` — the identity backstop from Phase 2.
+  `KnownFile` is left as is (v2 ignores its chapters/parts); slimming it
+  is part of the switch.
 - [ ] **4. Checks + review + validate** — code checks, the review call,
   plain async orchestration. v2 now runs end to end: first eval run becomes
   the baseline; confirm < $0.50; OpenRouter reports `usage.cost`.
