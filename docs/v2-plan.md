@@ -191,10 +191,11 @@ run against the stored baseline.
 - [ ] **1. Evals** — usage logging, `eval` command + judge, eval set.
   - [x] usage logging (`usage.py`), `precis eval run|judge`, eval set in
     `evals/` (chapter-shaped — reworked below).
-  - [ ] Rework for v2: strip chapters, parts and `narrative` from the
-    known-files; rewrite the references in the v2 shape; judge rubric and
-    summary rendering on ideas/claims instead of chapters; metrics on
-    ideas. No v1 baseline run.
+  - [x] Rework for v2: chapters, parts and `narrative` stripped from the
+    known-files; references rewritten in the v2 shape; judge rubric and
+    rendering on ideas/claims, with per-kind criteria (`review_deck`,
+    `spoiler_safety`); metrics on ideas. v1 removed from `eval run` — no
+    pipeline is registered until Phase 4.
 - [ ] **2. Research** — research step + cache + code-based book/author
   checks.
 - [ ] **3. Write** — schema v2 (`Book`, slimmed `KnownFile`), the write call

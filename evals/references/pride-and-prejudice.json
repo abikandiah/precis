@@ -1,24 +1,38 @@
 {
   "title": "Pride and Prejudice",
   "author": "Jane Austen",
-  "one_line_takeaway": "Through Elizabeth Bennet and Mr. Darcy, Austen shows how pride and hasty judgment distort how people see each other, and how self-knowledge makes both love and a good marriage possible.",
-  "synopsis": "In Regency-era England, the Bennets of Longbourn have five daughters and no son, so their estate is entailed to a male cousin, and Mrs. Bennet is desperate to see her daughters married well. When the wealthy, amiable Mr. Bingley rents nearby Netherfield, he is drawn to the eldest daughter, Jane, while his proud friend Mr. Darcy offends the quick-witted second daughter, Elizabeth, at a ball. Elizabeth's dislike of Darcy is sharpened by the charming officer George Wickham's account of Darcy's supposed mistreatment of him, while the pompous clergyman Mr. Collins, heir to the Bennet estate, arrives in search of a wife. Across visits, letters and social gatherings in Hertfordshire, Kent and Derbyshire, Elizabeth must reconsider her first impressions as family embarrassments and the ill-judged conduct of her younger sisters threaten the family's reputation. With irony and wit, Austen explores marriage, class, money and reputation, and the difficulty of seeing others — and oneself — clearly.",
-  "parts": [
+  "one_line_takeaway": "A witty comedy of manners about how pride and hasty judgement distort how we see others — and about marriage, money and class in a world where a woman's future depends on whom she marries.",
+  "synopsis": "The Bennets of Longbourn have five daughters and a problem: their estate is entailed away to a distant male cousin, Mr Collins, so when Mr Bennet dies the girls will have little to live on. Mrs Bennet's great project is therefore to see her daughters married, and she is delighted when a wealthy young gentleman, Mr Bingley, takes the nearby estate of Netherfield.\n\nBingley is charming and quickly drawn to Jane, the eldest and gentlest Bennet sister. His friend Mr Darcy, far richer and proud of his rank, makes a poor first impression at a local assembly — not least on the second sister, Elizabeth, whom he declares only 'tolerable, but not handsome enough to tempt me'. Clever, lively and quick to judge, Elizabeth takes a firm dislike to him, a dislike confirmed when she hears a charming militia officer, Mr Wickham, describe how badly Darcy has treated him.\n\nSet among country balls, visits and drawing rooms, the novel follows Elizabeth and her sisters as they navigate courtship, family embarrassment and the snobbery of richer neighbours. Through sharp dialogue and irony, Austen explores how first impressions mislead, how pride and prejudice blind people to one another, and what it means to marry well.",
+  "ideas": [
     {
-      "title": "First Impressions",
-      "summary": "New arrivals in the neighborhood stir hopes of marriage, and a slight at a ball sets Elizabeth firmly against Mr. Darcy."
+      "title": "First impressions and prejudice",
+      "summary": "Characters form quick judgements of each other based on manners, rumour and wounded vanity, and the novel questions how reliable those judgements are. Austen's original title for the book was 'First Impressions'.",
+      "evidence": "Darcy's slight at the Meryton assembly sets Elizabeth firmly against him, and she readily believes Wickham's account of Darcy's cruelty on the strength of his charm."
     },
     {
-      "title": "Proposals and Revelations",
-      "summary": "Unexpected offers and a letter force Elizabeth to question judgments she had been certain of."
+      "title": "Pride and vanity",
+      "summary": "Pride in rank, wealth and one's own judgement shapes how characters treat each other, and the novel distinguishes between pride and its cousin vanity.",
+      "evidence": "Mary Bennet's pronouncement that 'pride relates more to our opinion of ourselves, vanity to what we would have others think of us'; Darcy's reserve at the assembly is read by the neighbourhood as pride."
     },
     {
-      "title": "Pemberley and Crisis",
-      "summary": "A visit to Derbyshire shows Elizabeth another side of Darcy, just as a family scandal threatens the Bennets' reputation and prospects."
+      "title": "Marriage and money",
+      "summary": "For women without fortunes, marriage is an economic necessity, and the novel weighs love against security through its different characters' attitudes to matrimony.",
+      "evidence": "The entail of Longbourn to Mr Collins; Mrs Bennet's urgency to marry off her daughters; Charlotte Lucas's view that 'happiness in marriage is entirely a matter of chance'."
     },
     {
-      "title": "Resolution",
-      "summary": "The consequences of the crisis play out, testing whether pride and prejudice can be overcome on both sides."
+      "title": "Class and social status",
+      "summary": "Rank and connections determine how people are treated, and the novel satirises snobbery while showing its real effects on the characters' prospects.",
+      "evidence": "Bingley's sisters mock the Bennets' relatives in trade, such as an uncle who lives in Cheapside; Mr Collins's obsequious reverence for his patroness, Lady Catherine de Bourgh."
+    },
+    {
+      "title": "Wit, independence and a woman's judgement",
+      "summary": "Elizabeth values her own opinions and speaks her mind in a society that expects young women to be decorative and compliant, making her both admirable and sometimes wrong.",
+      "evidence": "She walks three miles through muddy fields to visit her sick sister at Netherfield, scandalising the Bingley sisters, and spars with Darcy in conversation."
+    },
+    {
+      "title": "Family and reputation",
+      "summary": "A family's behaviour reflects on every member, so the foolishness of some Bennets threatens the prospects of the others.",
+      "evidence": "At the Netherfield ball Mrs Bennet boasts loudly of Jane's prospects with Bingley and Mary performs at length, mortifying Elizabeth; the youngest sisters, Lydia and Kitty, spend their time chasing the militia officers."
     }
   ]
 }

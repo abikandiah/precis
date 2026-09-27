@@ -19,25 +19,16 @@ from precis import usage
 from precis.config import settings
 from precis.eval.data import EvalBook, read_json, run_dir, write_json
 from precis.eval.metrics import book_metrics
-from precis.pipeline import checkpoints, graph
 from precis.schema import KnownFile
 
 ProgressCallback = Callable[[str], None]
 Pipeline = Callable[[KnownFile, str, bool, ProgressCallback], Awaitable[dict[str, Any]]]
 
 
-async def _run_v1(known_file: KnownFile, thread: str, trust_known: bool, on_progress: ProgressCallback) -> dict:
-    try:
-        book = await graph.run_whole_book(
-            known_file, slug=thread, trust_known=trust_known, fresh=True, on_progress=on_progress
-        )
-    finally:
-        # An eval run never resumes; don't leave its threads behind.
-        await checkpoints.delete_checkpoint_thread(thread)
-    return book.model_dump(exclude_none=True)
-
-
-PIPELINES: dict[str, Pipeline] = {"v1": _run_v1}
+# The v2 pipeline registers here once it runs end to end (docs/v2-plan.md,
+# Phase 4). v1 can't run on the chapter-less eval set, and there's no v1
+# baseline to compare against.
+PIPELINES: dict[str, Pipeline] = {}
 
 
 def book_path(evals_dir: str | Path, label: str, slug: str) -> Path:
@@ -97,7 +88,7 @@ async def run_eval(
 ) -> list[dict[str, Any]]:
     """Returns every book's metrics, including ones skipped as already done."""
     if pipeline not in PIPELINES:
-        raise ValueError(f"unknown pipeline {pipeline!r} (have: {', '.join(PIPELINES)})")
+        raise ValueError(f"unknown pipeline {pipeline!r} (have: {', '.join(PIPELINES) or 'none yet'})")
     results = []
     for book in books:
         if book_path(evals_dir, label, book.slug).exists():

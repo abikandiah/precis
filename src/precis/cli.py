@@ -288,20 +288,20 @@ def _cmd_eval_run(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"could not load the eval set: {exc}", file=sys.stderr)
         return 1
-    for book in books:
-        if problems := preflight_check(book.known_file):
-            print(f"eval book {book.slug!r} is not ready: {'; '.join(problems)}", file=sys.stderr)
-            return 1
-    results = asyncio.run(
-        eval_runner.run_eval(
-            args.evals_dir,
-            args.label,
-            books,
-            pipeline=args.pipeline,
-            trust_known=args.trust_known,
-            on_progress=_print_progress,
+    try:
+        results = asyncio.run(
+            eval_runner.run_eval(
+                args.evals_dir,
+                args.label,
+                books,
+                pipeline=args.pipeline,
+                trust_known=args.trust_known,
+                on_progress=_print_progress,
+            )
         )
-    )
+    except ValueError as exc:
+        print(f"eval run failed: {exc}", file=sys.stderr)
+        return 1
     _print_progress(eval_metrics.format_summary(args.label, eval_metrics.summarize(results)))
     return 1 if any(r.get("error") for r in results) else 0
 
@@ -424,8 +424,8 @@ def build_parser() -> argparse.ArgumentParser:
     eval_run = eval_subparsers.add_parser(
         "run", help="generate every eval book into runs/<label>/ (books already there are skipped)"
     )
-    eval_run.add_argument("label", help="names the run, e.g. v1-sonnet-5")
-    eval_run.add_argument("--pipeline", choices=sorted(eval_runner.PIPELINES), default="v1")
+    eval_run.add_argument("label", help="names the run, e.g. v2-sonnet-5")
+    eval_run.add_argument("--pipeline", default="v2")
     eval_run.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
     eval_run.add_argument("--trust-known", action="store_true")
     eval_run.add_argument("--evals-dir", default=settings.evals_dir)

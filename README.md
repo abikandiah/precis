@@ -116,15 +116,18 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   --memory=512m --memory-swap=512m \
   --env-file .env \
   -v "$(pwd)/evals:/evals" \
-  -v precis-checkpoints:/data \
-  precis eval run v1-sonnet-5
-# generates every eval book into evals/runs/v1-sonnet-5/ with PRECIS_LLM_MODEL,
+  precis eval run v2-sonnet-5
+# generates every eval book into evals/runs/v2-sonnet-5/ with PRECIS_LLM_MODEL,
 # skipping books already there; --book <slug> for just one
 
 docker run --rm ... --env-file .env -v "$(pwd)/evals:/evals" \
-  precis eval judge v2-sonnet-5 v1-sonnet-5
+  precis eval judge v2-haiku-4-5 v2-sonnet-5
 # judges the first run against the second with PRECIS_JUDGE_MODEL
 ```
+
+No pipeline is registered for `eval run` yet: the eval set is in the v2
+shape (no chapters), and v2 registers once it runs end to end
+(docs/v2-plan.md, Phase 4).
 
 `evals/` must be writable by uid 1000 (the image's user), since it's a
 bind mount.

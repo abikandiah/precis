@@ -1,453 +1,118 @@
 {
   "title": "Thinking, Fast and Slow",
   "author": "Daniel Kahneman",
-  "one_line_takeaway": "Our fast, intuitive System 1 drives most judgments and produces predictable biases that the lazy, effortful System 2 rarely checks, so good decisions come from recognizing the situations where intuition misleads us.",
-  "synopsis": "Daniel Kahneman describes the mind as two characters: System 1, which thinks fast, automatically and associatively, and System 2, which thinks slowly and effortfully but is lazy and usually endorses what System 1 suggests. Drawing on decades of research, much of it with Amos Tversky, he shows how System 1's shortcuts — answering an easier question, anchoring, availability, representativeness — produce systematic errors, from ignoring base rates to misreading regression to the mean. He then examines overconfidence: the illusions of understanding and validity, the superiority of simple formulas over expert intuition in many domains, the planning fallacy and the value of the outside view. Turning to choice, he presents prospect theory, which he developed with Tversky as an alternative to expected utility theory: people evaluate outcomes as gains and losses from a reference point, feel losses more than equivalent gains, and weight probabilities non-linearly, producing the endowment effect, the fourfold pattern of risk attitudes and framing effects. Finally, he distinguishes the experiencing self from the remembering self, whose peak-end rule and neglect of duration shape our choices and our judgments of well-being.",
-  "parts": [
+  "one_line_takeaway": "Most of our judgements come from a fast, intuitive System 1 whose shortcuts produce predictable errors, and knowing where those errors lie is the best defence against them.",
+  "synopsis": "Daniel Kahneman, a psychologist who won the Nobel Prize in economics, distils decades of research — much of it with his late collaborator Amos Tversky — into a portrait of how the mind makes judgements and choices. He describes two modes of thinking as characters: System 1, which is fast, automatic and intuitive, and System 2, which is slow, effortful and deliberate. System 2 believes it is in charge, but it is lazy and mostly endorses what System 1 proposes.\n\nThe first half of the book catalogues the heuristics System 1 relies on and the biases they produce: jumping to conclusions from whatever information is at hand ('what you see is all there is'), substituting an easier question for a hard one, anchoring on irrelevant numbers, judging frequency by how easily examples come to mind, and ignoring base rates in favour of a representative story. Kahneman then turns to overconfidence: the illusion that we understand the past, the illusion of validity that lets experts trust unreliable judgements, the superiority of simple formulas over expert intuition in noisy domains, and the planning fallacy.\n\nThe later parts challenge the rational agent of economics. Prospect theory, the work that earned the Nobel, shows that people evaluate outcomes as gains and losses from a reference point, feel losses about twice as strongly as gains, and weigh probabilities non-linearly — which explains framing effects, the endowment effect and the fourfold pattern of risk attitudes. The book closes with two selves: the experiencing self that lives through moments and the remembering self that keeps score and makes decisions, whose memories follow the peak-end rule and neglect duration.",
+  "ideas": [
     {
-      "title": "Two Systems",
-      "summary": "Introduces fast, automatic System 1 and slow, effortful System 2, and shows how System 1's associative machinery jumps to conclusions that a lazy System 2 accepts.",
-      "chapters": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+      "title": "Two systems",
+      "summary": "Thinking runs on two modes: System 1 operates automatically and quickly with no sense of voluntary control, while System 2 allocates attention to effortful mental activity. System 2 is lazy, so System 1's quick answers usually go unchecked.",
+      "evidence": "The bat-and-ball problem: a bat and ball cost $1.10 and the bat costs $1 more than the ball; most people, including many students at elite universities, answer that the ball costs 10 cents instead of 5."
     },
     {
-      "title": "Heuristics and Biases",
-      "summary": "Examines the mental shortcuts — small samples, anchors, availability, representativeness — that make people poor intuitive statisticians.",
-      "chapters": [10, 11, 12, 13, 14, 15, 16, 17, 18]
+      "title": "What you see is all there is",
+      "summary": "System 1 builds the most coherent story it can from the information available and doesn't account for what is missing, so confidence reflects the coherence of a story, not the quality or quantity of evidence behind it.",
+      "evidence": "Solomon Asch's descriptions of Alan (intelligent, industrious, impulsive, critical, stubborn, envious) and Ben (the same traits in reverse order): the order changes the impression, an instance of the halo effect."
     },
     {
-      "title": "Overconfidence",
-      "summary": "Shows how we overrate our understanding of the past and our ability to predict, and when expert intuition and formulas can be trusted.",
-      "chapters": [19, 20, 21, 22, 23, 24]
+      "title": "Substitution and anchoring",
+      "summary": "Faced with a hard question, System 1 often answers an easier related one without noticing. Anchoring is a related failure: an arbitrary number considered before an estimate pulls the estimate toward it.",
+      "evidence": "A wheel of fortune rigged to stop at 10 or 65 shifted people's estimates of the percentage of African nations in the UN, to averages of 25% and 45% respectively."
     },
     {
-      "title": "Choices",
-      "summary": "Presents prospect theory: decisions are made relative to reference points, losses loom larger than gains, probabilities are weighted non-linearly, and framing changes preferences.",
-      "chapters": [25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+      "title": "Availability",
+      "summary": "People judge how frequent or likely something is by how easily examples come to mind, so vivid, recent or heavily reported events seem more common than they are.",
+      "evidence": "In a study by Norbert Schwarz, people asked to list twelve instances of their own assertive behaviour rated themselves as less assertive than those asked to list six, because the later instances were hard to recall."
     },
     {
-      "title": "Two Selves",
-      "summary": "Distinguishes the experiencing self from the remembering self and explores what this means for measuring and pursuing well-being.",
-      "chapters": [35, 36, 37, 38]
+      "title": "Representativeness and base rates",
+      "summary": "Judging probability by how well something matches a stereotype leads people to ignore base rates and even the rules of logic.",
+      "evidence": "The Linda problem: most people judge 'Linda is a bank teller and active in the feminist movement' more probable than 'Linda is a bank teller', a conjunction fallacy. Tom W's personality sketch led people to ignore how few graduate students study his stereotyped field."
+    },
+    {
+      "title": "Regression to the mean",
+      "summary": "Extreme performances tend to be followed by more ordinary ones by chance alone, but the mind invents causal stories to explain the change.",
+      "evidence": "Israeli Air Force flight instructors believed praise made cadets worse and criticism made them better; Kahneman showed they were seeing regression to the mean after unusually good and bad manoeuvres."
+    },
+    {
+      "title": "The illusions of understanding and validity",
+      "summary": "Hindsight and the narrative fallacy make the past look more predictable than it was, and people keep trusting their judgements even when evidence shows those judgements have little predictive value.",
+      "evidence": "Kahneman's own army evaluations of officer candidates in a leaderless group exercise felt compelling but barely predicted later performance; the year-to-year performance of the financial advisers at an investment firm showed essentially zero correlation, like a game of chance."
+    },
+    {
+      "title": "Formulas beat intuition, and when intuition can be trusted",
+      "summary": "In uncertain, noisy environments simple statistical rules outperform expert judgement. Expert intuition is reliable only in a regular environment where the expert has had long practice with quick feedback.",
+      "evidence": "Paul Meehl's review of clinical versus statistical prediction; the Apgar score for newborns; Kahneman's joint work with Gary Klein, a defender of expert intuition, on the conditions under which it is skilled."
+    },
+    {
+      "title": "The planning fallacy and the outside view",
+      "summary": "Plans and forecasts are unrealistically close to best-case scenarios because people take the inside view of their own case. Consulting the base rate of similar projects — the outside view — corrects it.",
+      "evidence": "Kahneman's team writing a decision-making curriculum estimated about two years to finish; their own curriculum expert admitted similar teams took seven to ten years and about 40% never finished. The project took eight years."
+    },
+    {
+      "title": "Prospect theory and loss aversion",
+      "summary": "People evaluate outcomes as gains and losses relative to a reference point, not as states of wealth, with diminishing sensitivity in both directions. Losses loom larger than equivalent gains, roughly twice as large.",
+      "evidence": "'Bernoulli's error': expected utility theory ignored reference points. Most people refuse a coin toss that loses $100 or wins $150."
+    },
+    {
+      "title": "The fourfold pattern, the endowment effect and framing",
+      "summary": "Because people overweight small probabilities and underweight near-certainties, they are risk-averse for likely gains and unlikely losses but risk-seeking for likely losses and unlikely gains. Owning something raises its value to us, and logically equivalent descriptions produce different choices.",
+      "evidence": "The Asian disease problem: people prefer the certain option when outcomes are framed as lives saved and the gamble when the same outcomes are framed as lives lost. Lotteries and insurance both fit the fourfold pattern."
+    },
+    {
+      "title": "The experiencing self and the remembering self",
+      "summary": "The remembering self keeps score and makes decisions, but it evaluates experiences by their peak and their end and neglects their duration, so we choose for memories rather than for experience.",
+      "evidence": "In the cold-hand experiment most people chose to repeat a longer episode of immersion in cold water that ended slightly less painfully; colonoscopy patients' memories tracked the worst moment and the final moments of the procedure."
     }
   ],
-  "chapters": [
+  "key_claims_for_review": [
     {
-      "number": 1,
-      "title": "The Characters of the Story",
-      "core_claim": "The mind can be understood as two systems: a fast, automatic System 1 that generates impressions, and a slow, effortful System 2 that can check them but often doesn't.",
-      "key_points": [
-        "System 1 operates automatically and quickly with little effort, like recognizing an angry face; System 2 handles effortful mental activities like solving 17 × 24.",
-        "System 2 believes it is in charge, but System 1 generates most of our impressions and intentions.",
-        "The Müller-Lyer illusion persists even when we know the lines are equal — knowing about a bias doesn't make System 1 stop producing it.",
-        "The two systems are useful fictions for describing mental processes, not literal parts of the brain."
-      ]
+      "prompt": "What distinguishes System 1 from System 2?",
+      "answer": "System 1 is fast, automatic and effortless and runs constantly; System 2 is slow, deliberate and effortful. System 2 is lazy and mostly endorses System 1's suggestions."
     },
     {
-      "number": 2,
-      "title": "Attention and Effort",
-      "core_claim": "System 2 has limited capacity, and effortful mental work draws on that capacity in ways that can be measured.",
-      "key_points": [
-        "The Add-1 task, in which people add one to each digit of a sequence, is intensely demanding.",
-        "Pupil dilation tracks mental effort, widening as a task gets harder.",
-        "People can become effectively blind to obvious things when focused, as in the invisible gorilla experiment.",
-        "The law of least effort: people gravitate toward the least demanding course of action."
-      ]
+      "prompt": "What does 'what you see is all there is' (WYSIATI) mean?",
+      "answer": "System 1 builds a coherent story from the information at hand and ignores what's missing, so confidence tracks the coherence of the story rather than the quality of the evidence."
     },
     {
-      "number": 3,
-      "title": "The Lazy Controller",
-      "core_claim": "System 2 is lazy and easily depleted, so people often accept System 1's intuitive answers without checking them.",
-      "key_points": [
-        "The bat-and-ball problem ($1.10 total, bat costs $1 more than ball) shows people accept the intuitive but wrong answer of 10 cents.",
-        "Self-control and cognitive effort draw on the same limited resource — ego depletion, as studied by Roy Baumeister.",
-        "Israeli parole judges granted parole far more often right after meal breaks than just before them.",
-        "Walter Mischel's marshmallow studies linked children's self-control to later life outcomes."
-      ]
+      "prompt": "What is anchoring?",
+      "answer": "An estimate is pulled toward a number considered beforehand, even an obviously random one, like the number a rigged wheel of fortune stopped on."
     },
     {
-      "number": 4,
-      "title": "The Associative Machine",
-      "core_claim": "System 1 works by spreading associations, so exposure to a word or idea primes related thoughts and even actions without our awareness.",
-      "key_points": [
-        "Reading 'bananas' and 'vomit' together triggers an automatic cascade of associations, emotions and physical responses.",
-        "Priming: in John Bargh's study, students exposed to words about old age walked more slowly afterward.",
-        "Priming works in reverse too: acting a certain way, like smiling, influences feelings.",
-        "An 'honesty box' with a picture of watching eyes collected more money than one with flowers."
-      ]
+      "prompt": "What is the availability heuristic?",
+      "answer": "Judging how common or likely something is by how easily examples come to mind."
     },
     {
-      "number": 5,
-      "title": "Cognitive Ease",
-      "core_claim": "When information feels easy to process, we judge it more true, familiar and likeable, and we think less critically.",
-      "key_points": [
-        "Cognitive ease signals that things are going well, while strain triggers System 2 vigilance.",
-        "Repetition breeds familiarity, which is easily mistaken for truth.",
-        "Clear fonts, simple language and rhyming phrases make statements more believable.",
-        "Mere exposure makes people like things more, and good mood loosens System 2's control."
-      ]
+      "prompt": "What does the Linda problem show?",
+      "answer": "People judge a specific, representative conjunction ('bank teller and feminist') more probable than one of its parts — the conjunction fallacy, produced by judging by representativeness rather than probability."
     },
     {
-      "number": 6,
-      "title": "Norms, Surprises, and Causes",
-      "core_claim": "System 1 maintains a model of what is normal and automatically looks for causes, seeing causality even where there is only coincidence.",
-      "key_points": [
-        "System 1 quickly builds norms from experience, so a surprising event once makes a repeat feel less surprising.",
-        "People readily detect causes and intentions, as in Heider and Simmel's animation of moving shapes.",
-        "We are drawn to causal stories rather than statistical reasoning.",
-        "The Moses illusion: people miss the error in 'How many animals of each kind did Moses take into the ark?'."
-      ]
+      "prompt": "How did Kahneman explain the flight instructors' belief that criticism works better than praise?",
+      "answer": "Regression to the mean: an unusually good performance tends to be followed by a worse one and an unusually bad one by a better one, whatever the instructor says."
     },
     {
-      "number": 7,
-      "title": "A Machine for Jumping to Conclusions",
-      "core_claim": "System 1 builds the most coherent story from available information and ignores what is missing, which makes us confident on thin evidence.",
-      "key_points": [
-        "WYSIATI — 'What You See Is All There Is' — System 1 constructs a story from available information without considering what it lacks.",
-        "The halo effect: our first impression of someone colors how we interpret everything else about them.",
-        "Confirmation bias: System 1 tends to believe and seek evidence that fits.",
-        "Decorrelating errors — getting independent judgments before discussion — improves group judgments."
-      ]
+      "prompt": "When can expert intuition be trusted?",
+      "answer": "Only in an environment regular enough to be predictable, where the expert has had prolonged practice with rapid, clear feedback."
     },
     {
-      "number": 8,
-      "title": "How Judgments Happen",
-      "core_claim": "System 1 continuously makes basic assessments and matches intensities across dimensions, producing quick judgments that often go beyond what was asked.",
-      "key_points": [
-        "System 1 constantly monitors basic assessments, such as whether a face looks trustworthy or dominant.",
-        "Alexander Todorov showed people judge political candidates' competence from brief glimpses of their faces, predicting election outcomes.",
-        "Intensity matching lets people translate across scales, such as how tall a man would be to match someone's cleverness.",
-        "The 'mental shotgun': System 1 computes more than is needed, spilling irrelevant assessments into judgments."
-      ]
+      "prompt": "What is the planning fallacy, and what corrects it?",
+      "answer": "Forecasts that sit close to best-case scenarios because people take the inside view of their own project. The outside view — the base rate of similar projects — corrects it."
     },
     {
-      "number": 9,
-      "title": "Answering an Easier Question",
-      "core_claim": "When faced with a hard question, System 1 often substitutes an easier one and answers that instead, without noticing the switch.",
-      "key_points": [
-        "Substitution: 'How happy are you with your life?' is often answered as 'What is my mood right now?'.",
-        "Students asked about dates before being asked about happiness showed their happiness answers were strongly shaped by their dating lives.",
-        "The affect heuristic: people let their likes and dislikes determine their beliefs about risks and benefits.",
-        "Substitution generates quick answers to difficult questions without imposing much work on System 2."
-      ]
+      "prompt": "What is loss aversion?",
+      "answer": "Losses loom larger than gains of the same size, roughly twice as large, so people refuse many favourable gambles."
     },
     {
-      "number": 10,
-      "title": "The Law of Small Numbers",
-      "core_claim": "People, including trained researchers, treat small samples as if they were as reliable as large ones, and readily see patterns in randomness.",
-      "key_points": [
-        "Counties with the lowest kidney cancer rates are rural and sparsely populated — but so are the counties with the highest rates, because small samples produce extreme results.",
-        "Even statisticians choose sample sizes too small for their experiments.",
-        "People see patterns in random sequences, such as the 'hot hand' in basketball.",
-        "The Gates Foundation's investment in small schools rested on a small-sample artifact."
-      ]
+      "prompt": "What was 'Bernoulli's error'?",
+      "answer": "Expected utility theory evaluated outcomes as states of wealth; it missed that people evaluate them as gains and losses from a reference point."
     },
     {
-      "number": 11,
-      "title": "Anchors",
-      "core_claim": "Numbers we are exposed to — even obviously random ones — anchor subsequent estimates.",
-      "key_points": [
-        "People who spun a rigged wheel landing on 10 or 65 gave very different estimates of the percentage of African nations in the UN.",
-        "Anchoring works through two mechanisms: deliberate adjustment that stops too soon (System 2) and priming (System 1).",
-        "Real-estate agents' valuations were swayed by listing prices they claimed to ignore.",
-        "Arbitrary rationing ('limit of 12 per person') and first offers in negotiation both act as anchors."
-      ]
+      "prompt": "What is the fourfold pattern?",
+      "answer": "People are risk-averse for high-probability gains and low-probability losses (insurance), and risk-seeking for high-probability losses and low-probability gains (lotteries)."
     },
     {
-      "number": 12,
-      "title": "The Science of Availability",
-      "core_claim": "People judge frequency by how easily examples come to mind, which distorts estimates in predictable ways.",
-      "key_points": [
-        "The availability heuristic: judging how common something is by the ease with which instances come to mind.",
-        "Spouses each overestimate their own share of household tasks because their own contributions are more available.",
-        "Norbert Schwarz found that people asked to list twelve examples of their own assertiveness rated themselves less assertive than those asked for six, because retrieval felt hard.",
-        "The ease of retrieval can matter more than the number of examples retrieved."
-      ]
-    },
-    {
-      "number": 13,
-      "title": "Availability, Emotion, and Risk",
-      "core_claim": "Vivid, emotionally charged events distort perceptions of risk, and public attention can snowball into availability cascades.",
-      "key_points": [
-        "Media coverage makes dramatic causes of death seem more common than more frequent quiet ones, such as diabetes.",
-        "Paul Slovic's affect heuristic shows feelings about a technology shape beliefs about its risks and benefits.",
-        "Cass Sunstein's availability cascades: a minor event can escalate into public panic and policy, as with the Love Canal case and the Alar scare.",
-        "Experts and the public differ in how they assess risk, and Kahneman argues policy must weigh both."
-      ]
-    },
-    {
-      "number": 14,
-      "title": "Tom W's Specialty",
-      "core_claim": "When judging probability, people rely on how well something fits a stereotype and neglect base rates.",
-      "key_points": [
-        "Given a personality sketch of 'Tom W', people guessed his graduate field by similarity to stereotypes, ignoring how many students were in each field.",
-        "Representativeness: judging probability by resemblance instead of statistics.",
-        "Base rates should anchor a judgment, and the diagnosticity of evidence should be questioned.",
-        "Thinking like a statistician (Bayesian reasoning) requires effort from System 2."
-      ]
-    },
-    {
-      "number": 15,
-      "title": "Linda: Less Is More",
-      "core_claim": "Representativeness leads people to judge a more detailed scenario as more probable than a simpler one that includes it, violating basic logic.",
-      "key_points": [
-        "Most people rated 'Linda is a bank teller and active in the feminist movement' more probable than 'Linda is a bank teller' — the conjunction fallacy.",
-        "Adding detail makes scenarios more plausible but less probable.",
-        "Christopher Hsee found a smaller dinnerware set was valued more than a larger set that included the same items plus broken ones.",
-        "Framing questions in terms of frequencies ('how many of 100 people') reduces the fallacy."
-      ]
-    },
-    {
-      "number": 16,
-      "title": "Causes Trump Statistics",
-      "core_claim": "People ignore statistical base rates but readily use causal base rates, and learning a general fact rarely changes how we judge specific individuals.",
-      "key_points": [
-        "In the cab problem, people used base rates about accidents when framed causally but ignored them when framed statistically.",
-        "In the 'helping experiment', learning that most participants failed to help someone in distress didn't change students' predictions about individuals.",
-        "People learn more from surprising individual cases than from statistics.",
-        "Stereotypes are causal base rates, raising tension between accuracy and social norms."
-      ]
-    },
-    {
-      "number": 17,
-      "title": "Regression to the Mean",
-      "core_claim": "Extreme outcomes tend to be followed by more ordinary ones purely by chance, but people invent causal explanations for this regression.",
-      "key_points": [
-        "Israeli flight instructors believed praise hurt performance and criticism helped, but performance simply regressed to the mean after extreme results.",
-        "Any imperfect correlation between two measures produces regression to the mean.",
-        "The 'Sports Illustrated jinx' and similar beliefs mistake regression for causation.",
-        "Success equals talent plus luck, and great success equals a little more talent plus a lot of luck."
-      ]
-    },
-    {
-      "number": 18,
-      "title": "Taming Intuitive Predictions",
-      "core_claim": "Intuitive predictions are too extreme because they match evidence without considering its reliability; they should be corrected toward the base rate.",
-      "key_points": [
-        "Predicting a child's college GPA from reading age involves intensity matching that ignores the weak correlation between them.",
-        "A corrective procedure: start from the base-rate average, form your intuitive estimate, then move from the average toward it in proportion to the evidence's correlation.",
-        "Corrected predictions are less extreme and unbiased, though they rule out predicting rare outcomes.",
-        "Venture capitalists and others must weigh the cost of missing rare outliers against making overconfident predictions."
-      ]
-    },
-    {
-      "number": 19,
-      "title": "The Illusion of Understanding",
-      "core_claim": "We construct coherent stories about the past that make it seem more predictable than it was, giving us unwarranted confidence in our understanding.",
-      "key_points": [
-        "Nassim Taleb's narrative fallacy: flawed stories of the past shape our view of the world and expectations of the future.",
-        "Hindsight bias makes people believe they knew an outcome all along and judge decisions by their outcomes rather than their quality.",
-        "Business books like Built to Last and In Search of Excellence exaggerate the impact of leadership and management practices; outcomes regress.",
-        "Luck plays a larger role in outcomes such as Google's success than stories acknowledge."
-      ]
-    },
-    {
-      "number": 20,
-      "title": "The Illusion of Validity",
-      "core_claim": "Subjective confidence reflects the coherence of a story, not its accuracy, so experts can be confidently wrong in environments that don't allow real skill.",
-      "key_points": [
-        "Assessing Israeli army officer candidates in a leaderless group exercise, Kahneman found their predictions nearly worthless — yet their confidence remained high.",
-        "Among financial advisers at a wealth-management firm, year-to-year rankings were essentially uncorrelated, suggesting luck rather than skill.",
-        "Individual investors who trade most tend to do worst, as shown by Terrance Odean.",
-        "Philip Tetlock found that experts' long-term political forecasts were little better than chance."
-      ]
-    },
-    {
-      "number": 21,
-      "title": "Intuitions vs. Formulas",
-      "core_claim": "Simple statistical formulas usually predict outcomes better than expert judgment, because experts are inconsistent and overweight complex considerations.",
-      "key_points": [
-        "Paul Meehl's review showed that simple algorithms matched or outperformed clinicians' predictions.",
-        "Orley Ashenfelter's formula using weather data predicted Bordeaux wine prices better than wine experts.",
-        "The Apgar score for newborns shows how a simple checklist can save lives.",
-        "Kahneman designed an interview procedure for the Israeli army that scored traits independently, improving predictions."
-      ]
-    },
-    {
-      "number": 22,
-      "title": "Expert Intuition: When Can We Trust It?",
-      "core_claim": "Expert intuition is reliable only in environments that are sufficiently regular and where experts have had prolonged practice with clear feedback.",
-      "key_points": [
-        "Kahneman collaborated with Gary Klein, a proponent of naturalistic decision-making, to find where intuition works.",
-        "Klein's fire commanders recognize patterns from experience, such as sensing a floor about to collapse.",
-        "Intuition is recognition: valid only in a regular environment with an opportunity to learn its regularities.",
-        "Confidence is not a good guide to validity; stock pickers and political pundits operate in low-validity environments."
-      ]
-    },
-    {
-      "number": 23,
-      "title": "The Outside View",
-      "core_claim": "Plans and forecasts based on the specifics of a case (the inside view) are overoptimistic; the outside view uses the track record of similar cases.",
-      "key_points": [
-        "Kahneman's team writing a curriculum estimated two years; outside data showed similar projects took seven to ten years, and many failed.",
-        "The planning fallacy: plans are unrealistically close to best-case scenarios.",
-        "Bent Flyvbjerg's reference class forecasting corrects this by using outcomes from similar projects.",
-        "Sunk-cost thinking kept the team going after it should have stopped."
-      ]
-    },
-    {
-      "number": 24,
-      "title": "The Engine of Capitalism",
-      "core_claim": "Optimism drives entrepreneurship and risk-taking, but optimistic bias also leads to overconfident decisions that ignore competition and base rates.",
-      "key_points": [
-        "Most entrepreneurs believe their chances of success are high even though most small businesses fail.",
-        "Competition neglect: people focus on their own plans and ignore others' abilities.",
-        "CFOs' forecasts of the stock market were overconfident, with confidence intervals far too narrow.",
-        "Gary Klein's premortem — imagining a plan has failed and explaining why — reduces overconfidence."
-      ]
-    },
-    {
-      "number": 25,
-      "title": "Bernoulli's Errors",
-      "core_claim": "Expected utility theory, based on Daniel Bernoulli's idea that utility depends on states of wealth, fails because people evaluate changes relative to reference points.",
-      "key_points": [
-        "Bernoulli proposed that people value wealth by its utility, with diminishing returns.",
-        "Two people with the same wealth today, but one who had more yesterday, feel very differently — Bernoulli's theory can't explain this.",
-        "Theory-induced blindness: once accepted, a theory makes its flaws hard to notice.",
-        "Kahneman and Tversky's work led to an alternative model focused on changes rather than states."
-      ]
-    },
-    {
-      "number": 26,
-      "title": "Prospect Theory",
-      "core_claim": "People evaluate outcomes as gains and losses relative to a reference point, with diminishing sensitivity and loss aversion.",
-      "key_points": [
-        "Prospect theory's three principles: evaluation relative to a reference point, diminishing sensitivity, and loss aversion.",
-        "Losses loom larger than gains — people typically need a potential gain of about twice the potential loss to accept a gamble.",
-        "People are risk-averse for gains but risk-seeking for losses.",
-        "Prospect theory has blind spots too, such as failing to account for regret and disappointment."
-      ]
-    },
-    {
-      "number": 27,
-      "title": "The Endowment Effect",
-      "core_claim": "People value things more once they own them, because giving them up is framed as a loss.",
-      "key_points": [
-        "Richard Thaler's example of a professor who wouldn't sell a bottle of wine he'd bought cheaply but wouldn't pay more to buy another.",
-        "In mug experiments, owners demanded about twice as much to sell as buyers would pay.",
-        "The endowment effect applies to goods held for use, not those held for exchange, such as money for traders.",
-        "Poor people may think like traders because every purchase means giving up something else."
-      ]
-    },
-    {
-      "number": 28,
-      "title": "Bad Events",
-      "core_claim": "Negativity dominates: the brain responds more strongly to threats and losses, which shapes behavior, negotiation and fairness judgments.",
-      "key_points": [
-        "The brain detects threats faster than good news, such as fearful faces.",
-        "Goals act as reference points; golfers putt more accurately for par than for birdie to avoid a loss.",
-        "Loss aversion makes status quo change hard, and reforms create losers who fight harder than winners.",
-        "People consider it unfair for firms to exploit market power to impose losses, such as raising prices after a snowstorm."
-      ]
-    },
-    {
-      "number": 29,
-      "title": "The Fourfold Pattern",
-      "core_claim": "People weight probabilities non-linearly, producing a fourfold pattern of risk attitudes across gains and losses at high and low probabilities.",
-      "key_points": [
-        "The possibility effect overweights small chances; the certainty effect overweights sure outcomes.",
-        "The Allais paradox shows people violate expected utility theory.",
-        "Fourfold pattern: risk-averse for high-probability gains, risk-seeking for high-probability losses, risk-seeking for low-probability gains (lotteries), risk-averse for low-probability losses (insurance).",
-        "Defendants with weak cases and plaintiffs with strong cases illustrate how these attitudes shape legal settlements."
-      ]
-    },
-    {
-      "number": 30,
-      "title": "Rare Events",
-      "core_claim": "People either overweight or ignore rare events, depending on how vividly they are imagined and how they are described.",
-      "key_points": [
-        "Suicide bombings in Israel led people to avoid buses despite low risk, because the image of the event was vivid.",
-        "Vivid, specific descriptions of outcomes increase their decision weight.",
-        "Denominator neglect: '1,286 out of 10,000' seems more dangerous than '24.14 percent'.",
-        "Choices from experience underweight rare events, while choices from description overweight them."
-      ]
-    },
-    {
-      "number": 31,
-      "title": "Risk Policies",
-      "core_claim": "Evaluating decisions one at a time (narrow framing) leads to costly inconsistency; broad framing and risk policies produce better outcomes.",
-      "key_points": [
-        "Narrow framing leads people to reject favorable gambles that would be attractive when considered together.",
-        "Paul Samuelson's colleague would not take one favorable bet but would take a hundred of them.",
-        "Adopting a risk policy, such as always taking highest deductibles or not buying extended warranties, reduces the pain of losses.",
-        "Checking investments less often reduces emotional pain and improves outcomes."
-      ]
-    },
-    {
-      "number": 32,
-      "title": "Keeping Score",
-      "core_claim": "People keep mental accounts and are driven by the emotions of regret and responsibility, leading to decisions that aren't in their financial interest.",
-      "key_points": [
-        "Mental accounting: people are more likely to sell winning stocks than losing ones (the disposition effect).",
-        "The sunk-cost fallacy makes people throw good money after bad.",
-        "People feel more regret for outcomes produced by action than by inaction, and for departures from default.",
-        "Taboo trade-offs, such as accepting increased risk to a child for money, provoke strong resistance."
-      ]
-    },
-    {
-      "number": 33,
-      "title": "Reversals",
-      "core_claim": "Judgments made about options in isolation can reverse when options are compared jointly, revealing inconsistent preferences.",
-      "key_points": [
-        "Preference reversals occur between single and joint evaluation, such as dolphins versus farmworkers' skin cancer.",
-        "Jurors award different damages when cases are considered separately versus together.",
-        "Christopher Hsee's evaluability hypothesis: attributes that are hard to evaluate alone get more weight in joint evaluation.",
-        "Legal systems that evaluate cases one at a time can produce incoherent punishments."
-      ]
-    },
-    {
-      "number": 34,
-      "title": "Frames and Reality",
-      "core_claim": "Logically equivalent descriptions produce different decisions because of their emotional framing, showing preferences are not tied to reality.",
-      "key_points": [
-        "The Asian disease problem: people prefer a certain outcome when options are framed as lives saved, and a gamble when framed as lives lost.",
-        "Doctors' choices between surgery and radiation shift depending on whether outcomes are described as survival or mortality rates.",
-        "Organ donation rates are far higher in countries with opt-out defaults than opt-in.",
-        "The MPG illusion: gallons-per-mile is a better frame for fuel efficiency than miles-per-gallon."
-      ]
-    },
-    {
-      "number": 35,
-      "title": "Two Selves",
-      "core_claim": "The experiencing self lives through moments, but the remembering self keeps score and makes decisions, often in conflict with the experiencing self's interests.",
-      "key_points": [
-        "Colonoscopy patients' memories of pain were determined by the peak and final moments, not total duration.",
-        "The peak-end rule and duration neglect govern how we remember experiences.",
-        "In the cold-hand experiment, people chose to repeat a longer painful trial that ended slightly less painfully.",
-        "The remembering self makes decisions that the experiencing self then lives with."
-      ]
-    },
-    {
-      "number": 36,
-      "title": "Life as a Story",
-      "core_claim": "We evaluate lives as stories, weighting significant moments and endings rather than overall duration or experience.",
-      "key_points": [
-        "In La Traviata, the drama lies in the final moments, not the duration of the heroine's life.",
-        "Ed Diener's studies found adding mildly happy years to a very happy life lowered people's evaluation of it.",
-        "Vacations are often chosen for the memories they will create rather than the experience itself.",
-        "Kahneman's amnesic-vacation thought experiment reveals how much we value experiences for the stories they produce."
-      ]
-    },
-    {
-      "number": 37,
-      "title": "Experienced Well-Being",
-      "core_claim": "Measuring well-being by moment-to-moment experience, rather than life evaluation, reveals different drivers of happiness.",
-      "key_points": [
-        "The Day Reconstruction Method asks people to recall episodes of the previous day and how they felt.",
-        "The U-index measures the proportion of time people spend in an unpleasant state.",
-        "Above a household income of about $75,000, more income doesn't improve experienced well-being, though it improves life satisfaction.",
-        "Time use matters: commuting and time with bosses rate poorly, time with friends rates well."
-      ]
-    },
-    {
-      "number": 38,
-      "title": "Thinking About Life",
-      "core_claim": "Life satisfaction judgments are strongly influenced by what we focus on at the moment of judgment, a focusing illusion.",
-      "key_points": [
-        "The focusing illusion: nothing in life is as important as you think it is when you are thinking about it.",
-        "People overestimate how much living in California would raise their happiness.",
-        "People adapt to most circumstances, such as paraplegia, more than they expect.",
-        "Goals shape satisfaction: students who valued financial success highly were more satisfied later if they earned high incomes."
-      ]
+      "prompt": "What is the peak-end rule?",
+      "answer": "The remembering self rates an experience by its most intense moment and how it ended, neglecting how long it lasted."
     }
   ]
 }

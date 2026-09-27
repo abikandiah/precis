@@ -411,19 +411,21 @@ precis tags [--output <path>]
       see the "Mirrors book-keeper's own schema.ts" comment on those two
       tuples in schema.py.
 
-precis eval run <label> [--pipeline v1] [--book <slug>]... [--trust-known]
+precis eval run <label> [--pipeline v2] [--book <slug>]... [--trust-known]
     → generates every book of the eval set (evals/, see docs/v2-plan.md's
       Eval set section) into evals/runs/<label>/: each book's JSON plus a
       <slug>.metrics.json with its measured cost (the gateway's reported
-      usage.cost, plus search credits), duration, flags, duplicate-point
-      rate and citation coverage. Books run one after another; a book whose
+      usage.cost, plus search credits), duration, idea and key-claim counts,
+      warnings, duplicate-idea rate and citation coverage. No pipeline is
+      registered yet — v2 registers once it runs end to end. Books run one after another; a book whose
       output is already there is skipped, so a rerun finishes a partial run
       without paying twice. Exits non-zero if any book failed.
 
 precis eval judge <candidate> <baseline> [--judge-model <id>] [--book <slug>]...
     → pairwise judgement of two runs by PRECIS_JUDGE_MODEL, book by book,
-      against a rubric (accuracy, specificity, distinctness, scope,
-      coverage vs the reference summary). Each book is judged twice with
+      against a rubric (accuracy, specificity, distinctness, coverage vs the
+      reference summary, plus review-deck quality for non-fiction or spoiler
+      safety for fiction). Each book is judged twice with
       the order swapped; a pick counts only when both orders agree, else
       it's a tie. Writes evals/runs/<candidate>/judge-vs-<baseline>.json
       and prints both runs' metrics and the candidate's score (1 per win,

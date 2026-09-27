@@ -10,9 +10,9 @@ evals/
   runs/<label>/judge-vs-<baseline>.json
 ```
 
-A reference is written by hand (Claude, in-session) in the output's own
+A reference is written by hand (Claude, in-session) in the v2 output's own
 field names, so the judge renders it the same way as a generated book. It is
-a guide to what a good summary covers, not ground truth.
+a guide to what good notes cover, not ground truth.
 """
 
 from __future__ import annotations
@@ -24,20 +24,17 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from precis.schema import KnownFile
+from precis.schema import KeyClaim, KnownFile
 
 
-class ReferencePart(BaseModel):
+class ReferenceIdea(BaseModel):
+    """A key idea (non-fiction) or theme (fiction) — the v2 output's idea
+    minus `sources`, since a reference cites no research.
+    """
+
     title: str
     summary: str
-    chapters: list[int] | None = None
-
-
-class ReferenceChapter(BaseModel):
-    number: int
-    title: str
-    core_claim: str
-    key_points: list[str] = Field(min_length=1, max_length=6)
+    evidence: str
 
 
 class Reference(BaseModel):
@@ -45,8 +42,9 @@ class Reference(BaseModel):
     author: str
     one_line_takeaway: str
     synopsis: str
-    parts: list[ReferencePart] = Field(default_factory=list)
-    chapters: list[ReferenceChapter] = Field(default_factory=list)
+    ideas: list[ReferenceIdea] = Field(min_length=3)
+    # Non-fiction only; fiction has no review deck.
+    key_claims_for_review: list[KeyClaim] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
