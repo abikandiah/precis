@@ -126,6 +126,8 @@ async def test_write_notes_makes_one_structured_call_and_assembles_the_notes():
         notes = await write.write_notes(NONFICTION, RESEARCH, client=MagicMock())
     kwargs = call.await_args.kwargs
     assert kwargs["response_model"] is write.DraftWithClaims
+    # The same tools the review call sends, so its cache prefix matches.
+    assert kwargs["tool_models"] == write.shared_tools("non-fiction")
     assert kwargs["validation_context"] == {write.KIND_KEY: "non-fiction", write.SOURCE_IDS_KEY: {"S1", "S2"}}
     assert kwargs["timeout_seconds"] == write.WRITE_TIMEOUT_SECONDS
     system, user = kwargs["messages"]

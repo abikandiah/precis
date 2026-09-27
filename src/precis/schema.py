@@ -194,6 +194,17 @@ def notes_shape_problems(
     return problems
 
 
+def citation_problems(ideas: list[Idea], source_ids: set[str]) -> list[str]:
+    """Ideas citing a source the research doesn't have. Shared by the write
+    and review calls' response models.
+    """
+    return [
+        f"idea {idea.title!r} cites {unknown!r}, which aren't research sources"
+        for idea in ideas
+        if (unknown := [s for s in idea.sources if s not in source_ids])
+    ]
+
+
 class Book(BaseModel):
     """precis's output: whole-book notes for recalling a book after
     reading it. Fiction's are spoiler-safe and carry no review deck.

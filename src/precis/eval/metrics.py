@@ -6,35 +6,17 @@ evidence, sources}` objects), so a run's stored JSON is measured as written.
 
 from __future__ import annotations
 
-import re
 from itertools import combinations
 from statistics import mean
 from typing import Any
 
-# Two ideas count as near-duplicates at this Jaccard overlap of their
-# content words — enough shared vocabulary that they say the same thing.
-DUPLICATE_OVERLAP = 0.5
-
-_STOPWORDS = frozenset(
-    {
-        "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "can", "do", "does", "for", "from", "has",
-        "have", "how", "in", "into", "is", "it", "its", "more", "most", "not", "of", "on", "or", "our", "so",
-        "than", "that", "the", "their", "them", "then", "there", "these", "they", "this", "those", "to", "was",
-        "we", "were", "what", "when", "which", "who", "why", "will", "with", "without", "you", "your",
-    }
-)
+# One definition of "near-duplicate" for the pipeline's check and the eval
+# metric, so the two agree.
+from precis.checks import DUPLICATE_OVERLAP, content_words, overlap
 
 
 def idea_text(idea: dict[str, Any]) -> str:
     return f"{idea.get('title', '')} {idea.get('summary', '')}"
-
-
-def content_words(text: str) -> frozenset[str]:
-    return frozenset(w for w in re.findall(r"[a-z0-9']+", text.lower()) if len(w) > 2 and w not in _STOPWORDS)
-
-
-def overlap(a: frozenset[str], b: frozenset[str]) -> float:
-    return len(a & b) / len(a | b) if a and b else 0.0
 
 
 def duplicate_idea_rate(book: dict[str, Any]) -> float | None:

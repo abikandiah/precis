@@ -19,7 +19,8 @@ most of the old pipeline's complexity.
    wasn't. No model, no search.
 2. **The reader checks it**: corrects the title or author if needed, sets
    `kind`, and optionally adds `notes`.
-3. **Generation** (`generate`, in Docker): research, then write the notes.
+3. **Generation** (`generate`, in Docker): research, write the notes, check
+   them in code, and review them against the research.
 
 ## Module boundary
 
@@ -82,8 +83,8 @@ warnings               anything the reader should check
 ## Pipeline
 
 ```
-known-file ─► research ─► write ─► validate ─► book JSON
-               (cached)
+known-file ─► research ─► write ─► checks ─► review ─► validate ─► book JSON
+               (cached)                (code)   (one call)
 ```
 
 A plain async function (`generate.py`). The research cache is the only
@@ -122,8 +123,12 @@ sources warns that the notes lean on the model's own knowledge.
 
 One structured call writes every field. The system message holds a
 task-independent preamble, the book and its research, marked for prompt
-caching, so a later call about the same book (the review, Phase 4) reuses
-the cached research; the task's instructions go in the user message.
+caching; the task's instructions go in the user message. Both calls send
+the same tool list too (the write's and the review's tools, each call
+forced to its own), since a provider's cache prefix runs tools → system →
+messages: that's what should let the review read the research from the
+cache. Not yet confirmed through OpenRouter — the baseline eval run checks
+the review call's `cached_tokens` (docs/v2-plan.md).
 
 - Ideas cover the whole book, and their count scales with how much it
   argues. They name the book's own terms and never describe the text ("the
@@ -142,6 +147,47 @@ some page (a comparison, a reading list) passes research's code checks, so
 the model reports when the research credits the book to someone else. That
 fails the run unless `--trust-known`. Another form of the same name, a pen
 name and the real name, or an added co-author isn't a mismatch.
+
+### Checks (`checks.py`)
+
+Code checks on the written notes, each a specific lead for the review:
+ideas or answers that describe the text ("the author discusses…") instead of
+stating the idea; near-duplicate ideas (half their vocabulary shared); and
+**evidence specifics** — numbers and proper nouns in an idea's evidence
+(study names, figures, people, dates: where invention hides) that aren't in
+the sources it cites, or, for an uncited idea, anywhere in the research.
+
+### Review (`review.py`)
+
+One structured call over the same cached prefix, given the notes, the check
+findings and the count limits, returns only what needs changing: a verdict
+per idea (titled, so a skipped one can't shift the rest), new ideas, and the
+whole corrected takeaway, synopsis or claims list where one needs fixing.
+Empty or placeholder fields mean "nothing to fix". For fiction it also
+audits every field for spoilers, with the write prompt's guards.
+
+- **keep** — exactly right, citations included: its cited sources support
+  it, or it cites none and the model is confident it's accurate. ~30k tokens of
+  research can't hold everything, and the reader, who has read the book,
+  is the final check.
+- **revise** — the right idea with something wrong: a detail the research
+  contradicts or can't back (described more generally instead), vagueness,
+  a description of the text, or a citation that doesn't support it
+  (corrected, or emptied when the research is silent but the idea is right).
+- **drop** — contradicted by the research, not specific to this book, or a
+  repeat. A wrong idea is worse than a missing one; claims resting on it go
+  too.
+- **new ideas** — major ideas the research covers that the notes miss, or
+  replacements for dropped ones; they must cite the research.
+
+The review is validated by building the book it would produce, by the
+book's own rules: too few or too many ideas, verdicts out of step with the
+ideas, a dropped idea whose claims weren't dealt with, or a half-returned
+synopsis is sent back with the reason, and the run fails only if it still
+can't fix it. A revised idea that leaves out its sources keeps the
+original's. Afterwards the checks run again, and whatever they still find
+is a warning for the reader, beside one naming the uncited ideas (and a
+book-level one when most are uncited).
 
 ## CLI contract
 
@@ -207,8 +253,8 @@ carries only the command's output.
   (`PRECIS_LLM_CALL_TIMEOUT_SECONDS`), a circuit breaker for a hung call;
   the write call sets 5 minutes and fewer HTTP retries, since it's long.
   There's no whole-run limit: the per-call timeouts bound a run, at about
-  half an hour in the worst case (a stalled provider on the write call
-  through every retry).
+  an hour in the worst case (a stalled provider on both the write and the
+  review call, through every retry).
 - **Cost:** every run reports the gateway-reported cost of its calls plus
   its search credits. Target: under $0.50 a book on average, measured on
   the eval set.

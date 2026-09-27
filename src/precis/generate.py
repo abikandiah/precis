@@ -1,17 +1,20 @@
-"""A whole run: research the book, then write its notes. A plain async
+"""A whole run: research the book, write its notes, check them in code,
+then review them against the research in one more call. A plain async
 function — the research cache (research.py) is the only persisted state, so
 an interrupted run just starts again without searching again.
 
 There's no whole-run time limit: every call has its own timeout, which
-bounds a run (the write call's worst case, a stalled provider through every
-retry, is about half an hour).
+bounds a run (the worst case, a stalled provider on both the write and the
+review call through every retry, is about an hour).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
+from precis.review import review_notes
 from precis.schema import Book, KnownFile
 from precis.write import write_notes
 
@@ -40,10 +43,20 @@ async def generate(
     progress = on_progress or (lambda _: None)
     found = await research(known_file, slug=slug, trust_known=trust_known, fresh=fresh, on_progress=progress)
     progress("write: writing the notes")
-    book = await write_notes(known_file, found, trust_known=trust_known)
-    progress(f"write: {len(book.ideas)} ideas, {len(book.key_claims_for_review or [])} key claims")
+    written = await write_notes(known_file, found, trust_known=trust_known)
+    progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
+
+    issues = check_notes(written, found)
+    for issue in issues:
+        progress(f"check: {issue}")
+    progress("review: checking the notes against the research")
+    book, changes = await review_notes(known_file, found, written, issues)
+    for change in changes:
+        progress(f"review: {change}")
+    if not changes:
+        progress("review: no changes")
     # Research already printed its own warnings.
     for warning in book.warnings:
         if warning not in found.warnings:
-            progress(f"write warning: {warning}")
+            progress(f"warning: {warning}")
     return Generated(book=book, research=found)

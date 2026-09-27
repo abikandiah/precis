@@ -328,3 +328,18 @@ async def test_max_tokens_is_sent_only_when_given():
     assert "max_tokens" not in client.chat.completions.create.await_args.kwargs
     await complete_structured(client, messages=[], response_model=_Verdict, max_tokens=16_000)
     assert client.chat.completions.create.await_args.kwargs["max_tokens"] == 16_000
+
+
+class _Other(BaseModel):
+    note: str
+
+
+@pytest.mark.asyncio
+async def test_tool_models_sends_every_tool_but_forces_the_response_models():
+    client = _mock_client_returning([_tool_call('{"verified": true, "reason": "r"}')])
+    await complete_structured(client, messages=[], response_model=_Verdict, tool_models=[_Other, _Verdict])
+    kwargs = client.chat.completions.create.await_args.kwargs
+    assert [t["function"]["name"] for t in kwargs["tools"]] == ["emit__other", "emit__verdict"]
+    assert kwargs["tool_choice"]["function"]["name"] == "emit__verdict"
+    with pytest.raises(ValueError, match="must include the response model"):
+        await complete_structured(client, messages=[], response_model=_Verdict, tool_models=[_Other])

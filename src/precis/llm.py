@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+from collections.abc import Sequence
 from typing import Any
 
 from openai import (
@@ -202,6 +203,21 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
     )
 
 
+def _tool_name(model: type[BaseModel]) -> str:
+    return f"emit_{model.__name__.lower()}"
+
+
+def _tool(model: type[BaseModel]) -> ChatCompletionFunctionToolParam:
+    return {
+        "type": "function",
+        "function": FunctionDefinition(
+            name=_tool_name(model),
+            description=f"Emit the {model.__name__} result.",
+            parameters=model.model_json_schema(),
+        ),
+    }
+
+
 def _excerpt(text: str, limit: int) -> str:
     return text[:limit] + "..." if len(text) > limit else text
 
@@ -267,6 +283,7 @@ async def complete_structured[T: BaseModel](
     validation_context: dict[str, object] | None = None,
     timeout_seconds: float | None = None,
     max_tokens: int | None = None,
+    tool_models: Sequence[type[BaseModel]] | None = None,
 ) -> T:
     """Forces schema-shaped output via tool-calling rather than free-form
     JSON-in-prose: `response_model`'s own JSON schema becomes the tool's
@@ -297,16 +314,17 @@ async def complete_structured[T: BaseModel](
 
     `timeout_seconds` overrides PRECIS_LLM_CALL_TIMEOUT_SECONDS, and
     `max_tokens` caps the reply, for a call known to generate long output.
+
+    `tool_models` is the full list of tools to send, `response_model`'s
+    among them; the call is still forced to `response_model`'s. Calls that
+    share a cached prompt prefix must send identical tools, since a
+    provider's cache prefix starts with the tool definitions.
     """
-    tool_name = f"emit_{response_model.__name__.lower()}"
-    tool: ChatCompletionFunctionToolParam = {
-        "type": "function",
-        "function": FunctionDefinition(
-            name=tool_name,
-            description=f"Emit the {response_model.__name__} result.",
-            parameters=response_model.model_json_schema(),
-        ),
-    }
+    models = list(tool_models or [response_model])
+    if response_model not in models:
+        raise ValueError(f"tool_models must include the response model {response_model.__name__}")
+    tool_name = _tool_name(response_model)
+    tools = [_tool(model) for model in models]
     tool_choice: ChatCompletionNamedToolChoiceParam = {"type": "function", "function": {"name": tool_name}}
 
     attempt_messages = list(messages)
@@ -315,7 +333,7 @@ async def complete_structured[T: BaseModel](
             client,
             model=model or settings.llm_model,
             messages=attempt_messages,
-            tools=[tool],
+            tools=tools,
             tool_choice=tool_choice,
             timeout=settings.llm_call_timeout_seconds if timeout_seconds is None else timeout_seconds,
             extra_body=_REQUIRE_TOOL_SUPPORT,

@@ -4,9 +4,9 @@ takeaway, synopsis, ideas (themes for fiction), key claims for review
 
 The research sits in the system message, marked for prompt caching, behind
 a preamble that doesn't depend on the task; the task's instructions come in
-the user message. `context_messages` builds that shared prefix, so the
-review call (docs/v2-plan.md, Checks + review) reuses the cached research instead of paying for it
-again.
+the user message. `context_messages` and `shared_tools` build that shared
+prefix, so the review call (review.py) reuses the cached research instead
+of paying for it again.
 
 This call is also the identity backstop for research.py's code checks: a
 real but wrong author named next to the book on some page passes those, so
@@ -33,6 +33,7 @@ from precis.schema import (
     KeyClaim,
     KnownFile,
     Tags,
+    citation_problems,
     notes_shape_problems,
     tags_for_kind,
     validate_tags,
@@ -105,9 +106,7 @@ class Draft(BaseModel):
         if kind := context.get(KIND_KEY):
             problems += notes_shape_problems(kind, self.ideas, self.claims)
         if (source_ids := context.get(SOURCE_IDS_KEY)) is not None:
-            for idea in self.ideas:
-                if unknown := [s for s in idea.sources if s not in source_ids]:
-                    problems.append(f"idea {idea.title!r} cites {unknown!r}, which aren't research sources")
+            problems += citation_problems(self.ideas, source_ids)
         if problems:
             raise ValueError("; ".join(problems))
         return self
@@ -145,6 +144,17 @@ def context_messages(known_file: KnownFile, research: Research) -> list[ChatComp
     return [cast(ChatCompletionMessageParam, {"role": "system", "content": [part]})]
 
 
+def shared_tools(kind: Literal["fiction", "non-fiction"]) -> list[type[BaseModel]]:
+    """The tools every call about a book sends — the write call's and the
+    review's, whichever one a call is forced to. A provider's cache prefix
+    runs tools → system → messages, so the review only reuses the write
+    call's cached research if both send identical tools.
+    """
+    from precis.review import Review  # review.py imports this module
+
+    return [Draft if kind == "fiction" else DraftWithClaims, Review]
+
+
 _COMMON_RULES = (
     "- Name the book's actual terms, arguments, examples, characters and situations. No generic statements "
     "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
@@ -172,7 +182,7 @@ def _nonfiction_instructions(known_file: KnownFile) -> str:
         "its evidence: the specific study, story, example or figure the author uses to make it.\n"
         f"- key_claims_for_review: {claims_low}-{claims_high} recall questions (prompt) with 1-3 sentence "
         "answers, covering the ideas a reader most needs to remember. Each answer is correct and makes sense "
-        "on its own; don't just restate an idea's title as a question.\n"
+        "on its own.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_mismatch: see its description; almost always null.\n\n"
         "Rules:\n" + _COMMON_RULES + _reader_notes(known_file) + "\nCall the tool with the result."
@@ -256,6 +266,7 @@ async def write_notes(
         (client or llm.build_client()).with_options(max_retries=WRITE_MAX_RETRIES),
         messages=[*context_messages(known_file, research), {"role": "user", "content": instructions}],
         response_model=Draft if fiction else DraftWithClaims,
+        tool_models=shared_tools(kind),
         validation_context={KIND_KEY: kind, SOURCE_IDS_KEY: {s.id for s in research.sources}},
         timeout_seconds=WRITE_TIMEOUT_SECONDS,
         max_tokens=WRITE_MAX_TOKENS,
