@@ -1,7 +1,7 @@
 """CLI entrypoint. See docs/blueprint.md's CLI contract section.
 
-No output file is ever written on a whole-book structural failure — errors
-go to stderr with a non-zero exit code instead.
+Errors go to stderr with a non-zero exit code, never a traceback; progress
+goes to stderr too, so stdout carries only the command's output.
 """
 
 from __future__ import annotations
@@ -10,8 +10,9 @@ import argparse
 import asyncio
 import os
 import sys
+from collections.abc import Coroutine
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -22,86 +23,87 @@ from precis.eval import data as eval_data
 from precis.eval import judge as eval_judge
 from precis.eval import metrics as eval_metrics
 from precis.eval import runner as eval_runner
+from precis.generate import generate
 from precis.known_file import create_known_file, preflight_check, slugify_title
-from precis.pipeline import checkpoints as pipeline_checkpoints
-from precis.pipeline import graph as pipeline_graph
-from precis.pipeline.nodes import draft
-from precis.schema import Chapter, KnownFile, TagVocabulary
+from precis.schema import KnownFile, TagVocabulary
+
+
+def _print_progress(message: str) -> None:
+    print(message, file=sys.stderr)
 
 
 def _slug_from_path(path: str) -> str:
-    """The known-file's filename stem — the book's identity for
-    checkpointing, matching the consumer's own convention of naming the
+    """The known-file's filename stem — the book's identity for its
+    research cache, matching the consumer's convention of naming the
     known-file and the output after the same slug.
     """
     return Path(path).stem
 
 
-def _load_known_file(path: str) -> KnownFile:
-    with open(path) as f:
-        return KnownFile.model_validate_json(f.read())
-
-
-def _load_known_file_or_report(path: str) -> KnownFile | None:
-    """Loads a known-file, or prints a clean message and returns None on
-    failure — the caller returns 1 immediately when this returns None.
-    Shared by both generate and generate-chapter, which otherwise had
-    byte-for-byte identical try/except blocks here.
+def _load_ready_known_file(path: str) -> KnownFile | None:
+    """The known-file at `path`, or None after printing why it can't be
+    used (unreadable, invalid, or not ready for generation).
     """
     try:
-        return _load_known_file(path)
+        known_file = KnownFile.model_validate_json(Path(path).read_text())
     except (OSError, ValueError) as exc:
         print(f"could not load known-file {path!r}: {exc}", file=sys.stderr)
         return None
+    if problems := preflight_check(known_file):
+        print("known-file is not ready for generation:", file=sys.stderr)
+        for problem in problems:
+            print(f"- {problem}", file=sys.stderr)
+        return None
+    return known_file
 
 
 def _write_output(model: BaseModel, output_path: str | None, *, exclude_none: bool = False) -> None:
-    # Known-files keep None explicit (a reader-facing "not filled in yet"
-    # signal — known_file.py's docstring); generation output (book/chapter)
-    # omits it instead, per the "absent, not null" contract documented in
-    # blueprint.md's Book JSON shape section.
+    # Known-files keep None explicit — a "not filled in yet" signal for the
+    # reader; the book omits it ("absent, not null").
     text = model.model_dump_json(indent=2, exclude_none=exclude_none)
     if output_path:
-        with open(output_path, "w") as f:
-            f.write(text)
+        Path(output_path).write_text(text)
     else:
         print(text)
 
 
-def _known_file_filename(isbn: str, known_file: KnownFile, used_names: set[str]) -> str:
-    """Title-slug filename, falling back to the isbn when the lookup didn't
-    find a title (still a placeholder) or when the slug collides with an
-    earlier file in the same batch — including repeat collisions (e.g. the
-    same isbn passed more than once), which the first-collision-only
-    fallback used to silently overwrite instead of resolving.
+def _unwritable(path: str) -> str | None:
+    parent = os.path.dirname(os.path.abspath(path))
+    if not os.path.isdir(parent):
+        return f"directory {parent!r} doesn't exist"
+    if os.path.isdir(path):
+        return "it's a directory — give a file path"
+    if os.path.exists(path):
+        return None if os.access(path, os.W_OK) else "file isn't writable"
+    return None if os.access(parent, os.W_OK) else f"directory {parent!r} isn't writable"
+
+
+def _run_paid[T](coro: Coroutine[Any, Any, T], failure: str) -> T | None:
+    """Runs a command's paid work in a usage scope, printing its cost even
+    when it fails (the money is spent either way). None after printing a
+    failure.
     """
-    slug = slugify_title(known_file.title) if known_file.has_title else ""
-    base = slug or isbn
+    with usage.track() as run_usage:
+        try:
+            return asyncio.run(coro)
+        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
+            print(f"{failure}: {exc}", file=sys.stderr)
+            return None
+        finally:
+            _print_progress(run_usage.summary())
+
+
+def _known_file_filename(isbn: str, known_file: KnownFile, used_names: set[str]) -> str:
+    """Title-slug filename, falling back to the isbn when the lookup found
+    no title or the slug collides with an earlier file in the same batch.
+    """
+    base = (slugify_title(known_file.title) if known_file.has_title else "") or isbn
     filename = f"{base}.json"
-    if filename not in used_names:
-        return filename
-    filename = f"{base}-{isbn}.json"
-    suffix = 2
+    suffix = 1
     while filename in used_names:
-        filename = f"{base}-{isbn}-{suffix}.json"
+        filename = f"{base}-{isbn}.json" if suffix == 1 else f"{base}-{isbn}-{suffix}.json"
         suffix += 1
     return filename
-
-
-def _report_preflight_problems(known_file: KnownFile) -> int | None:
-    """Prints and returns exit code 1 if the known-file isn't ready;
-    returns None if it's clear to proceed. Shared by both subcommands —
-    generate-chapter needs the same isbn/narrative-edge-case checks as
-    generate, even though its own chapter-range check (below) happens to
-    also catch an empty chapters list.
-    """
-    problems = preflight_check(known_file)
-    if not problems:
-        return None
-    print("known-file is not ready for generation:", file=sys.stderr)
-    for problem in problems:
-        print(f"- {problem}", file=sys.stderr)
-    return 1
 
 
 _BATCH_KIND_DEFAULT: Literal["fiction", "non-fiction"] = "non-fiction"
@@ -110,21 +112,16 @@ _BATCH_KIND_DEFAULT: Literal["fiction", "non-fiction"] = "non-fiction"
 def _cmd_create_known_file(args: argparse.Namespace) -> int:
     isbns: list[str] = args.isbn
     batch = len(isbns) > 1
-
     if batch and args.kind:
         print(
-            "--kind can't be used with more than one isbn — kind is book-specific "
-            "and can't be applied uniformly across a batch. Omit --kind; each "
-            f"created known-file will default to kind: {_BATCH_KIND_DEFAULT} and "
-            "must be corrected by hand.",
+            "--kind can't be used with more than one isbn — kind is book-specific. Omit it; each known-file "
+            f"defaults to kind: {_BATCH_KIND_DEFAULT} and must be corrected by hand.",
             file=sys.stderr,
         )
         return 1
-
     if batch and not args.output_dir:
         print("--output-dir is required when creating known-files for more than one isbn", file=sys.stderr)
         return 1
-
     if args.output and args.output_dir:
         print("--output and --output-dir can't both be given", file=sys.stderr)
         return 1
@@ -132,7 +129,7 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
     kind: Literal["fiction", "non-fiction"] = args.kind or _BATCH_KIND_DEFAULT
     known_files = []
     for isbn in isbns:
-        known_file, notes = create_known_file(isbn, kind=kind, narrative=args.narrative)
+        known_file, notes = create_known_file(isbn, kind=kind)
         known_files.append((isbn, known_file))
         for note in notes:
             _print_progress(f"{isbn}: {note}")
@@ -148,156 +145,62 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
         _write_output(known_files[0][1], args.output)
 
     if not args.kind:
-        print(
+        _print_progress(
             f"kind defaulted to '{_BATCH_KIND_DEFAULT}' for {len(known_files)} known-file(s) — "
-            "review and correct `kind`/`narrative` by hand before generating.",
-            file=sys.stderr,
+            "correct `kind` by hand before generating."
         )
     return 0
 
 
-def _print_progress(message: str) -> None:
-    """Progress goes to stderr, never stdout — `_write_output` writes the
-    final JSON to stdout when `--output` isn't given, and the two streams
-    must stay separable for a caller piping that output elsewhere.
-    """
-    print(message, file=sys.stderr)
-
-
-def _unwritable(path: str) -> str | None:
-    parent = os.path.dirname(os.path.abspath(path))
-    if not os.path.isdir(parent):
-        return f"directory {parent!r} doesn't exist"
-    if os.path.isdir(path):
-        return "it's a directory — give a file path"
-    if os.path.exists(path):
-        return None if os.access(path, os.W_OK) else "file isn't writable"
-    return None if os.access(parent, os.W_OK) else f"directory {parent!r} isn't writable"
-
-
 def _cmd_generate(args: argparse.Namespace) -> int:
-    known_file = _load_known_file_or_report(args.known_file)
+    known_file = _load_ready_known_file(args.known_file)
     if known_file is None:
         return 1
-
-    if (exit_code := _report_preflight_problems(known_file)) is not None:
-        return exit_code
-
-    # Before any paid work: a finished book that can't be written is lost
-    # (its checkpoint doesn't hand it back — see run_whole_book).
+    # Before any paid work, so a finished book is never lost to a bad path.
     if args.output and (problem := _unwritable(args.output)):
         print(f"can't write --output {args.output!r}: {problem}", file=sys.stderr)
         return 1
 
-    slug = _slug_from_path(args.known_file)
-    # Printed on failure too: a failed run has still spent money.
-    with usage.track() as run_usage:
-        try:
-            book = asyncio.run(
-                pipeline_graph.run_whole_book(
-                    known_file,
-                    slug=slug,
-                    trust_known=args.trust_known,
-                    fresh=args.fresh,
-                    on_progress=_print_progress,
-                )
-            )
-        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-            print(f"generation failed: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            _print_progress(run_usage.summary())
-
+    generated = _run_paid(
+        generate(
+            known_file,
+            slug=_slug_from_path(args.known_file),
+            trust_known=args.trust_known,
+            fresh=args.fresh,
+            on_progress=_print_progress,
+        ),
+        "generation failed",
+    )
+    if generated is None:
+        return 1
+    book = generated.book
     try:
         _write_output(book, args.output, exclude_none=True)
     except OSError as exc:
-        # Checked up front, but a disk can still fill or a mount vanish.
-        # The book is paid for and a finished checkpoint doesn't hand it
-        # back, so put it on stdout — the one place left that the caller
-        # sees — rather than lose it.
+        # Checked up front, but a disk can still fill or a mount vanish —
+        # the book is paid for, so put it on stdout rather than lose it.
         print(f"couldn't write --output {args.output!r} ({exc}); printing the book to stdout instead", file=sys.stderr)
         _write_output(book, None, exclude_none=True)
-        exit_code = 1
-    else:
-        exit_code = 0
-    # Only once the book is out somewhere: the checkpoint exists to resume
-    # an interrupted run, and a finished one has nothing left to resume.
-    try:
-        asyncio.run(pipeline_checkpoints.delete_checkpoint_thread(slug))
-    except Exception as exc:  # noqa: BLE001 — the book is written; a stale checkpoint isn't worth failing over
-        print(f"warning: couldn't delete the checkpoint for {slug!r}: {exc}", file=sys.stderr)
-    return exit_code
-
-
-def _cmd_generate_chapter(args: argparse.Namespace) -> int:
-    known_file = _load_known_file_or_report(args.known_file)
-    if known_file is None:
         return 1
-
-    if (exit_code := _report_preflight_problems(known_file)) is not None:
-        return exit_code
-
-    if not (1 <= args.chapter <= len(known_file.chapters)):
-        print(
-            f"--chapter {args.chapter} is out of range for a known-file "
-            f"with {len(known_file.chapters)} chapters",
-            file=sys.stderr,
-        )
-        return 1
-
-    chapter_title = known_file.chapters[args.chapter - 1]
-    _print_progress(f"drafting chapter {args.chapter} ({chapter_title!r})...")
-
-    with usage.track() as run_usage:
-        try:
-            result = asyncio.run(
-                draft.run_one(
-                    {
-                        "known_file": known_file.model_dump(),
-                        "chapter_number": args.chapter,
-                        "chapter_title": chapter_title,
-                    }
-                )
-            )
-            chapter_dicts = result.get("chapters") or []
-            if not chapter_dicts:
-                raise ValueError("chapter drafting returned no chapter — this is a bug in Stage 2, not user error")
-            chapter = Chapter.model_validate(chapter_dicts[0])
-        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-            print(f"chapter generation failed: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            _print_progress(run_usage.summary())
-
-    _print_progress(
-        pipeline_graph.format_chapter_progress(
-            args.chapter, chapter.title, chapter.quality_flag, total_chapters=len(known_file.chapters)
-        )
-    )
-    _write_output(chapter, args.output, exclude_none=True)
     return 0
 
 
 def _cmd_research(args: argparse.Namespace) -> int:
-    known_file = _load_known_file_or_report(args.known_file)
+    known_file = _load_ready_known_file(args.known_file)
     if known_file is None:
         return 1
-    with usage.track() as run_usage:
-        try:
-            found = asyncio.run(
-                book_research.research(
-                    known_file,
-                    slug=_slug_from_path(args.known_file),
-                    trust_known=args.trust_known,
-                    fresh=args.fresh,
-                    on_progress=_print_progress,
-                )
-            )
-        except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-            print(f"research failed: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            _print_progress(run_usage.summary())
+    found = _run_paid(
+        book_research.research(
+            known_file,
+            slug=_slug_from_path(args.known_file),
+            trust_known=args.trust_known,
+            fresh=args.fresh,
+            on_progress=_print_progress,
+        ),
+        "research failed",
+    )
+    if found is None:
+        return 1
     for source in found.sources:
         _print_progress(f"  {source.id}: {source.url} ({len(source.text):,} chars)")
     print(found.render())
@@ -321,12 +224,12 @@ def _cmd_eval_run(args: argparse.Namespace) -> int:
                 args.evals_dir,
                 args.label,
                 books,
-                pipeline=args.pipeline,
                 trust_known=args.trust_known,
+                fresh=args.fresh,
                 on_progress=_print_progress,
             )
         )
-    except ValueError as exc:
+    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
         print(f"eval run failed: {exc}", file=sys.stderr)
         return 1
     _print_progress(eval_metrics.format_summary(args.label, eval_metrics.summarize(results)))
@@ -356,35 +259,10 @@ def _cmd_eval_judge(args: argparse.Namespace) -> int:
         return 1
     for label in (args.candidate, args.baseline):
         run_metrics = [
-            m for book in books if (m := eval_data.read_json(eval_runner.metrics_path(args.evals_dir, label, book.slug)))
+            m for book in books if (m := eval_data.read_json(eval_data.metrics_path(args.evals_dir, label, book.slug)))
         ]
         _print_progress(eval_metrics.format_summary(label, eval_metrics.summarize(run_metrics)))
     _print_progress(eval_judge.format_judgement(judgement))
-    return 0
-
-
-def _print_thread(t: pipeline_checkpoints.CheckpointThreadSummary, *, verb: str = "") -> None:
-    status = "done" if t.completed else "in-progress"
-    print(f"{verb}{t.thread_id}  {status}  last updated {t.last_updated}")
-
-
-def _cmd_checkpoints(args: argparse.Namespace) -> int:
-    if args.prune:
-        deleted = asyncio.run(
-            pipeline_checkpoints.prune_checkpoint_threads(
-                older_than_days=args.older_than_days, include_incomplete=args.include_incomplete
-            )
-        )
-        for t in deleted:
-            _print_thread(t, verb="deleted ")
-        _print_progress(f"pruned {len(deleted)} checkpoint thread(s)")
-        return 0
-
-    threads = asyncio.run(pipeline_checkpoints.list_checkpoint_threads())
-    for t in threads:
-        _print_thread(t)
-    if not threads:
-        _print_progress("no checkpoint threads found")
     return 0
 
 
@@ -392,32 +270,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="precis")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    create_known_file_cmd = subparsers.add_parser(
-        "create-known-file", help="phase 1: ISBN(s) -> known-file(s)"
-    )
-    create_known_file_cmd.add_argument("isbn", nargs="+")
-    create_known_file_cmd.add_argument("--kind", choices=["fiction", "non-fiction"])
-    create_known_file_cmd.add_argument("--narrative", action="store_true")
-    create_known_file_cmd.add_argument("--output", help="single-isbn only")
-    create_known_file_cmd.add_argument("--output-dir", help="required for more than one isbn")
-    create_known_file_cmd.set_defaults(func=_cmd_create_known_file)
+    create = subparsers.add_parser("create-known-file", help="ISBN(s) -> known-file(s), looked up on Open Library")
+    create.add_argument("isbn", nargs="+")
+    create.add_argument("--kind", choices=["fiction", "non-fiction"])
+    create.add_argument("--output", help="single-isbn only")
+    create.add_argument("--output-dir", help="required for more than one isbn")
+    create.set_defaults(func=_cmd_create_known_file)
 
-    generate = subparsers.add_parser("generate", help="whole-book generation")
-    generate.add_argument("known_file")
-    generate.add_argument("--output")
-    generate.add_argument("--trust-known", action="store_true")
-    generate.add_argument(
-        "--fresh", action="store_true", help="discard an interrupted run's checkpoint and start over"
-    )
-    generate.set_defaults(func=_cmd_generate)
-
-    generate_chapter = subparsers.add_parser(
-        "generate-chapter", help="targeted regeneration of a single chapter"
-    )
-    generate_chapter.add_argument("known_file")
-    generate_chapter.add_argument("--chapter", type=int, required=True)
-    generate_chapter.add_argument("--output")
-    generate_chapter.set_defaults(func=_cmd_generate_chapter)
+    generate_cmd = subparsers.add_parser("generate", help="research a book and write its notes")
+    generate_cmd.add_argument("known_file")
+    generate_cmd.add_argument("--output")
+    generate_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
+    generate_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the research cache")
+    generate_cmd.set_defaults(func=_cmd_generate)
 
     research_cmd = subparsers.add_parser(
         "research", help="search the web for a book (or reuse its cache) and print the research the notes are written from"
@@ -433,36 +298,16 @@ def build_parser() -> argparse.ArgumentParser:
     tags_cmd.add_argument("--output")
     tags_cmd.set_defaults(func=_cmd_tags)
 
-    checkpoints_cmd = subparsers.add_parser(
-        "checkpoints", help="list or prune the generation checkpoint store"
-    )
-    checkpoints_cmd.add_argument(
-        "--prune", action="store_true", help="delete matching threads instead of just listing them"
-    )
-    checkpoints_cmd.add_argument(
-        "--older-than-days",
-        type=float,
-        default=None,
-        help="only match threads whose last checkpoint is older than this many days",
-    )
-    checkpoints_cmd.add_argument(
-        "--include-incomplete",
-        action="store_true",
-        help="also match threads that haven't reached assemble yet (still resumable) — "
-        "deleting one forfeits resuming that interrupted run, not just reclaiming disk space",
-    )
-    checkpoints_cmd.set_defaults(func=_cmd_checkpoints)
-
     eval_cmd = subparsers.add_parser("eval", help="run the eval set and judge runs against each other")
     eval_subparsers = eval_cmd.add_subparsers(dest="eval_command", required=True)
 
     eval_run = eval_subparsers.add_parser(
         "run", help="generate every eval book into runs/<label>/ (books already there are skipped)"
     )
-    eval_run.add_argument("label", help="names the run, e.g. v2-sonnet-5")
-    eval_run.add_argument("--pipeline", default="v2")
+    eval_run.add_argument("label", help="names the run, e.g. sonnet-5")
     eval_run.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
     eval_run.add_argument("--trust-known", action="store_true")
+    eval_run.add_argument("--fresh", action="store_true", help="search again instead of using each book's research cache")
     eval_run.add_argument("--evals-dir", default=settings.evals_dir)
     eval_run.set_defaults(func=_cmd_eval_run)
 

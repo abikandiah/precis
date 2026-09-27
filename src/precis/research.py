@@ -1,6 +1,5 @@
 """Research: search the web once per book, keep the pages about it, and
-check the known-file's identity against them. Replaces v1's verify stage and
-its per-chapter snippet searches (docs/v2-plan.md, Target pipeline step 1).
+check the known-file's identity against them (docs/blueprint.md, Pipeline).
 
 Three searches run in parallel with full page text. Their raw results are
 cached on disk per slug, so a rerun doesn't search again; everything after
@@ -22,6 +21,7 @@ data, never instructions (see search.py's module docstring).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from precis.config import settings
+from precis.known_file import preflight_check
 from precis.schema import KnownFile
 from precis.search import (
     SearchClient,
@@ -114,6 +115,13 @@ class Research:
 
     def summary(self) -> str:
         return f"{len(self.sources)} source(s), ~{self.chars // 4:,} tokens"
+
+    @property
+    def fingerprint(self) -> str:
+        """Short hash of exactly what the model is shown — two runs with the
+        same fingerprint wrote from identical research.
+        """
+        return hashlib.sha256(self.render().encode()).hexdigest()[:12]
 
 
 def research_queries(known_file: KnownFile) -> list[str]:
@@ -313,7 +321,7 @@ async def fetch(known_file: KnownFile, client: SearchClient) -> tuple[list[list[
     """
     queries = research_queries(known_file)
     outcomes = await asyncio.gather(
-        *(client.search(q, max_results=RESULTS_PER_QUERY, deep=True, raw=True) for q in queries),
+        *(client.search(q, max_results=RESULTS_PER_QUERY) for q in queries),
         return_exceptions=True,
     )
     results: list[list[SearchResult]] = []
@@ -345,8 +353,8 @@ async def research(
     known-file (unless `fresh`), otherwise searched and cached.
     """
     progress = on_progress or (lambda _: None)
-    if not known_file.has_title or not known_file.has_author:
-        raise ResearchError("the known-file needs a title and an author before research can find the book")
+    if problems := preflight_check(known_file):
+        raise ResearchError(f"the known-file isn't ready: {'; '.join(problems)}")
 
     path = cache_path(slug, cache_dir)
     cached = None if fresh else load_cache(path, known_file)

@@ -16,13 +16,8 @@ invisible to the SDK's retry, so `_create` retries those itself, on a small
 budget of its own, and only when the error is one a retry could fix.
 `complete_structured` also retries a small, fixed number of times when the
 model fails to call the requested tool at all, or calls it with arguments
-that don't validate — a horizontal concern every caller of structured
-output wants, so it lives here rather than being re-implemented per stage.
-This is distinct from a stage's own content-feedback repair loop (e.g.
-Stage 2's critique-and-redraft): that stays specific to whatever prompt
-shape each stage redrafts, since "revise using this feedback" isn't a
-generic operation the way "the tool call didn't parse, try again" is. See
-docs/blueprint.md's Stage 2 section for the fuller reasoning.
+that don't validate — something every caller of structured output wants,
+so it lives here rather than per call site.
 """
 
 from __future__ import annotations
@@ -56,9 +51,8 @@ _TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, InternalServerError)
 
 # OpenRouter's provider-routing preference: only route to providers that
 # support every parameter sent (here, `tools` + a forced `tool_choice`).
-# Without it, a model id served by several providers — or a router like
-# `openrouter/free` — can land on one that ignores tool_choice and replies
-# in prose. Gateways that don't know the field ignore it.
+# Without it, a model id served by several providers can land on one
+# that ignores tool_choice and replies in prose. Gateways that don't know the field ignore it.
 _REQUIRE_TOOL_SUPPORT = {"provider": {"require_parameters": True}}
 
 # Asks OpenRouter to report each call's cost in `usage.cost` (see usage.py).
@@ -70,7 +64,7 @@ _USAGE_ACCOUNTING = {"usage": {"include": True}}
 # not PRECIS_LLM_MAX_RETRIES, since each of these attempts already carries
 # the SDK's full retry budget for HTTP-level failures, and the two would
 # multiply. Backoff mirrors the SDK's: exponential, capped, jittered down by
-# up to 25% so parallel chapter drafts don't retry in lockstep.
+# up to 25% so parallel calls don't retry in lockstep.
 _PROVIDER_ERROR_RETRIES = 3
 _PROVIDER_ERROR_INITIAL_DELAY_SECONDS = 0.5
 _PROVIDER_ERROR_MAX_DELAY_SECONDS = 8.0
@@ -99,7 +93,7 @@ class ProviderError(Exception):
 
 
 def _gateway_error_message(error: dict[str, Any]) -> str | None:
-    """OpenRouter puts the upstream provider's message (e.g. a free model's
+    """OpenRouter puts the upstream provider's message (e.g. a model's
     shared pool being rate-limited) in the error's `metadata.raw`, which is
     far more actionable than its generic "Provider returned error".
     """
@@ -126,9 +120,7 @@ class StructuredOutputError(Exception):
     """Raised when the model doesn't return the requested structured
     output at all (no tool call, or a tool call that fails schema
     validation). Distinct from TransientLLMError: this is a content-quality
-    problem, not a technical one, so pipeline retry loops (e.g. Stage 2's
-    repair-and-retry) should catch this separately and decide whether to
-    retry the content, not the request.
+    problem, not a technical one, so a rerun won't necessarily get past it.
     """
 
 
@@ -294,8 +286,7 @@ async def complete_structured[T: BaseModel](
     "must be exactly N items") into a `model_validator` so a mismatch is a
     real schema failure that this retry loop already handles, rather than
     a separate check the caller does after the fact with no chance to
-    retry. See synthesize.py's known-parts count check for the motivating
-    case. A retry after a validation failure shows the model its rejected
+    retry (write.py's per-kind counts and citation IDs). A retry after a validation failure shows the model its rejected
     call and the error, so it can fix the specific problem rather than
     rolling the dice again.
 

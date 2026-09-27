@@ -28,10 +28,9 @@ htmlcov/
 .env.*
 !.env.example
 
-# Runtime artifacts: checkpoint DB and generated output are run products,
+# Runtime artifacts: the research cache and generated output are run products,
 # not source — see docs/blueprint.md's Orchestration/CLI sections.
-*.sqlite
-*.sqlite3
+.precis/
 /output/
 
 # Editor / OS

@@ -1,8 +1,8 @@
 # Eval set
 
-The fixed set of books every pipeline change is measured on (docs/v2-plan.md's
-Eval set section). Commands and output are described in docs/blueprint.md's
-CLI contract; the Docker invocation is in the top-level README.
+The fixed set of books every pipeline change is measured on. Commands and
+output are described in docs/blueprint.md's CLI contract; the Docker
+invocation is in the top-level README.
 
 | Slug | Kind | Why it's here |
 |------|------|---------------|
@@ -15,8 +15,7 @@ CLI contract; the Docker invocation is in the top-level README.
 | `nineteen-eighty-four` | fiction | themes; spoiler safety |
 | `pride-and-prejudice` | fiction | themes; spoiler safety |
 
-- `books/<slug>.json` — the known-file: bibliographic facts only (no
-  chapters or parts), checked by hand.
+- `books/<slug>.json` — the known-file, checked by hand.
 - `references/<slug>.json` — a reference summary written by Claude
   in-session, in the output's field names: takeaway, synopsis, `ideas`
   (5–12 key ideas for non-fiction, 3–6 themes for fiction) and, for
@@ -24,8 +23,9 @@ CLI contract; the Docker invocation is in the top-level README.
   what good notes cover, not as the only truth. Fiction references are
   spoiler-safe — premise and setup only — like the pipeline's own output.
 - `runs/<label>/` — one directory per run: each book's JSON, its
-  `.metrics.json`, and any `judge-vs-<baseline>.json`. Label runs
-  `<pipeline>-<model>`, e.g. `v2-sonnet-5`. Baseline runs are committed.
+  `.metrics.json`, and any `judge-vs-<baseline>.json`. Label runs after
+  what they vary, e.g. `sonnet-5` or `sonnet-5-review`. Baseline runs are
+  committed.
 
 Rules:
 

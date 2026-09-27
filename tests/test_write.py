@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from precis import write
 from precis.research import Research, Source
-from precis.schema import KeyClaim, KnownFile, Notes
+from precis.schema import KeyClaim, KnownFile
 
 NONFICTION = KnownFile(
     isbn="9780374533557",
@@ -86,42 +86,6 @@ def test_a_malformed_source_id_is_rejected():
     data["ideas"][1]["sources"] = ["source 1"]
     with pytest.raises(ValidationError, match="S1, S2"):
         _validate(write.DraftWithClaims, data)
-
-
-# --- Notes -------------------------------------------------------------------------
-
-
-def _notes(kind: str = "non-fiction", **overrides) -> dict:
-    draft = _draft(kind)
-    return {
-        "title": "T",
-        "author": "A",
-        "isbn": "1",
-        "kind": kind,
-        "one_line_takeaway": draft["one_line_takeaway"],
-        "synopsis": draft["synopsis"],
-        "ideas": draft["ideas"],
-        "key_claims_for_review": draft.get("key_claims_for_review"),
-        "tags": draft["tags"],
-        **overrides,
-    }
-
-
-def test_notes_carry_schema_version_2():
-    assert Notes.model_validate(_notes()).schema_version == "2"
-    assert Notes.model_validate(_notes("fiction")).key_claims_for_review is None
-
-
-def test_fiction_notes_have_no_review_deck_and_nonfiction_notes_need_one():
-    with pytest.raises(ValidationError, match="fiction has no key_claims_for_review"):
-        Notes.model_validate(_notes("fiction", key_claims_for_review=[_claim(n) for n in range(5)]))
-    with pytest.raises(ValidationError, match="5-15 key_claims_for_review, got 0"):
-        Notes.model_validate(_notes(key_claims_for_review=None))
-
-
-def test_notes_tags_follow_the_kind():
-    with pytest.raises(ValidationError, match="closed fiction vocabulary"):
-        Notes.model_validate(_notes("fiction", tags=["psychology", "science"]))
 
 
 # --- prompts -------------------------------------------------------------------------
@@ -224,16 +188,6 @@ async def test_write_notes_caps_retries_tokens_and_time_for_the_long_call():
     client.with_options.assert_called_once_with(max_retries=write.WRITE_MAX_RETRIES)
     assert call.await_args.args[0] is client.with_options.return_value
     assert call.await_args.kwargs["max_tokens"] == write.WRITE_MAX_TOKENS
-
-
-@pytest.mark.parametrize("update", [{"author": None}, {"title": "TODO: fill in by hand"}])
-async def test_write_notes_needs_a_title_and_author(update):
-    with (
-        patch.object(write.llm, "complete_structured", new=AsyncMock()) as call,
-        pytest.raises(ValueError, match="title and an author"),
-    ):
-        await write.write_notes(NONFICTION.model_copy(update=update), RESEARCH, client=MagicMock())
-    call.assert_not_called()
 
 
 def test_a_placeholder_author_mismatch_reads_as_none():

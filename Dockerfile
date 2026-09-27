@@ -1,10 +1,8 @@
-# Generation image — phase 3 only (see docs/blueprint.md's Docker boundary
-# section: Docker exists specifically to contain AI, not every piece of
-# tooling in this module's orbit). This is NOT the devcontainer
-# (.devcontainer/Dockerfile, which is for day-to-day development tooling)
-# — this is the minimal runtime image a consumer pulls and runs generation
-# in. Phases 1-2 (ISBN lookup, structural preflight) run fine on a host,
-# outside this image entirely.
+# Generation image — everything that calls a model or feeds web content to
+# one (see docs/blueprint.md's Docker boundary). This is NOT the
+# devcontainer (.devcontainer/Dockerfile, for day-to-day development) — it's
+# the minimal runtime image a consumer runs generation in. create-known-file
+# (an Open Library lookup) runs fine on a host, outside this image.
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
@@ -22,18 +20,15 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Checkpoint DB must live on a volume mounted into the container, not its
-# own ephemeral filesystem, or resume across container restarts doesn't
-# work (docs/blueprint.md's Orchestration section). Consumers should mount
-# a NAMED volume at /data — see README.md for the exact `docker run` shape.
+# The research cache lives on a volume mounted at /data, so a rerun reuses
+# a book's search results instead of paying for them again. Consumers should
+# mount a NAMED volume there — see README.md for the `docker run` shape.
 #
 # The chown below only takes effect for a named volume's first population;
-# it does NOT apply to a host bind mount (`-v ./somedir:/data`), which
-# keeps the host directory's own ownership regardless of what this image
-# sets. A bind-mounted directory not writable by uid 1000 will fail with a
-# permission error writing the checkpoint file — use a named volume, or
-# `chown 1000:1000` the host directory first if a bind mount is required.
-ENV PRECIS_CHECKPOINT_DB_PATH=/data/checkpoints.sqlite
+# a host bind mount (`-v ./somedir:/data`) keeps the host directory's own
+# ownership, so one not writable by uid 1000 fails writing the cache — use
+# a named volume, or `chown 1000:1000` the host directory first.
+ENV PRECIS_CACHE_DIR=/data/cache
 RUN useradd --create-home --uid 1000 precis \
     && mkdir -p /data \
     && chown precis:precis /data
@@ -41,8 +36,6 @@ VOLUME /data
 # `precis eval` reads the eval set and writes its runs here — bind-mount
 # the repo's evals/ directory (README.md's Evals section).
 ENV PRECIS_EVALS_DIR=/evals
-# Research cache (research.py) on the persistent volume, so reruns reuse it.
-ENV PRECIS_CACHE_DIR=/data/cache
 USER precis
 
 ENTRYPOINT ["precis"]

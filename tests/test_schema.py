@@ -1,123 +1,57 @@
 import pytest
 from pydantic import ValidationError
 
-from precis.schema import Book, Chapter, KeyClaim, Part
+from precis.schema import Book, KnownFile
+
+PLACEHOLDER = "TODO: fill in by hand"
 
 
-def make_chapter(number: int = 1, key_points: list[str] | None = None) -> Chapter:
-    return Chapter(
-        number=number,
-        title=f"Chapter {number}",
-        key_points=["point one"] if key_points is None else key_points,
-        core_claim="the core claim",
-    )
-
-
-def test_chapter_key_points_capped_at_six():
-    with pytest.raises(ValidationError):
-        make_chapter(key_points=[f"point {i}" for i in range(7)])
-
-
-def test_chapter_key_points_requires_at_least_one():
-    with pytest.raises(ValidationError):
-        make_chapter(key_points=[])
-
-
-def test_chapter_key_points_six_is_allowed():
-    make_chapter(key_points=[f"point {i}" for i in range(6)])
-
-
-def make_key_claims(count: int = 3) -> list[KeyClaim]:
-    return [KeyClaim(prompt=f"q{i}", answer=f"a{i}") for i in range(count)]
-
-
-def _base_book_kwargs() -> dict:
+def _book(kind: str = "non-fiction", ideas: int = 5, claims: int | None = 5, **overrides) -> dict:
     return {
-        "title": "Some Book",
-        "author": "Some Author",
-        "isbn": "123",
-        "kind": "non-fiction",
-        "one_line_takeaway": "takeaway",
-        "synopsis": "synopsis",
-        "tags": ["history", "philosophy"],
+        "title": "T",
+        "author": "A",
+        "isbn": "1",
+        "kind": kind,
+        "one_line_takeaway": "take",
+        "synopsis": "syn",
+        "ideas": [{"title": f"Idea {n}", "summary": "s", "evidence": "e"} for n in range(ideas)],
+        "key_claims_for_review": None if claims is None else [{"prompt": "Q?", "answer": "A."}] * claims,
+        "tags": ["psychology", "science"] if kind == "non-fiction" else ["dystopian", "fiction-literary"],
+        **overrides,
     }
 
 
-def test_fiction_book_with_no_chapters_and_no_claims_is_valid():
-    Book(**_base_book_kwargs())
+def test_a_valid_book_of_each_kind():
+    assert Book.model_validate(_book()).schema_version == "2"
+    assert Book.model_validate(_book("fiction", ideas=3, claims=None)).key_claims_for_review is None
 
 
-def test_nonfiction_book_with_chapters_and_claims_is_valid():
-    Book(
-        **_base_book_kwargs(),
-        chapters=[make_chapter(1)],
-        key_claims_for_review=make_key_claims(),
-    )
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (_book(ideas=4), "5-12 ideas"),
+        (_book(ideas=13), "5-12 ideas"),
+        (_book("fiction", ideas=7, claims=None), "3-6 ideas"),
+        (_book(claims=None), "5-15 key_claims_for_review, got 0"),
+        (_book(claims=16), "5-15 key_claims_for_review"),
+        (_book("fiction", ideas=3), "fiction has no key_claims_for_review"),
+        (_book(tags=["psychology"]), "at least 2 items"),
+        (_book(tags=["psychology", "psychology"]), "must not repeat"),
+        (_book("fiction", ideas=3, claims=None, tags=["psychology", "science"]), "closed fiction vocabulary"),
+    ],
+)
+def test_book_shape_is_validated_per_kind(data, message):
+    with pytest.raises(ValidationError, match=message):
+        Book.model_validate(data)
 
 
-def test_chapters_without_key_claims_is_rejected():
-    with pytest.raises(ValidationError):
-        Book(**_base_book_kwargs(), chapters=[make_chapter(1)])
+def test_known_file_title_and_author_placeholders_dont_count():
+    assert KnownFile(isbn="1", kind="fiction", title="T", author="A").has_title
+    for value in (None, "", PLACEHOLDER):
+        known_file = KnownFile(isbn="1", kind="fiction", title=value, author=value)
+        assert not known_file.has_title and not known_file.has_author
 
 
-def test_key_claims_without_chapters_is_rejected():
-    with pytest.raises(ValidationError):
-        Book(
-            **_base_book_kwargs(),
-            key_claims_for_review=make_key_claims(),
-        )
-
-
-def test_part_referencing_unknown_chapter_number_is_rejected():
-    with pytest.raises(ValidationError):
-        Book(
-            **_base_book_kwargs(),
-            chapters=[make_chapter(1)],
-            key_claims_for_review=make_key_claims(),
-            parts=[Part(title="Part 1", summary="s", chapters=[1, 2])],
-        )
-
-
-def test_part_referencing_known_chapter_number_is_valid():
-    Book(
-        **_base_book_kwargs(),
-        chapters=[make_chapter(1)],
-        key_claims_for_review=make_key_claims(),
-        parts=[Part(title="Part 1", summary="s", chapters=[1])],
-    )
-
-
-def test_part_chapters_stripped_when_book_has_no_chapters_array():
-    """A part's `chapters` only means something against a real `chapters`
-    array on the book — with no `chapters` array (fiction/narrative
-    non-fiction), any value a part carries is stripped rather than trusted,
-    regardless of which producer built this Book.
-    """
-    book = Book(
-        **{**_base_book_kwargs(), "kind": "fiction", "tags": ["fantasy", "adventure"]},
-        parts=[Part(title="Part 1", summary="s", chapters=[1, 2, 3])],
-    )
-
-    assert book.parts[0].chapters is None
-
-
-def test_tags_outside_vocabulary_error_has_tags_loc():
-    """Regression test: a tags-vocabulary error used to raise from a
-    whole-model validator (empty `loc`), indistinguishable from the parts/
-    chapter-number check that shares the same validator — which made
-    assemble.py's _is_repairable treat a tags failure as an unrepairable
-    parts problem whenever parts_source == "known". Tags validation is now
-    a field_validator, so the error must be attributed to `tags` specifically.
-    """
-    kwargs = {**_base_book_kwargs(), "tags": ["not-a-real-tag", "also-fake"]}
-    with pytest.raises(ValidationError) as exc_info:
-        Book(**kwargs)
-
-    (error,) = exc_info.value.errors()
-    assert error["loc"] == ("tags",)
-
-
-def test_duplicate_tags_rejected():
-    kwargs = {**_base_book_kwargs(), "tags": ["history", "history"]}
-    with pytest.raises(ValidationError, match="must not repeat"):
-        Book(**kwargs)
+def test_an_unknown_known_file_field_is_an_error():
+    with pytest.raises(ValidationError, match="note"):
+        KnownFile(isbn="1", kind="fiction", note="typo for notes")  # type: ignore[call-arg]

@@ -5,7 +5,7 @@ reported cost, and search credits.
 (search.TavilySearchClient) inside it is recorded onto that scope's `Usage`.
 Scoped through a ContextVar rather than a module global so an eval can keep a
 book's generation apart from the judge calls that follow it. asyncio tasks
-copy the context they're created in, so the parallel chapter drafts all
+copy the context they're created in, so research's parallel searches all
 record onto the one `Usage` their run opened.
 
 Cost is whatever the gateway reports per response (OpenRouter's
@@ -22,9 +22,10 @@ from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from typing import Any
 
-# Tavily pay-as-you-go price per credit; basic search costs 1 credit,
-# advanced 2. Only used to put searches and LLM calls on one total.
+# Tavily pay-as-you-go price per credit; research's advanced searches cost
+# 2 credits each. Only used to put searches and LLM calls on one total.
 SEARCH_USD_PER_CREDIT = 0.008
+CREDITS_PER_SEARCH = 2
 
 
 @dataclass
@@ -103,9 +104,9 @@ def record_llm_response(response: object) -> None:
         usage.llm_cost_usd += cost
 
 
-def record_search(*, deep: bool) -> None:
+def record_search() -> None:
     usage = _current.get()
     if usage is None:
         return
     usage.searches += 1
-    usage.search_credits += 2 if deep else 1
+    usage.search_credits += CREDITS_PER_SEARCH

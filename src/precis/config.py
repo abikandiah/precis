@@ -28,11 +28,8 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_positive_int(name: str, default: int) -> int:
-    """For settings that are circuit-breaker timeouts, not optional/
-    disableable ones — PRECIS_RUN_BUDGET_SECONDS=0 (or negative) previously
-    made asyncio.wait_for time out instantly on every single run, since
-    nothing validated the value was sane. Failing loudly at settings-load
-    time beats a confusing per-run "generation exceeded the 0s run budget."
+    """For a timeout: 0 or negative would make every call time out at once,
+    so it fails loudly at settings-load time instead.
     """
     value = _env_int(name, default)
     if value <= 0:
@@ -53,7 +50,7 @@ class Settings:
 
     # `precis eval` only: the model that judges two runs against each other
     # (a stronger one than the models under test), and where the eval set
-    # and its runs live — see docs/v2-plan.md's Eval set section.
+    # and its runs live — see evals/README.md.
     judge_model: str = field(default_factory=lambda: _env_str("PRECIS_JUDGE_MODEL", ""))
     evals_dir: str = field(default_factory=lambda: _env_str("PRECIS_EVALS_DIR", "evals"))
 
@@ -67,25 +64,13 @@ class Settings:
     # /data volume; the relative default is for local/dev runs.
     cache_dir: str = field(default_factory=lambda: _env_str("PRECIS_CACHE_DIR", ".precis/cache"))
 
-    # Stage 2 fan-out.
+    # `precis eval judge` only: how many books are judged at once.
     concurrency: int = field(default_factory=lambda: _env_int("PRECIS_CONCURRENCY", 3))
 
-    # Circuit breakers, not constraints meant to bind on a normal run — see
-    # docs/blueprint.md's Run budget section.
-    run_budget_seconds: int = field(default_factory=lambda: _env_positive_int("PRECIS_RUN_BUDGET_SECONDS", 60 * 60))
+    # A circuit breaker for a hung call, not a limit meant to bind — the
+    # write call sets its own, longer one (write.py).
     llm_call_timeout_seconds: int = field(
         default_factory=lambda: _env_positive_int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", 120)
-    )
-
-    # Checkpoint DB path — in the real generation container this must be
-    # overridden to a path on a volume mounted into the container, not its
-    # own ephemeral filesystem, or resume across container restarts doesn't
-    # work. Concrete volume mount is finalized with the generation image's
-    # Dockerfile/compose (still open per docs/blueprint.md). The default
-    # below is relative-to-cwd so local/dev runs work without that mount
-    # already existing.
-    checkpoint_db_path: str = field(
-        default_factory=lambda: _env_str("PRECIS_CHECKPOINT_DB_PATH", ".precis/checkpoints.sqlite")
     )
 
 

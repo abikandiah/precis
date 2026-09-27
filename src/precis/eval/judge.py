@@ -8,7 +8,7 @@ otherwise it's a tie — cancelling the judge's position bias.
 
 The verdict is plain text ending in a JSON block rather than a forced tool
 call, so any model can judge — including ones that reject a forced
-`tool_choice` (see docs/v2-plan.md's Decisions).
+`tool_choice` (see docs/v2-plan.md).
 """
 
 from __future__ import annotations
@@ -24,7 +24,14 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 
 from precis import llm, usage
-from precis.eval.data import EvalBook, read_json, run_dir, write_json
+from precis.eval.data import (
+    EvalBook,
+    book_path,
+    metrics_path,
+    read_json,
+    run_dir,
+    write_json,
+)
 
 ProgressCallback = Callable[[str], None]
 Pick = Literal["A", "B", "tie"]
@@ -229,8 +236,8 @@ async def judge_runs(
     semaphore = asyncio.Semaphore(concurrency)
 
     async def one(book: EvalBook) -> tuple[str, dict[str, Any] | None]:
-        candidate_book = read_json(run_dir(evals_dir, candidate) / f"{book.slug}.json")
-        baseline_book = read_json(run_dir(evals_dir, baseline) / f"{book.slug}.json")
+        candidate_book = read_json(book_path(evals_dir, candidate, book.slug))
+        baseline_book = read_json(book_path(evals_dir, baseline, book.slug))
         if candidate_book is None and baseline_book is None:
             on_progress(f"[{book.slug}] neither run has output, not judged")
             return book.slug, None
@@ -247,11 +254,33 @@ async def judge_runs(
         "baseline": baseline,
         "judge_model": model,
         **score(results),
+        "research_differs": research_differs(evals_dir, candidate, baseline, sorted(results)),
         "judge_usage": judge_usage.to_dict(),
         "books": results,
     }
     write_json(judgement_path(evals_dir, candidate, baseline), judgement)
     return judgement
+
+
+def _research_fingerprint(evals_dir: str | Path, label: str, slug: str) -> str | None:
+    metrics = read_json(metrics_path(evals_dir, label, slug)) or {}
+    return (metrics.get("research") or {}).get("fingerprint")
+
+
+def research_differs(evals_dir: str | Path, candidate: str, baseline: str, slugs: list[str]) -> list[str]:
+    """Books whose two runs didn't provably write from the same research —
+    different fingerprints, or one unrecorded (a failed run, say). Research
+    is shared through each book's cache, but a failed search (not cached)
+    or a `--fresh` run in between changes it, and then a pick reflects the
+    research, not whatever the runs meant to compare.
+    """
+    differs = []
+    for slug in slugs:
+        a = _research_fingerprint(evals_dir, candidate, slug)
+        b = _research_fingerprint(evals_dir, baseline, slug)
+        if a is None or a != b:
+            differs.append(slug)
+    return differs
 
 
 def format_judgement(judgement: dict[str, Any]) -> str:
@@ -264,4 +293,10 @@ def format_judgement(judgement: dict[str, Any]) -> str:
         f"{judgement['candidate_wins']} win(s), {judgement['baseline_wins']} loss(es), {judgement['ties']} tie(s); "
         f"score {overall} (>0.5 beats the baseline)\nby criterion: {criteria}\n"
         f"judging cost ${judgement['judge_usage']['llm_cost_usd']:.4f} over {judgement['judge_usage']['llm_calls']} call(s)"
+        + (
+            f"\nwarning: the runs wrote from different research for {', '.join(differs)} — "
+            "those picks may reflect the research, not what the runs compare"
+            if (differs := judgement.get("research_differs"))
+            else ""
+        )
     )

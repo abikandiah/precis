@@ -1,8 +1,7 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
-from precis import cli as cli_module
 from precis import research
 from precis.schema import PLACEHOLDER, KnownFile
 from precis.search import SearchResult, TavilySearchClient
@@ -196,7 +195,7 @@ async def test_research_searches_once_then_reuses_the_cache(tmp_path):
     first = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
     assert client.search.await_count == 3
     for call in client.search.await_args_list:
-        assert call.kwargs == {"max_results": research.RESULTS_PER_QUERY, "deep": True, "raw": True}
+        assert call.kwargs == {"max_results": research.RESULTS_PER_QUERY}
 
     messages: list[str] = []
     again = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path, on_progress=messages.append)
@@ -263,52 +262,24 @@ async def test_a_failed_identity_check_is_still_cached_so_trust_known_reruns_fre
     assert client.search.await_count == 3
 
 
-async def test_research_needs_a_title_and_author(tmp_path):
+@pytest.mark.parametrize("update", [{"author": PLACEHOLDER}, {"title": None}, {"isbn": ""}])
+async def test_research_refuses_a_known_file_that_isnt_ready(tmp_path, update):
     client = _client()
-    with pytest.raises(research.ResearchError, match="title and an author"):
-        await research.research(
-            BOOK.model_copy(update={"author": PLACEHOLDER}), slug="x", client=client, cache_dir=tmp_path
-        )
+    with pytest.raises(research.ResearchError, match="isn't ready"):
+        await research.research(BOOK.model_copy(update=update), slug="x", client=client, cache_dir=tmp_path)
     client.search.assert_not_called()
 
 
 # --- search client and CLI -----------------------------------------------------------
 
 
-async def test_tavily_client_asks_for_raw_text_only_when_raw():
+async def test_tavily_client_runs_advanced_searches_with_page_text():
     client = TavilySearchClient.__new__(TavilySearchClient)
     client._client = AsyncMock()
     client._client.search.return_value = {
         "results": [{"title": "t", "url": "u", "content": "c", "raw_content": None}]
     }
-    [result] = await client.search("q", deep=True, raw=True)
-    assert client._client.search.await_args.kwargs["include_raw_content"] == "text"
+    [result] = await client.search("q")
+    kwargs = client._client.search.await_args.kwargs
+    assert (kwargs["search_depth"], kwargs["include_raw_content"]) == ("advanced", "text")
     assert result.raw_content == ""
-    await client.search("q")
-    assert client._client.search.await_args.kwargs["include_raw_content"] is False
-
-
-def test_research_command_prints_the_rendered_research(tmp_path, capsys):
-    known_file = tmp_path / "tfas.json"
-    known_file.write_text(BOOK.model_dump_json())
-    found = research.Research(
-        sources=[research.Source(id="S1", title="t", url="https://a.org", text="text")], warnings=[]
-    )
-    with patch.object(cli_module.book_research, "research", new=AsyncMock(return_value=found)) as run:
-        parsed = cli_module.build_parser().parse_args(["research", str(known_file), "--fresh"])
-        assert parsed.func(parsed) == 0
-    assert run.await_args.kwargs["slug"] == "tfas"
-    assert run.await_args.kwargs["fresh"] is True
-    out, err = capsys.readouterr()
-    assert '<source id="S1"' in out
-    assert "S1: https://a.org" in err
-
-
-def test_research_command_reports_a_failure_cleanly(tmp_path, capsys):
-    known_file = tmp_path / "tfas.json"
-    known_file.write_text(BOOK.model_dump_json())
-    failing = AsyncMock(side_effect=research.ResearchError("couldn't find this book online"))
-    with patch.object(cli_module.book_research, "research", new=failing):
-        parsed = cli_module.build_parser().parse_args(["research", str(known_file)])
-        assert parsed.func(parsed) == 1
-    assert "research failed: couldn't find this book online" in capsys.readouterr().err

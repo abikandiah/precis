@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 import pytest
 
 from precis.schema import PLACEHOLDER
@@ -7,9 +5,7 @@ from precis.search import (
     SearchResult,
     author_names,
     author_surnames,
-    identifies_book,
     is_book_relevant,
-    search_book,
     short_title,
 )
 
@@ -109,57 +105,6 @@ def test_missing_author_falls_back_to_full_title_only():
 
 def test_missing_title_matches_on_author_alone():
     assert is_book_relevant(_result("Spector on fibre"), title=None, author="Tim Spector")
-
-
-def _client(*batches: list[SearchResult]) -> AsyncMock:
-    client = AsyncMock()
-    client.search.side_effect = list(batches)
-    return client
-
-
-_ON_TOPIC = _result("Tim Spector's The Diet Myth on fibre")
-_OFF_TOPIC = _result("generic diet myths")
-
-
-@pytest.mark.asyncio
-async def test_search_book_returns_first_query_with_relevant_results():
-    client = _client([_OFF_TOPIC, _ON_TOPIC], [_ON_TOPIC])
-    results = await search_book(["q1", "q2"], title=DIET_MYTH, author="Tim Spector", client=client)
-    assert results == [_ON_TOPIC]
-    client.search.assert_called_once_with("q1", max_results=10, deep=False)
-
-
-@pytest.mark.asyncio
-async def test_search_book_falls_through_empty_and_off_topic_batches():
-    client = _client([], [_OFF_TOPIC], [_ON_TOPIC])
-    results = await search_book(["q1", "q2", "q3"], title=DIET_MYTH, author="Tim Spector", client=client)
-    assert results == [_ON_TOPIC]
-    assert [c.args[0] for c in client.search.call_args_list] == ["q1", "q2", "q3"]
-
-
-@pytest.mark.asyncio
-async def test_search_book_returns_empty_when_nothing_is_about_the_book():
-    client = _client([_OFF_TOPIC], [_OFF_TOPIC])
-    assert await search_book(["q1", "q2"], title=DIET_MYTH, author="Tim Spector", client=client) == []
-
-
-@pytest.mark.parametrize(
-    "printed", ["978-0-393-31755-8", "9780393317558", "ISBN-13 9780393317558", "ISBN-13: 978-0393317558", "0393317552"]
-)
-def test_identifies_book_by_isbn_however_its_printed(printed):
-    result = SearchResult(title="Guns", url="https://x", content=f"ISBN {printed}")
-    assert identifies_book(result, title="Guns", isbn="9780393317558")
-
-
-def test_identifies_book_rejects_an_isbn_embedded_in_a_longer_number():
-    result = SearchResult(title="Guns", url="https://x", content="order 197803933175581")
-    assert not identifies_book(result, title="Guns", isbn="9780393317558")
-
-
-@pytest.mark.parametrize("printed", ["https://example.com/range-9781594484964", "ISBN9781594484964"])
-def test_identifies_book_by_isbn_glued_to_a_slug_or_label(printed):
-    result = SearchResult(title="Range", url="https://x", content=printed)
-    assert identifies_book(result, title="Range", isbn="9781594484964")
 
 
 @pytest.mark.parametrize(

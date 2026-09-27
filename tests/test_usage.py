@@ -45,18 +45,18 @@ def test_mocked_usage_attributes_are_ignored():
     assert tracked.cost_missing == 1
 
 
-def test_searches_count_credits_by_depth():
+def test_searches_count_credits():
     with usage.track() as tracked:
-        usage.record_search(deep=False)
-        usage.record_search(deep=True)
+        usage.record_search()
+        usage.record_search()
     assert tracked.searches == 2
-    assert tracked.search_credits == 3
-    assert tracked.total_cost_usd == 3 * usage.SEARCH_USD_PER_CREDIT
+    assert tracked.search_credits == 2 * usage.CREDITS_PER_SEARCH
+    assert tracked.total_cost_usd == 2 * usage.CREDITS_PER_SEARCH * usage.SEARCH_USD_PER_CREDIT
 
 
 def test_nothing_is_recorded_outside_a_scope():
     usage.record_llm_response(_response())
-    usage.record_search(deep=True)
+    usage.record_search()
     with usage.track() as tracked:
         pass
     assert tracked.llm_calls == 0
@@ -64,10 +64,10 @@ def test_nothing_is_recorded_outside_a_scope():
 
 def test_scopes_nest_without_leaking():
     with usage.track() as outer:
-        usage.record_search(deep=False)
+        usage.record_search()
         with usage.track() as inner:
-            usage.record_search(deep=False)
-        usage.record_search(deep=False)
+            usage.record_search()
+        usage.record_search()
     assert (outer.searches, inner.searches) == (2, 1)
 
 

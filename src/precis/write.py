@@ -1,11 +1,11 @@
 """Write: one structured call turns a book's research into its notes —
 takeaway, synopsis, ideas (themes for fiction), key claims for review
-(non-fiction only) and tags (docs/v2-plan.md, Target pipeline step 2).
+(non-fiction only) and tags (docs/blueprint.md, Pipeline).
 
 The research sits in the system message, marked for prompt caching, behind
 a preamble that doesn't depend on the task; the task's instructions come in
 the user message. `context_messages` builds that shared prefix, so the
-review call (Phase 4) reuses the cached research instead of paying for it
+review call (docs/v2-plan.md, Checks + review) reuses the cached research instead of paying for it
 again.
 
 This call is also the identity backstop for research.py's code checks: a
@@ -28,10 +28,10 @@ from precis.research import Research
 from precis.schema import (
     IDEA_LIMITS,
     KEY_CLAIM_LIMITS,
+    Book,
     Idea,
     KeyClaim,
     KnownFile,
-    Notes,
     Tags,
     notes_shape_problems,
     tags_for_kind,
@@ -244,10 +244,11 @@ async def write_notes(
     *,
     trust_known: bool = False,
     client: AsyncOpenAI | None = None,
-) -> Notes:
-    """The book's notes, written from its research in one call."""
-    if not known_file.title or not known_file.has_title or not known_file.author or not known_file.has_author:
-        raise ValueError("the known-file needs a title and an author before notes can be written")
+) -> Book:
+    """The book's notes, written from its research in one call. The
+    known-file has passed preflight: research() refuses one that hasn't.
+    """
+    assert known_file.title and known_file.author, "write_notes needs a known-file that passed preflight"
     kind: Literal["fiction", "non-fiction"] = known_file.kind
     fiction = kind == "fiction"
     instructions = _fiction_instructions(known_file) if fiction else _nonfiction_instructions(known_file)
@@ -260,7 +261,7 @@ async def write_notes(
         max_tokens=WRITE_MAX_TOKENS,
     )
     warnings = [*research.warnings, *_check_identity(known_file, draft, trust_known=trust_known)]
-    return Notes(
+    return Book(
         title=known_file.title,
         author=known_file.author,
         year=known_file.year,

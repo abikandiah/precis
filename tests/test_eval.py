@@ -7,6 +7,9 @@ import pytest
 from precis import cli as cli_module
 from precis import usage
 from precis.eval import data, judge, metrics, runner
+from precis.generate import Generated
+from precis.research import Research, Source
+from precis.schema import Book
 
 REPO_EVALS = Path(__file__).resolve().parent.parent / "evals"
 
@@ -101,8 +104,6 @@ def test_eval_set_has_the_planned_mix_of_bibliographic_known_files():
     kinds = [b.known_file.kind for b in books]
     assert (kinds.count("non-fiction"), kinds.count("fiction")) == (6, 2)
     for book in books:
-        raw = json.loads((data.books_dir(REPO_EVALS) / f"{book.slug}.json").read_text())
-        assert not {"chapters", "parts", "narrative"} & raw.keys(), book.slug
         assert book.known_file.has_title and book.known_file.has_author, book.slug
 
 
@@ -121,50 +122,57 @@ def test_references_match_their_known_files_and_the_v2_shape():
 # --- runner --------------------------------------------------------------------
 
 
-async def test_run_eval_stores_output_and_metrics_and_skips_done_books(tmp_path):
+def _generated(fingerprint_text: str = "research") -> Generated:
+    found = Research(sources=[Source(id="S1", title="t", url="https://a.org", text=fingerprint_text)], warnings=[])
+    return Generated(book=_generated_book(), research=found)
+
+
+def _generated_book() -> Book:
+    return Book(
+        title="T", author="A", isbn="1", kind="non-fiction", one_line_takeaway="take", synopsis="syn",
+        tags=["psychology", "science"], ideas=[_idea(f"idea {n}") for n in range(5)],
+        key_claims_for_review=[{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)],
+    )  # fmt: skip
+
+
+async def test_run_eval_stores_output_and_metrics_and_skips_done_books(tmp_path, monkeypatch):
     _write_eval_set(tmp_path)
     books = data.load_books(tmp_path)
-    calls = []
+    slugs = []
 
-    async def fake_pipeline(known_file, thread, trust_known, on_progress):
-        calls.append(thread)
-        usage.record_search(deep=False)
-        return _book([_idea("an idea")])
+    async def fake_generate(known_file, *, slug, trust_known, fresh, on_progress):
+        slugs.append(slug)
+        usage.record_search()
+        return _generated()
 
-    with patch.dict(runner.PIPELINES, {"fake": fake_pipeline}):
-        results = await runner.run_eval(tmp_path, "r1", books, pipeline="fake", trust_known=False, on_progress=print)
-        assert calls == ["eval-r1-alpha", "eval-r1-beta"]
-        assert results[0]["usage"]["searches"] == 1
-        assert results[0]["ideas"] == 1
-        assert json.loads(runner.book_path(tmp_path, "r1", "alpha").read_text())["ideas"]
+    monkeypatch.setattr(runner, "generate", fake_generate)
+    results = await runner.run_eval(tmp_path, "r1", books, trust_known=False, on_progress=print)
+    # Research is cached per book, not per run label.
+    assert slugs == ["alpha", "beta"]
+    assert results[0]["usage"]["searches"] == 1
+    assert (results[0]["ideas"], results[0]["key_claims"]) == (5, 5)
+    assert json.loads(data.book_path(tmp_path, "r1", "alpha").read_text())["schema_version"] == "2"
+    assert results[0]["research"] == {"fingerprint": _generated().research.fingerprint, "sources": 1}
 
-        again = await runner.run_eval(tmp_path, "r1", books, pipeline="fake", trust_known=False, on_progress=print)
-    assert len(calls) == 2
+    again = await runner.run_eval(tmp_path, "r1", books, trust_known=False, on_progress=print)
+    assert len(slugs) == 2
     assert [r["slug"] for r in again] == ["alpha", "beta"]
 
 
-async def test_a_failing_book_is_recorded_and_the_run_continues(tmp_path):
+async def test_a_failing_book_is_recorded_and_the_run_continues(tmp_path, monkeypatch):
     _write_eval_set(tmp_path)
 
-    async def flaky(known_file, thread, trust_known, on_progress):
+    async def flaky(known_file, *, slug, trust_known, fresh, on_progress):
         if known_file.title == "Alpha":
-            raise RuntimeError("verify failed")
-        return _book([_idea("a")])
+            raise RuntimeError("research failed")
+        return _generated()
 
-    with patch.dict(runner.PIPELINES, {"flaky": flaky}):
-        results = await runner.run_eval(
-            tmp_path, "r", data.load_books(tmp_path), pipeline="flaky", trust_known=False, on_progress=print
-        )
-    assert results[0]["error"] == "RuntimeError: verify failed"
-    assert not runner.book_path(tmp_path, "r", "alpha").exists()
-    assert runner.metrics_path(tmp_path, "r", "alpha").exists()
+    monkeypatch.setattr(runner, "generate", flaky)
+    results = await runner.run_eval(tmp_path, "r", data.load_books(tmp_path), trust_known=False, on_progress=print)
+    assert results[0]["error"] == "RuntimeError: research failed"
+    assert not data.book_path(tmp_path, "r", "alpha").exists()
+    assert data.metrics_path(tmp_path, "r", "alpha").exists()
     assert results[1]["error"] is None
-
-
-async def test_run_eval_rejects_an_unknown_pipeline(tmp_path):
-    _write_eval_set(tmp_path)
-    with pytest.raises(ValueError, match="unknown pipeline 'v9'"):
-        await runner.run_eval(tmp_path, "r", data.load_books(tmp_path), pipeline="v9", trust_known=False, on_progress=print)
 
 
 # --- judge ---------------------------------------------------------------------
@@ -268,7 +276,7 @@ def test_score_counts_ties_as_half_and_kind_criteria_over_their_kind_only():
 async def test_judge_runs_writes_the_judgement(tmp_path):
     _write_eval_set(tmp_path)
     for label in ("new", "old"):
-        data.write_json(runner.book_path(tmp_path, label, "alpha"), _book([_idea(f"{label} idea")]))
+        data.write_json(data.book_path(tmp_path, label, "alpha"), _book([_idea(f"{label} idea")]))
     (data.run_dir(tmp_path, "old")).mkdir(parents=True, exist_ok=True)
 
     with (
@@ -283,6 +291,19 @@ async def test_judge_runs_writes_the_judgement(tmp_path):
     assert judgement["ties"] == 1
     assert judge.judgement_path(tmp_path, "new", "old").exists()
     assert "score 0.50" in judge.format_judgement(judgement)
+
+
+def test_research_differs_flags_books_whose_runs_saw_different_or_unrecorded_research(tmp_path):
+    for label, fingerprints in (("new", {"a": "x", "b": "x", "c": "x"}), ("old", {"a": "x", "b": "y"})):
+        for slug, fingerprint in fingerprints.items():
+            data.write_json(data.metrics_path(tmp_path, label, slug), {"research": {"fingerprint": fingerprint}})
+    assert judge.research_differs(tmp_path, "new", "old", ["a", "b", "c"]) == ["b", "c"]
+    judgement = {
+        "candidate": "new", "baseline": "old", "judge_model": "m", "candidate_wins": 1, "baseline_wins": 0,
+        "ties": 0, "score": 1.0, "criteria": {}, "research_differs": ["b", "c"],
+        "judge_usage": {"llm_cost_usd": 0.0, "llm_calls": 0},
+    }  # fmt: skip
+    assert "different research for b, c" in judge.format_judgement(judgement)
 
 
 async def test_judge_runs_rejects_an_unknown_run(tmp_path):

@@ -66,6 +66,14 @@ def run_dir(evals_dir: str | Path, label: str) -> Path:
     return Path(evals_dir) / "runs" / label
 
 
+def book_path(evals_dir: str | Path, label: str, slug: str) -> Path:
+    return run_dir(evals_dir, label) / f"{slug}.json"
+
+
+def metrics_path(evals_dir: str | Path, label: str, slug: str) -> Path:
+    return run_dir(evals_dir, label) / f"{slug}.metrics.json"
+
+
 def load_books(evals_dir: str | Path, slugs: list[str] | None = None) -> list[EvalBook]:
     """Every book in the eval set, or just `slugs`, in slug order. Raises
     ValueError for an unknown slug or a book without its reference.
