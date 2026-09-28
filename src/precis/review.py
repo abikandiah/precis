@@ -232,7 +232,8 @@ def _instructions(book: Book, issues: list[str]) -> str:
     if book.kind == "non-fiction":
         counts += f", and {KEY_CLAIM_LIMITS[0]}-{KEY_CLAIM_LIMITS[1]} key claims"
     claims = (
-        "- key_claims_for_review: if a claim is wrong, or whenever you drop an idea — then the whole corrected "
+        "- key_claims_for_review: if a claim is wrong or only restates an idea's title as a question (\"What is "
+        "X?\"), or whenever you drop an idea — then the whole corrected "
         "list, without claims that rest on a dropped idea.\n"
         if book.kind == "non-fiction"
         else ""

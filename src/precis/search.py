@@ -107,9 +107,14 @@ def normalize_text(text: str) -> str:
     return " ".join(re.sub(r"[\W_]+", " ", folded.lower().replace("&", " and ")).split())
 
 
-def _contains(haystack: str, needle: str) -> bool:
+def contains(haystack: str, needle: str) -> bool:
     """Whole-word containment on normalize_text()d text."""
     return bool(needle) and f" {needle} " in f" {haystack} "
+
+
+def overlap(a: frozenset[str], b: frozenset[str]) -> float:
+    """How much two word sets share: Jaccard similarity, 0 when either is empty."""
+    return len(a & b) / len(a | b) if a and b else 0.0
 
 
 def title_key(title: str) -> str:
@@ -168,14 +173,14 @@ def mentions_title(result: SearchResult, title: str | None) -> bool:
     author — looser than is_book_relevant, for checking the author claim
     itself (see research.py).
     """
-    return _contains(_result_text(result), title_key(short_title(title)))
+    return contains(_result_text(result), title_key(short_title(title)))
 
 
 def _names_full_title(text: str, title: str | None) -> bool:
     """A normalize_text()d result names the full title — only meaningful
     (distinctive) when the title has a subtitle.
     """
-    return title is not None and ":" in title and _contains(text, title_key(title))
+    return title is not None and ":" in title and contains(text, title_key(title))
 
 
 def is_book_relevant(result: SearchResult, *, title: str | None, author: str | None) -> bool:
@@ -196,5 +201,5 @@ def is_book_relevant(result: SearchResult, *, title: str | None, author: str | N
         return True
     if not surnames:
         return False
-    names_author = any(_contains(text, s) for s in surnames)
-    return names_author and (not short or _contains(text, short))
+    names_author = any(contains(text, s) for s in surnames)
+    return names_author and (not short or contains(text, short))

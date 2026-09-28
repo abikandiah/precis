@@ -133,6 +133,8 @@ the review call's `cached_tokens` (docs/v2-plan.md).
 - Ideas cover the whole book, and their count scales with how much it
   argues. They name the book's own terms and never describe the text ("the
   author discusses…").
+- Key claims ask what a reader needs to recall about an idea, never just
+  "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
   describe a detail more generally when unsure of it.
 - Fiction's instructions repeat the spoiler rule and warn that the research
@@ -156,6 +158,10 @@ stating the idea; near-duplicate ideas (half their vocabulary shared); and
 **evidence specifics** — numbers and proper nouns in an idea's evidence
 (study names, figures, people, dates: where invention hides) that aren't in
 the sources it cites, or, for an uncited idea, anywhere in the research.
+A capitalized word opening a sentence counts as a name only if the research
+never uses it in lowercase, so "However" or "Participants" isn't one.
+Numbers match however their units and magnitudes are written: "42km" is
+"42 km", "$2.5m" is "$2.5 million".
 
 ### Review (`review.py`)
 

@@ -42,6 +42,7 @@ from precis.search import (
     build_search_client,
     is_book_relevant,
     mentions_title,
+    overlap,
     short_title,
     title_key,
 )
@@ -194,10 +195,6 @@ def excerpt(text: str, title: str | None, limit: int) -> str:
     return ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
 
 
-def _overlap(a: frozenset[str], b: frozenset[str]) -> float:
-    return len(a & b) / len(a | b) if a and b else 0.0
-
-
 def _interleave(results_per_query: list[list[SearchResult]]) -> list[SearchResult]:
     """Each query's first result, then each one's second, and so on — so
     every query's best pages come before any query's weakest.
@@ -251,7 +248,7 @@ def build_research(
         seen_urls.add(key)
         text = excerpt(page.raw_content or page.content, known_file.title, min(PAGE_CHARS, remaining))
         words = frozenset(re.findall(r"\w+", text.lower()))
-        if not text or any(_overlap(words, seen) >= _MIRROR_OVERLAP for seen in seen_words):
+        if not text or any(overlap(words, seen) >= _MIRROR_OVERLAP for seen in seen_words):
             continue
         seen_words.append(words)
         sources.append(Source(id=f"S{len(sources) + 1}", title=page.title, url=page.url, text=text))

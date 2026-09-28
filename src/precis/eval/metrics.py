@@ -12,7 +12,8 @@ from typing import Any
 
 # One definition of "near-duplicate" for the pipeline's check and the eval
 # metric, so the two agree.
-from precis.checks import DUPLICATE_OVERLAP, content_words, overlap
+from precis.checks import DUPLICATE_OVERLAP, content_words
+from precis.search import overlap
 
 
 def idea_text(idea: dict[str, Any]) -> str:

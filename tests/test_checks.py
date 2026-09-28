@@ -109,3 +109,37 @@ def test_evidence_specifics_missing_from_the_cited_sources_are_flagged():
 def test_without_research_there_is_nothing_to_check_specifics_against():
     book = _book([_idea("Screening", evidence="Collins screened 9,999 companies at Harvard")])
     assert check_notes(book, Research(sources=[], warnings=[])) == []
+
+
+def test_sentence_openers_are_names_only_when_the_research_never_uses_them_in_lowercase():
+    common = frozenset({"however", "participants", "researchers"})
+    text = "Participants who waited scored higher. Researchers followed up. However, CEO Darwin Smith agreed."
+    assert specifics(text, common) == ["Darwin", "Smith"]
+    # Not a word the research uses: an opening name still counts.
+    assert specifics("Henderson's 1994 study. Hendry agreed.", common) == ["1994", "Henderson", "Hendry"]
+
+
+@pytest.mark.parametrize(
+    ("evidence", "source", "flagged"),
+    [
+        ("ran 42km a day", "ran 42 km a day", []),
+        ("ran 42km a day", "ran 26 km a day", ["42km"]),
+        ("a 30mg dose on a 3GHz chip", "a 30 mg dose on a 3 GHz chip", []),
+        ("a $2.5m return", "a $2.5 million return", []),
+        ("a 2.5bn fund, up 42%", "a 2.5 billion fund, up 42 per cent", []),
+        ("a $2.5m return", "a $3 million return", ["2.5m"]),
+    ],
+)
+def test_numbers_with_units_and_magnitudes_are_checked_whichever_way_theyre_written(evidence, source, flagged):
+    research = Research(sources=[Source(id="S1", title="t", url="u", text=source)], warnings=[])
+    issues = check_notes(_book([_idea("Figures", evidence=evidence, sources=["S1"])]), research)
+    assert issues == ([f"idea 1 \"Figures\": its evidence names {flagged!r}, which aren't in its cited sources (S1)"] if flagged else [])
+
+
+def test_opening_words_the_research_uses_in_lowercase_arent_flagged():
+    research = Research(
+        sources=[Source(id="S1", title="t", url="u", text="The participants waited; researchers noted it.")],
+        warnings=[],
+    )
+    book = _book([_idea("Waiting", evidence="Participants waited. Researchers noted it.", sources=["S1"])])
+    assert check_notes(book, research) == []

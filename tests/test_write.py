@@ -202,3 +202,7 @@ def test_a_placeholder_author_mismatch_reads_as_none():
 def test_the_author_mismatch_description_covers_pen_names():
     description = write.Draft.model_fields["author_mismatch"].description or ""
     assert "pen name" in description
+
+
+def test_key_claims_mustnt_just_restate_an_idea_title():
+    assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION)
