@@ -18,9 +18,10 @@ What happens to an idea the research can't validate:
   on a dropped idea go with it.
 
 The review is validated by building the book it would produce, by the
-book's own rules: one that can't be applied (too few ideas, verdicts out of
-step with the ideas, a half-returned synopsis) is sent back with the
-reason, and the run fails only if it still can't fix it. After the review,
+book's own rules: one that can't be applied (too few ideas, a verdict
+naming no idea, a half-returned synopsis) is sent back with the reason,
+and the run fails only if it still can't fix it. An idea the review gives
+no verdict is kept as written. After the review,
 the checks run again, and whatever they still find is a warning for the
 reader.
 """
@@ -181,17 +182,28 @@ class Review(BaseModel):
         return self
 
 
+def _title_key(title: str) -> str:
+    return title.strip().lower()
+
+
 def _verdict_problems(book: Book, review: Review) -> list[str]:
-    """Verdicts must line up with the ideas one-to-one, in order — matched
-    by title, so one skipped verdict can't shift every later one onto the
-    wrong idea.
+    """Verdicts are matched to ideas by title, so a skipped one can't shift
+    the rest onto the wrong idea: each must name an idea, once. An idea
+    with no verdict is kept (see _merge).
     """
-    expected = [i.title for i in book.ideas]
-    given = [r.title for r in review.ideas]
+    titles = {_title_key(i.title) for i in book.ideas}
     problems = []
-    if [t.strip().lower() for t in given] != [t.strip().lower() for t in expected]:
-        problems.append(f"give one verdict per idea, in order, titled as given: expected {expected!r}, got {given!r}")
+    seen: set[str] = set()
     for verdict in review.ideas:
+        key = _title_key(verdict.title)
+        if key not in titles:
+            problems.append(
+                f"the verdict titled {verdict.title!r} isn't one of the ideas — title each verdict exactly as its "
+                f"idea is titled: {[i.title for i in book.ideas]!r}"
+            )
+        elif key in seen:
+            problems.append(f"idea {verdict.title!r} has more than one verdict — give each idea one")
+        seen.add(key)
         if verdict.verdict == "revise" and verdict.revised is None:
             problems.append(f"idea {verdict.title!r} is marked revise but has no revised idea")
     return problems
@@ -201,8 +213,15 @@ def _merge(book: Book, review: Review) -> tuple[list[Idea], list[KeyClaim] | Non
     """The ideas and claims the review leaves, and what it changed."""
     ideas: list[Idea] = []
     changes: list[str] = []
-    for original, verdict in zip(book.ideas, review.ideas, strict=True):
-        if verdict.verdict == "drop":
+    verdicts = {_title_key(r.title): r for r in review.ideas}
+    for original in book.ideas:
+        verdict = verdicts.get(_title_key(original.title))
+        if verdict is None:
+            # Keep is the verdict that changes nothing, so a missing one is
+            # safe to assume rather than worth failing the review over.
+            ideas.append(original)
+            changes.append(f'no verdict for "{original.title}", kept as written')
+        elif verdict.verdict == "drop":
             changes.append(f'dropped "{original.title}": {verdict.reason}')
         elif verdict.verdict == "revise" and verdict.revised:
             revised = verdict.revised

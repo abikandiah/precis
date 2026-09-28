@@ -53,9 +53,8 @@ def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
 @pytest.mark.parametrize(
     ("data", "message"),
     [
-        ({"ideas": _verdicts(5)}, "one verdict per idea, in order"),
-        # A skipped verdict can't shift the rest onto the wrong ideas.
-        ({"ideas": _verdicts(6)[1:] + [{"title": "Idea 0", "verdict": "keep"}]}, "one verdict per idea, in order"),
+        ({"ideas": [*_verdicts(), {"title": "Idea 9", "verdict": "keep"}]}, "'Idea 9' isn't one of the ideas"),
+        ({"ideas": [*_verdicts(), {"title": "Idea 2", "verdict": "drop"}]}, "'Idea 2' has more than one verdict"),
         ({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r"})}, "revise but has no revised idea"),
         ({"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}, "5-12 ideas .*got 13"),
         ({"ideas": _verdicts(), "new_ideas": [_idea(9, ["S4"])]}, r"cites \['S4'\]"),
@@ -120,6 +119,16 @@ def test_keep_revise_drop_and_add():
     assert changes == [
         'revised "Idea 1": vague', 'dropped "Idea 2": generic', 'added "Idea 11"',
         "revised key_claims_for_review", "revised synopsis",
+    ]  # fmt: skip
+
+
+def test_verdicts_are_matched_by_title_and_an_idea_without_one_is_kept():
+    # Out of order, idea 5 skipped: the drop still lands on idea 1.
+    verdicts = _verdicts(i1={"verdict": "drop", "reason": "generic"})[:5][::-1]
+    reviewed, changes = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS})
+    assert [i.title for i in reviewed.ideas] == ["Idea 0", "Idea 2", "Idea 3", "Idea 4", "Idea 5"]
+    assert changes == [
+        'dropped "Idea 1": generic', 'no verdict for "Idea 5", kept as written', "revised key_claims_for_review",
     ]  # fmt: skip
 
 
