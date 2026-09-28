@@ -15,3 +15,10 @@ def test_settings_are_read_from_the_environment_at_instantiation(monkeypatch):
     monkeypatch.setenv("PRECIS_CACHE_DIR", "/data/cache")
     settings = Settings()
     assert (settings.llm_call_timeout_seconds, settings.cache_dir) == (60, "/data/cache")
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_a_non_positive_concurrency_fails_at_load(monkeypatch, value):
+    monkeypatch.setenv("PRECIS_CONCURRENCY", value)
+    with pytest.raises(ValueError, match="PRECIS_CONCURRENCY"):
+        Settings()

@@ -67,6 +67,23 @@ def _write_output(model: BaseModel, output_path: str | None, *, exclude_none: bo
         print(text)
 
 
+def _write_or_report(model: BaseModel, output_path: str | None) -> bool:
+    """_write_output, with a failure printed rather than raised."""
+    try:
+        _write_output(model, output_path)
+    except OSError as exc:
+        print(f"couldn't write {output_path!r}: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
+def _exists_unless_forced(path: str, force: bool) -> str | None:
+    """A known-file is edited by hand after it's created, so an existing
+    one is only replaced when asked.
+    """
+    return None if force or not os.path.exists(path) else "it already exists — pass --force to replace it"
+
+
 def _unwritable(path: str) -> str | None:
     parent = os.path.dirname(os.path.abspath(path))
     if not os.path.isdir(parent):
@@ -126,30 +143,43 @@ def _cmd_create_known_file(args: argparse.Namespace) -> int:
         print("--output and --output-dir can't both be given", file=sys.stderr)
         return 1
 
+    if args.output and (problem := _unwritable(args.output) or _exists_unless_forced(args.output, args.force)):
+        print(f"can't write --output {args.output!r}: {problem}", file=sys.stderr)
+        return 1
+    if args.output_dir:
+        try:
+            os.makedirs(args.output_dir, exist_ok=True)
+        except OSError as exc:
+            print(f"can't create --output-dir {args.output_dir!r}: {exc}", file=sys.stderr)
+            return 1
+
     kind: Literal["fiction", "non-fiction"] = args.kind or _BATCH_KIND_DEFAULT
-    known_files = []
+    used_names: set[str] = set()
+    ok = True
+    # Each file is written as soon as it's looked up, so a failure partway
+    # keeps the ones before it.
     for isbn in isbns:
         known_file, notes = create_known_file(isbn, kind=kind)
-        known_files.append((isbn, known_file))
         for note in notes:
             _print_progress(f"{isbn}: {note}")
-
-    if args.output_dir:
-        os.makedirs(args.output_dir, exist_ok=True)
-        used_names: set[str] = set()
-        for isbn, known_file in known_files:
-            filename = _known_file_filename(isbn, known_file, used_names)
-            used_names.add(filename)
-            _write_output(known_file, os.path.join(args.output_dir, filename))
-    else:
-        _write_output(known_files[0][1], args.output)
+        if not args.output_dir:
+            ok = _write_or_report(known_file, args.output)
+            continue
+        filename = _known_file_filename(isbn, known_file, used_names)
+        used_names.add(filename)
+        path = os.path.join(args.output_dir, filename)
+        if problem := _exists_unless_forced(path, args.force):
+            print(f"{isbn}: not writing {path!r}: {problem}", file=sys.stderr)
+            ok = False
+        else:
+            ok = _write_or_report(known_file, path) and ok
 
     if not args.kind:
         _print_progress(
-            f"kind defaulted to '{_BATCH_KIND_DEFAULT}' for {len(known_files)} known-file(s) — "
+            f"kind defaulted to '{_BATCH_KIND_DEFAULT}' for {len(isbns)} known-file(s) — "
             "correct `kind` by hand before generating."
         )
-    return 0
+    return 0 if ok else 1
 
 
 def _cmd_generate(args: argparse.Namespace) -> int:
@@ -208,8 +238,7 @@ def _cmd_research(args: argparse.Namespace) -> int:
 
 
 def _cmd_tags(args: argparse.Namespace) -> int:
-    _write_output(TagVocabulary(), args.output)
-    return 0
+    return 0 if _write_or_report(TagVocabulary(), args.output) else 1
 
 
 def _cmd_eval_run(args: argparse.Namespace) -> int:
@@ -263,7 +292,7 @@ def _cmd_eval_judge(args: argparse.Namespace) -> int:
         ]
         _print_progress(eval_metrics.format_summary(label, eval_metrics.summarize(run_metrics)))
     _print_progress(eval_judge.format_judgement(judgement))
-    return 0
+    return 1 if judgement["failed"] else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -275,6 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--kind", choices=["fiction", "non-fiction"])
     create.add_argument("--output", help="single-isbn only")
     create.add_argument("--output-dir", help="required for more than one isbn")
+    create.add_argument("--force", action="store_true", help="replace known-files that already exist")
     create.set_defaults(func=_cmd_create_known_file)
 
     generate_cmd = subparsers.add_parser("generate", help="research a book and write its notes")

@@ -100,7 +100,11 @@ def _lookup_open_library(isbn: str) -> dict:
         publish_date = edition_body.get("publish_date")
         if publish_date and (match := re.search(r"\d{4}", publish_date)):
             result["year"] = int(match.group())
-        if (page_count := edition_body.get("number_of_pages")) is not None:
+        # Usually a number, but some records have text like "320 p.".
+        page_count = edition_body.get("number_of_pages")
+        if isinstance(page_count, str) and (match := re.search(r"\d+", page_count)):
+            page_count = int(match.group())
+        if isinstance(page_count, int) and not isinstance(page_count, bool):
             result["page_count"] = page_count
 
     return result

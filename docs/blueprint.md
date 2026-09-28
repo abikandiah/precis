@@ -200,10 +200,12 @@ book-level one when most are uncited).
 ## CLI contract
 
 ```
-precis create-known-file <isbn>... [--kind fiction|non-fiction] [--output <path> | --output-dir <dir>]
+precis create-known-file <isbn>... [--kind fiction|non-fiction] [--output <path> | --output-dir <dir>] [--force]
     → looks each ISBN up on Open Library and writes a known-file. More than
       one ISBN needs --output-dir (files named after the title slug) and no
-      --kind (it defaults to non-fiction, to correct by hand).
+      --kind (it defaults to non-fiction, to correct by hand). An existing
+      known-file (likely hand-edited) is only replaced with --force; a batch
+      skips it and writes the rest.
 
 precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh]
     → researches the book and writes its notes. Refuses a known-file that
@@ -237,7 +239,9 @@ precis eval judge <candidate> <baseline> [--judge-model <id>] [--book <slug>]...
       evals/runs/<candidate>/judge-vs-<baseline>.json; the score is 1 per
       win, 0.5 per tie, so above 0.5 beats the baseline. Books whose two
       runs wrote from different research (a failed search isn't cached, and
-      --fresh refetches) are listed with a warning.
+      --fresh refetches) are listed with a warning. A book that fails to
+      judge is recorded under `failed` and left out of the score; the rest
+      are still written.
 ```
 
 Errors go to stderr with a non-zero exit, never a traceback. Progress and a

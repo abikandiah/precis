@@ -116,3 +116,11 @@ def test_the_lookup_survives_a_truncated_response():
     with patch(_URLOPEN, return_value=truncated):
         known_file, _ = create_known_file("9780000000000", kind="fiction")
     assert known_file.title == PLACEHOLDER
+
+
+@pytest.mark.parametrize(("pages", "expected"), [(320, 320), ("320 p.", 320), ("xii, 320 p.", 320), ("many", None), (True, None)])
+def test_an_odd_page_count_is_parsed_or_left_out(pages, expected):
+    search_body = {"docs": [{"title": "T", "author_name": ["A"]}]}
+    with patch(_URLOPEN, side_effect=[_response(search_body), _response({"number_of_pages": pages})]):
+        known_file, _ = create_known_file("9780000000000", kind="fiction")
+    assert known_file.page_count == expected

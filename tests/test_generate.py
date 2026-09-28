@@ -15,6 +15,7 @@ async def test_generate_researches_writes_checks_then_reviews():
     reviewed = SimpleNamespace(warnings=["thin research", "author mismatch"])
     messages: list[str] = []
     with (
+        patch.object(generate_module.llm, "build_client") as build_client,
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)) as research,
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)) as write,
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])) as check,
@@ -32,6 +33,10 @@ async def test_generate_researches_writes_checks_then_reviews():
     assert write.await_args.kwargs["trust_known"] is True
     check.assert_called_once_with(written, found)
     assert review.await_args.args == (BOOK, found, written, ["idea 1: a finding"])
+    # One client for both calls, closed at the end of the run.
+    client = build_client.return_value.__aenter__.return_value
+    assert write.await_args.kwargs["client"] is client and review.await_args.kwargs["client"] is client
+    build_client.return_value.__aexit__.assert_awaited_once()
     assert "check: idea 1: a finding" in messages
     assert 'review: dropped "X": generic' in messages
     # Warnings the write and review steps added are shown; research printed its own.
@@ -44,6 +49,7 @@ async def test_a_failed_review_keeps_the_written_notes_with_a_warning():
     written = MagicMock(ideas=[], key_claims_for_review=None, warnings=["from write"])
     messages: list[str] = []
     with (
+        patch.object(generate_module.llm, "build_client"),
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])),

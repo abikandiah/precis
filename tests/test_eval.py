@@ -293,6 +293,25 @@ async def test_judge_runs_writes_the_judgement(tmp_path):
     assert "score 0.50" in judge.format_judgement(judgement)
 
 
+async def test_one_book_failing_to_judge_keeps_the_others_judgement(tmp_path):
+    _write_eval_set(tmp_path)
+    for label in ("new", "old"):
+        for slug in ("alpha", "beta"):
+            data.write_json(data.book_path(tmp_path, label, slug), _book([_idea(f"{label} idea")]))
+    data.book_path(tmp_path, "new", "beta").write_text("{corrupt")
+
+    with (
+        patch.object(judge.llm, "build_client"),
+        patch.object(judge.llm, "complete", new=AsyncMock(return_value=_verdict_reply("tie"))),
+    ):
+        judgement = await judge.judge_runs(
+            tmp_path, "new", "old", data.load_books(tmp_path), model="m", concurrency=2, on_progress=print
+        )
+    assert list(judgement["books"]) == ["alpha"] and list(judgement["failed"]) == ["beta"]
+    assert data.read_json(judge.judgement_path(tmp_path, "new", "old"))["failed"]["beta"].startswith("JSONDecodeError")
+    assert "judging failed for beta" in judge.format_judgement(judgement)
+
+
 def test_research_differs_flags_books_whose_runs_saw_different_or_unrecorded_research(tmp_path):
     for label, fingerprints in (("new", {"a": "x", "b": "x", "c": "x"}), ("old", {"a": "x", "b": "y"})):
         for slug, fingerprint in fingerprints.items():

@@ -232,22 +232,28 @@ async def judge_runs(
     for label in (candidate, baseline):
         if not run_dir(evals_dir, label).is_dir():
             raise ValueError(f"no run named {label!r} in {run_dir(evals_dir, label).parent}")
-    client = llm.build_client()
     semaphore = asyncio.Semaphore(concurrency)
+    failed: dict[str, str] = {}
 
-    async def one(book: EvalBook) -> tuple[str, dict[str, Any] | None]:
-        candidate_book = read_json(book_path(evals_dir, candidate, book.slug))
-        baseline_book = read_json(book_path(evals_dir, baseline, book.slug))
-        if candidate_book is None and baseline_book is None:
-            on_progress(f"[{book.slug}] neither run has output, not judged")
+    async def one(client: AsyncOpenAI, book: EvalBook) -> tuple[str, dict[str, Any] | None]:
+        try:
+            candidate_book = read_json(book_path(evals_dir, candidate, book.slug))
+            baseline_book = read_json(book_path(evals_dir, baseline, book.slug))
+            if candidate_book is None and baseline_book is None:
+                on_progress(f"[{book.slug}] neither run has output, not judged")
+                return book.slug, None
+            async with semaphore:
+                result = await judge_book(client, model, book, candidate_book, baseline_book)
+        except Exception as exc:  # noqa: BLE001 — one book failing is a result to record; the others are paid for
+            failed[book.slug] = f"{type(exc).__name__}: {exc}"
+            on_progress(f"[{book.slug}] judging failed: {failed[book.slug]}")
             return book.slug, None
-        async with semaphore:
-            result = await judge_book(client, model, book, candidate_book, baseline_book)
         on_progress(f"[{book.slug}] {result['winner']}")
         return book.slug, result
 
     with usage.track() as judge_usage:
-        judged = await asyncio.gather(*(one(book) for book in books))
+        async with llm.build_client() as client:
+            judged = await asyncio.gather(*(one(client, book) for book in books))
     results = {slug: result for slug, result in judged if result is not None}
     judgement = {
         "candidate": candidate,
@@ -256,6 +262,7 @@ async def judge_runs(
         **score(results),
         "research_differs": research_differs(evals_dir, candidate, baseline, sorted(results)),
         "judge_usage": judge_usage.to_dict(),
+        "failed": failed,
         "books": results,
     }
     write_json(judgement_path(evals_dir, candidate, baseline), judgement)
@@ -293,6 +300,11 @@ def format_judgement(judgement: dict[str, Any]) -> str:
         f"{judgement['candidate_wins']} win(s), {judgement['baseline_wins']} loss(es), {judgement['ties']} tie(s); "
         f"score {overall} (>0.5 beats the baseline)\nby criterion: {criteria}\n"
         f"judging cost ${judgement['judge_usage']['llm_cost_usd']:.4f} over {judgement['judge_usage']['llm_calls']} call(s)"
+        + (
+            f"\nwarning: judging failed for {', '.join(failed)} — they aren't in the score"
+            if (failed := judgement.get("failed"))
+            else ""
+        )
         + (
             f"\nwarning: the runs wrote from different research for {', '.join(differs)} — "
             "those picks may reflect the research, not what the runs compare"

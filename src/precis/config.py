@@ -28,12 +28,13 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _env_positive_int(name: str, default: int) -> int:
-    """For a timeout: 0 or negative would make every call time out at once,
-    so it fails loudly at settings-load time instead.
+    """For a timeout or a concurrency limit, where 0 or a negative number
+    would time every call out at once or hang: fails loudly at
+    settings-load time instead.
     """
     value = _env_int(name, default)
     if value <= 0:
-        raise ValueError(f"{name} must be a positive number of seconds (got {value})")
+        raise ValueError(f"{name} must be a positive number (got {value})")
     return value
 
 
@@ -65,7 +66,7 @@ class Settings:
     cache_dir: str = field(default_factory=lambda: _env_str("PRECIS_CACHE_DIR", ".precis/cache"))
 
     # `precis eval judge` only: how many books are judged at once.
-    concurrency: int = field(default_factory=lambda: _env_int("PRECIS_CONCURRENCY", 3))
+    concurrency: int = field(default_factory=lambda: _env_positive_int("PRECIS_CONCURRENCY", 3))
 
     # A circuit breaker for a hung call, not a limit meant to bind — the
     # write call sets its own, longer one (write.py).

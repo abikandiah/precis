@@ -144,3 +144,35 @@ def test_tags_prints_both_closed_vocabularies(capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["schema_version"] == SCHEMA_VERSION
     assert (output["non_fiction_tags"], output["fiction_tags"]) == (list(NONFICTION_TAGS), list(FICTION_TAGS))
+
+
+def test_tags_to_an_unwritable_path_is_an_error_not_a_traceback(tmp_path, capsys):
+    assert _run(["tags", "--output", str(tmp_path / "missing" / "tags.json")]) == 1
+    assert "couldn't write" in capsys.readouterr().err
+
+
+def _fake_lookup(monkeypatch, titles: dict[str, str]) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "create_known_file",
+        lambda isbn, kind: (KnownFile(isbn=isbn, kind=kind, title=titles[isbn], author="A"), []),
+    )
+
+
+def test_create_known_file_wont_replace_an_existing_file_without_force(tmp_path, capsys, monkeypatch):
+    _fake_lookup(monkeypatch, {"1": "One"})
+    out = tmp_path / "one.json"
+    out.write_text("hand-edited")
+    assert _run(["create-known-file", "1", "--kind", "fiction", "--output", str(out)]) == 1
+    assert "--force" in capsys.readouterr().err and out.read_text() == "hand-edited"
+    assert _run(["create-known-file", "1", "--kind", "fiction", "--output", str(out), "--force"]) == 0
+    assert json.loads(out.read_text())["title"] == "One"
+
+
+def test_a_batch_skips_existing_files_and_still_writes_the_rest(tmp_path, capsys, monkeypatch):
+    _fake_lookup(monkeypatch, {"1": "One", "2": "Two"})
+    (tmp_path / "one.json").write_text("hand-edited")
+    assert _run(["create-known-file", "1", "2", "--output-dir", str(tmp_path)]) == 1
+    assert "1: not writing" in capsys.readouterr().err
+    assert (tmp_path / "one.json").read_text() == "hand-edited"
+    assert json.loads((tmp_path / "two.json").read_text())["title"] == "Two"

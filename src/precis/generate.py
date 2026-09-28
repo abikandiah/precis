@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from openai import AsyncOpenAI
+
 from precis import llm
 from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
@@ -45,8 +47,20 @@ async def generate(
     """
     progress = on_progress or (lambda _: None)
     found = await research(known_file, slug=slug, trust_known=trust_known, fresh=fresh, on_progress=progress)
+    async with llm.build_client() as client:
+        return await _write_and_review(known_file, found, client, trust_known=trust_known, progress=progress)
+
+
+async def _write_and_review(
+    known_file: KnownFile,
+    found: Research,
+    client: AsyncOpenAI,
+    *,
+    trust_known: bool,
+    progress: ProgressCallback,
+) -> Generated:
     progress("write: writing the notes")
-    written = await write_notes(known_file, found, trust_known=trust_known)
+    written = await write_notes(known_file, found, trust_known=trust_known, client=client)
     progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
 
     issues = check_notes(written, found)
@@ -54,7 +68,7 @@ async def generate(
         progress(f"check: {issue}")
     progress("review: checking the notes against the research")
     try:
-        book, changes = await review_notes(known_file, found, written, issues)
+        book, changes = await review_notes(known_file, found, written, issues, client=client)
     except (llm.StructuredOutputError, llm.TransientLLMError, llm.ProviderError) as exc:
         progress(f"review: failed, keeping the unreviewed notes ({exc})")
         failed = f"the review call failed, so these notes are unreviewed ({exc})"
