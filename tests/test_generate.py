@@ -84,3 +84,16 @@ async def test_counts_outside_the_limits_become_warnings_whether_or_not_the_revi
         ):
             result = await generate_module.generate(BOOK, slug="t")
         assert result.book.warnings[-1] == "13 key ideas, outside the 5-12 asked for"
+
+
+
+async def test_a_failed_review_still_names_the_uncited_ideas():
+    written = _nonfiction(6)
+    with (
+        patch.object(generate_module.llm, "build_client"),
+        patch.object(generate_module, "research", new=AsyncMock(return_value=Research(sources=[], warnings=[]))),
+        patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
+        patch.object(generate_module, "review_notes", new=AsyncMock(side_effect=StructuredOutputError("bad"))),
+    ):
+        result = await generate_module.generate(BOOK, slug="t")
+    assert any(w.startswith("6 idea(s) rest on the model's knowledge") for w in result.book.warnings)

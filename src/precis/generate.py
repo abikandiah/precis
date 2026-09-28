@@ -19,7 +19,7 @@ from openai import AsyncOpenAI
 from precis import llm
 from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
-from precis.review import review_notes
+from precis.review import review_notes, uncited_warnings
 from precis.schema import Book, KnownFile, notes_count_warnings
 from precis.write import write_notes
 
@@ -60,7 +60,7 @@ async def _write_and_review(
     progress: ProgressCallback,
 ) -> Generated:
     progress("write: writing the notes")
-    written = await write_notes(known_file, found, trust_known=trust_known, client=client)
+    written = await write_notes(known_file, found, trust_known=trust_known, client=client, on_progress=progress)
     progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
 
     issues = check_notes(written)
@@ -68,12 +68,14 @@ async def _write_and_review(
         progress(f"check: {issue}")
     progress("review: checking the notes against the research")
     try:
-        book, changes = await review_notes(known_file, found, written, issues, client=client)
+        book, changes = await review_notes(known_file, found, written, issues, client=client, on_progress=progress)
     except (llm.StructuredOutputError, llm.TransientLLMError, llm.ProviderError) as exc:
         progress(f"review: failed, keeping the unreviewed notes ({exc})")
         failed = f"the review call failed, so these notes are unreviewed ({exc})"
-        # The check findings the review would have dealt with go to the reader instead.
-        book = written.model_copy(update={"warnings": [*written.warnings, failed, *issues]})
+        # The check findings the review would have dealt with go to the reader
+        # instead, with the uncited ideas the review would have named.
+        warnings = [*written.warnings, failed, *issues, *uncited_warnings(written.ideas)]
+        book = written.model_copy(update={"warnings": warnings})
     else:
         for change in changes:
             progress(f"review: {change}")

@@ -16,9 +16,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from precis import llm, usage
 from precis import research as book_research
-from precis import usage
-from precis.config import settings
+from precis.config import ConfigError, settings
 from precis.eval import data as eval_data
 from precis.eval import judge as eval_judge
 from precis.eval import metrics as eval_metrics
@@ -354,7 +354,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    sys.exit(args.func(args))
+    llm.report_sdk_retries()
+    sys.exit(_dispatch(args))
+
+
+def _dispatch(args: argparse.Namespace) -> int:
+    """Runs the command. A bad setting surfaces only once a command reads
+    it (config.py), and not every command reports its own errors, so it's
+    caught here too: a clean stderr message, never a traceback.
+    """
+    try:
+        return int(args.func(args))
+    except ConfigError as exc:
+        print(f"precis: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

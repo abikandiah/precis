@@ -140,8 +140,14 @@ the review call's `cached_tokens` (docs/v2-plan.md).
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
   describe a detail more generally when unsure of it.
-- Fiction's instructions repeat the spoiler rule and warn that the research
-  contains spoilers.
+- **The notes report the book, not its critics** (`FAITHFUL_RULE`, shared
+  with the review): claims critics dispute stay as the author argues them,
+  and critics' views stay out. The research holds reviews and critiques.
+- **Fiction's spoiler line** (`SPOILER_RULE`, shared with the review):
+  setup — the world, the main characters' situations, work and
+  relationships, the conflicts the opening establishes — is safe and should
+  be specific; spoilers are what a reader only learns later. Unsure about a
+  later detail means leaving it out, never blurring the setup.
 
 The response is validated as it arrives — at least one idea, a review deck
 for non-fiction and none for fiction, tags from the closed vocabulary,
@@ -178,19 +184,30 @@ whole corrected takeaway, synopsis or claims list where one needs fixing.
 Empty or placeholder fields mean "nothing to fix". For fiction it also
 audits every field for spoilers, with the write prompt's guards.
 
-- **keep** — exactly right, citations included: its cited sources support
-  it, or it cites none and the model is confident it's accurate. ~30k tokens of
-  research can't hold everything, and the reader, who has read the book,
-  is the final check.
-- **revise** — the right idea with something wrong: a detail the research
-  contradicts or can't back (described more generally instead), vagueness,
-  a description of the text, or a citation that doesn't support it
-  (corrected, or emptied when the research is silent but the idea is right).
-- **drop** — contradicted by the research, not specific to this book, or a
-  repeat. A wrong idea is worse than a missing one; claims resting on it go
-  too.
-- **new ideas** — major ideas the research covers that the notes miss, or
-  replacements for dropped ones; they must cite the research.
+The review judges whether the notes are faithful to the book, not whether
+the book is right: a critic disputing the author is never a reason to
+change an idea. And the research's silence isn't contradiction — ~30k
+tokens of excerpts can't hold everything, so a specific the model is
+confident is from the book stays; the reader, who has read the book, is
+the final check. The first baseline's review broke both: it dropped a
+Sapiens idea because critics dispute Harari, and made correct details
+vaguer because the research didn't mention them.
+
+- **keep** — accurate to the book, citations included: its cited sources
+  support it, or it cites none and the model is confident it's accurate.
+- **revise** — the right idea with something wrong: a detail that misstates
+  the book (corrected, or that detail alone removed), vagueness, a
+  description of the text, or a citation that doesn't support it
+  (corrected, or emptied when the research is silent but the idea is
+  right). Every specific that's right is kept: fix what's wrong, never make
+  the idea vaguer.
+- **drop** — the book doesn't make this argument, it isn't specific to this
+  book, or it repeats another idea. A wrong idea is worse than a missing
+  one; claims resting on it go too.
+- **new ideas** — major ideas the book makes that the notes miss, or
+  replacements for dropped ones; they must cite the research. An idea is
+  something the book argues (or a theme a novel develops), not an
+  observation about the book or its reception.
 
 The review is validated by building the book it would produce, by the
 book's own rules: no ideas left, a verdict naming no idea or a second
@@ -251,8 +268,10 @@ precis eval judge <candidate> <baseline> [--judge-model <id>] [--book <slug>]...
       are still written.
 ```
 
-Errors go to stderr with a non-zero exit, never a traceback. Progress and a
-closing `usage:` line (LLM calls, tokens, cost, searches — printed on
+Errors go to stderr with a non-zero exit, never a traceback. Progress —
+including every retry of the write or review call and why (a rejected
+attempt's validation error, a provider error, or the HTTP client's own
+retry of a timeout, rate limit or 5xx) — and a closing `usage:` line (LLM calls, tokens, cost, searches — printed on
 failure too, since the money is spent either way) go to stderr, so stdout
 carries only the command's output.
 
@@ -264,7 +283,9 @@ carries only the command's output.
   uses a forced `tool_choice`, which rules out models that reject it.
   `llm.py` retries HTTP-level failures through the SDK, provider errors
   OpenRouter returns inside a 200 itself, and a structured call that
-  doesn't call the tool or doesn't validate.
+  doesn't call the tool or doesn't validate. Any other HTTP error (a 400
+  for a context that's too long, a 402 for credits) is a provider error,
+  so a review that hits one still leaves the written notes.
 - **Search:** Tavily, behind a `SearchClient` protocol. Results are
   untrusted content: the rendered research frames them as reference data,
   not instructions, and a page can't close or open a source tag.

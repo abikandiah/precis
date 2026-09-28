@@ -8,6 +8,7 @@ from precis.research import Research, Source
 from precis.schema import Book, KnownFile
 
 KNOWN = KnownFile(isbn="1", title="Good to Great", author="Jim Collins", kind="non-fiction")
+FICTION = KnownFile(isbn="2", title="1984", author="George Orwell", kind="fiction")
 RESEARCH = Research(sources=[Source(id="S1", title="t", url="u", text="text")], warnings=["research warning"])
 SYNOPSIS = "Paragraph one of the synopsis.\n\nParagraph two of the synopsis.\n\nParagraph three."
 
@@ -189,5 +190,31 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
 
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(_book("fiction", ideas=4), [])
-    assert "The research contains spoilers" in text and "When unsure whether something is a spoiler" in text
+    assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION)
     assert "3-6 ideas" in text and "key claims" not in text and "key_claims_for_review" not in text
+
+
+def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():
+    assert write.FAITHFUL_RULE in review._instructions(_book(), [])
+    assert write.FAITHFUL_RULE in write._nonfiction_instructions(KNOWN)
+    assert write.FAITHFUL_RULE in write._fiction_instructions(FICTION)
+
+
+def test_titles_match_whatever_quotes_dashes_and_case_the_model_retypes():
+    book = _book().model_copy(update={"ideas": [
+        review.Idea(title="Kahneman’s “System 1” — fast", summary="s", evidence="e", sources=["S1"]),
+        *_book().ideas[1:],
+    ]})  # fmt: skip
+    verdicts = [{"title": 'kahneman\'s "system 1" - fast', "verdict": "drop", "reason": "r"}, *_verdicts()[1:]]
+    _, changes = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS}, book)
+    assert changes[0] == 'dropped "Kahneman’s “System 1” — fast": r'
+
+
+def test_ideas_sharing_a_title_take_their_verdicts_in_order():
+    ideas = _book().ideas
+    book = _book().model_copy(update={"ideas": [ideas[0], ideas[1].model_copy(update={"title": "Idea 0"}), *ideas[2:]]})
+    verdicts = [{"title": "Idea 0", "verdict": "keep"}, {"title": "Idea 0", "verdict": "drop", "reason": "r"}, *_verdicts()[2:]]
+    reviewed, _ = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS}, book)
+    assert [i.summary for i in reviewed.ideas] == ["topic0word", "topic2word", "topic3word", "topic4word", "topic5word"]
+    with pytest.raises(ValidationError, match="'Idea 0' has more than one verdict"):
+        _validate({"ideas": [*verdicts, {"title": "Idea 0", "verdict": "keep"}]}, book)

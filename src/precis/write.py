@@ -24,7 +24,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from precis import llm
-from precis.research import Research
+from precis.research import ProgressCallback, Research
 from precis.schema import (
     IDEA_LIMITS,
     KEY_CLAIM_LIMITS,
@@ -167,6 +167,27 @@ def shared_tools(kind: Literal["fiction", "non-fiction"]) -> list[type[BaseModel
     return [Draft if kind == "fiction" else DraftWithClaims, Review]
 
 
+# What the notes report: the book, not its critics. The research holds
+# reviews and critiques, and a model checking notes against it otherwise
+# "corrects" the author (the first baseline's review dropped a Sapiens idea
+# because critics dispute Harari on religion). Shared with the review.
+FAITHFUL_RULE = (
+    "The notes report what the book says, as its author argues it — including claims that critics dispute or "
+    "that you think are wrong. The research includes reviews and critiques: use them to understand the book, "
+    "never to correct it, and keep critics' views out of the notes."
+)
+
+# Where fiction's setup ends and spoilers begin. Shared with the review,
+# which otherwise blurred plain setup (1984's Ministry of Truth job) to be
+# safe.
+SPOILER_RULE = (
+    "Premise and setup only — nothing past roughly the first act. Setup is safe and should be specific: the "
+    "world and how it works, the main characters, their situations, work and relationships, and the conflicts "
+    "the opening establishes. A spoiler is what a reader only learns later: twists, reveals, betrayals, deaths, "
+    "how relationships turn out, the climax and the ending. The research contains spoilers: leave them out. "
+    "Leave out a later detail when unsure whether it spoils, but never blur the setup to be safe."
+)
+
 _COMMON_RULES = (
     "- Name the book's actual terms, arguments, examples, characters and situations. No generic statements "
     "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
@@ -177,6 +198,7 @@ _COMMON_RULES = (
     "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
     "idea rests on your own knowledge of the book rather than the research.\n"
     "- Ideas mustn't repeat each other.\n"
+    f"- {FAITHFUL_RULE}\n"
 )
 
 
@@ -214,9 +236,7 @@ def _fiction_instructions(known_file: KnownFile) -> str:
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_mismatch: see its description; almost always null.\n\n"
         "Rules:\n"
-        "- No spoilers anywhere: premise and setup only, nothing past roughly the first act — no twists, "
-        "reveals, deaths, betrayals, how relationships turn out, or the ending. The research contains spoilers; "
-        "leave them out. When unsure whether something is a spoiler, leave it out.\n"
+        f"- No spoilers anywhere. {SPOILER_RULE}\n"
         + _COMMON_RULES
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
@@ -267,10 +287,13 @@ async def write_notes(
     *,
     trust_known: bool = False,
     client: AsyncOpenAI | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> Book:
     """The book's notes, written from its research in one call. The
     known-file has passed preflight: research() refuses one that hasn't.
+    `on_progress` hears about retries.
     """
+    progress = on_progress or (lambda _: None)
     assert known_file.title and known_file.author, "write_notes needs a known-file that passed preflight"
     kind: Literal["fiction", "non-fiction"] = known_file.kind
     fiction = kind == "fiction"
@@ -283,6 +306,7 @@ async def write_notes(
         validation_context={KIND_KEY: kind, SOURCE_IDS_KEY: {s.id for s in research.sources}},
         timeout_seconds=WRITE_TIMEOUT_SECONDS,
         max_tokens=WRITE_MAX_TOKENS,
+        on_retry=lambda reason: progress(f"write: {reason}"),
     )
     warnings = [*research.warnings, *_check_identity(known_file, draft, trust_known=trust_known)]
     return Book(

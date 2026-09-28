@@ -10,6 +10,13 @@ vars set after the first import of this module (e.g. by an embedding
 application configuring its own environment before calling into precis)
 would be silently ignored. `default_factory` re-reads the environment on
 every instantiation instead.
+
+Numbers are kept as the environment's text and parsed when read, not at
+import: `settings` is built when this module is first imported, so a
+malformed PRECIS_CONCURRENCY parsed there would crash every command with a
+traceback — `precis tags` included — before the CLI could report it.
+Parsed on read, it fails only the command that uses it, as a ConfigError
+the CLI prints cleanly.
 """
 
 from __future__ import annotations
@@ -22,19 +29,23 @@ def _env_str(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
-def _env_int(name: str, default: int) -> int:
-    value = os.environ.get(name)
-    return int(value) if value else default
+class ConfigError(ValueError):
+    """A setting's environment variable holds a value precis can't use."""
 
 
-def _env_positive_int(name: str, default: int) -> int:
-    """For a timeout or a concurrency limit, where 0 or a negative number
-    would time every call out at once or hang: fails loudly at
-    settings-load time instead.
+def _int(name: str, raw: str, default: int, *, minimum: int) -> int:
+    """`raw` as a whole number of at least `minimum`, or `default` when
+    unset. A timeout or concurrency limit of 0 would time every call out at
+    once or hang, so those need at least 1.
     """
-    value = _env_int(name, default)
-    if value <= 0:
-        raise ValueError(f"{name} must be a positive number (got {value})")
+    if not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be a whole number (got {raw!r})") from None
+    if value < minimum:
+        raise ConfigError(f"{name} must be at least {minimum} (got {value})")
     return value
 
 
@@ -47,7 +58,7 @@ class Settings:
     llm_base_url: str = field(default_factory=lambda: _env_str("PRECIS_LLM_BASE_URL", "https://openrouter.ai/api/v1"))
     llm_api_key: str = field(default_factory=lambda: _env_str("PRECIS_LLM_API_KEY", ""))
     llm_model: str = field(default_factory=lambda: _env_str("PRECIS_LLM_MODEL", ""))
-    llm_max_retries: int = field(default_factory=lambda: _env_int("PRECIS_LLM_MAX_RETRIES", 5))
+    llm_max_retries_env: str = field(default_factory=lambda: _env_str("PRECIS_LLM_MAX_RETRIES", ""))
 
     # `precis eval` only: the model that judges two runs against each other
     # (a stronger one than the models under test), and where the eval set
@@ -66,13 +77,25 @@ class Settings:
     cache_dir: str = field(default_factory=lambda: _env_str("PRECIS_CACHE_DIR", ".precis/cache"))
 
     # `precis eval judge` only: how many books are judged at once.
-    concurrency: int = field(default_factory=lambda: _env_positive_int("PRECIS_CONCURRENCY", 3))
+    concurrency_env: str = field(default_factory=lambda: _env_str("PRECIS_CONCURRENCY", ""))
 
     # A circuit breaker for a hung call, not a limit meant to bind — the
     # write call sets its own, longer one (write.py).
-    llm_call_timeout_seconds: int = field(
-        default_factory=lambda: _env_positive_int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", 120)
+    llm_call_timeout_seconds_env: str = field(
+        default_factory=lambda: _env_str("PRECIS_LLM_CALL_TIMEOUT_SECONDS", "")
     )
+
+    @property
+    def llm_max_retries(self) -> int:
+        return _int("PRECIS_LLM_MAX_RETRIES", self.llm_max_retries_env, 5, minimum=0)
+
+    @property
+    def concurrency(self) -> int:
+        return _int("PRECIS_CONCURRENCY", self.concurrency_env, 3, minimum=1)
+
+    @property
+    def llm_call_timeout_seconds(self) -> int:
+        return _int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", self.llm_call_timeout_seconds_env, 120, minimum=1)
 
 
 settings = Settings()

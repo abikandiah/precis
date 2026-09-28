@@ -2,13 +2,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-from openai import APIConnectionError, RateLimitError
+from openai import APIConnectionError, AsyncOpenAI, RateLimitError
 from openai.types.chat.chat_completion_message_function_tool_call import (
     ChatCompletionMessageFunctionToolCall,
     Function,
 )
 from pydantic import BaseModel, ValidationInfo, model_validator
 
+from precis import llm
 from precis.llm import (
     ProviderError,
     StructuredOutputError,
@@ -382,3 +383,64 @@ async def test_transient_error_reports_the_clients_own_retry_budget():
     client.chat.completions.create = AsyncMock(side_effect=APIConnectionError(request=request))
     with pytest.raises(TransientLLMError, match="exhausting the client's 2 built-in retries"):
         await complete(client, messages=[])
+
+
+@pytest.mark.asyncio
+async def test_each_retry_is_reported_with_its_reason(no_backoff):
+    client = _mock_client_with_sequence(
+        _error_finish_response({"code": 502, "message": "upstream hiccup"}),
+        _response_with_tool_calls(None, content="Sure, here you go"),
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b", "c"]}', _CountConstrained)]),
+        _response_with_tool_calls([_tool_call('{"items": ["a"', _CountConstrained)], finish_reason="length"),
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}', _CountConstrained)]),
+    )
+    reported: list[str] = []
+    await complete_structured(
+        client,
+        messages=[],
+        response_model=_CountConstrained,
+        max_attempts=4,
+        validation_context={"expected_count": 2},
+        on_retry=reported.append,
+    )
+    assert reported[0].startswith("provider error, retrying (") and "upstream hiccup" in reported[0]
+    assert reported[1:] == [
+        "attempt 1 rejected, retrying: didn't call 'emit__countconstrained', replied 'Sure, here you go'",
+        "attempt 2 rejected, retrying: Value error, expected 2 items, got 3",
+        "attempt 3 rejected, retrying: its arguments weren't valid JSON (finish_reason 'length')",
+    ]
+
+
+
+def _http_client(*responses: httpx.Response) -> AsyncOpenAI:
+    queue = list(responses)
+    transport = httpx.MockTransport(lambda request: queue.pop(0))
+    return AsyncOpenAI(
+        api_key="k", base_url="http://gateway.test/v1", max_retries=2, http_client=httpx.AsyncClient(transport=transport)
+    )
+
+
+_COMPLETION = {
+    "id": "c", "object": "chat.completion", "created": 0, "model": "m",
+    "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "hi"}}],
+}  # fmt: skip
+
+
+@pytest.mark.asyncio
+async def test_other_http_errors_are_provider_errors():
+    client = _http_client(httpx.Response(400, json={"error": {"message": "context too long"}}))
+    with pytest.raises(ProviderError, match="HTTP 400: context too long"):
+        await complete(client, messages=[])
+
+
+@pytest.mark.asyncio
+async def test_the_sdks_own_http_retries_are_reported_with_why():
+    llm.report_sdk_retries()
+    retry_now = {"retry-after-ms": "1"}
+    client = _http_client(
+        httpx.Response(503, headers=retry_now, json={"error": {"message": "busy"}}),
+        httpx.Response(200, json=_COMPLETION),
+    )
+    reported: list[str] = []
+    await llm._create(client, on_retry=reported.append, model="m", messages=[])
+    assert len(reported) == 1 and reported[0].startswith("HTTP retry 1 of 2 in ") and reported[0].endswith("(HTTP 503)")

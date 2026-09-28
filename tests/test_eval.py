@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -235,11 +235,22 @@ def test_render_summary_shows_ideas_evidence_and_claims_but_not_sources():
     assert "S1" not in text
 
 
+def _fake_client() -> MagicMock:
+    """A client for `async with llm.build_client()` whose methods are plain
+    mocks: MagicMock's own async context manager yields an AsyncMock, whose
+    with_options() would be a coroutine nothing awaits.
+    """
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=MagicMock())
+    return client
+
+
 async def test_judge_book_judges_both_orders():
     candidate, baseline = _book([_idea("cand idea")]), _book([_idea("base idea")])
     replies = {True: _verdict_reply("A", kind="fiction"), False: _verdict_reply("B", kind="fiction")}
 
-    async def fake_complete(client, *, messages, model):
+    async def fake_complete(client, *, messages, model, timeout_seconds):
+        assert timeout_seconds == judge.JUDGE_TIMEOUT_SECONDS
         prompt = messages[1]["content"]
         assert "spoiler_safety" in prompt
         candidate_first = prompt.index("cand idea") < prompt.index("base idea")
@@ -280,7 +291,7 @@ async def test_judge_runs_writes_the_judgement(tmp_path):
     (data.run_dir(tmp_path, "old")).mkdir(parents=True, exist_ok=True)
 
     with (
-        patch.object(judge.llm, "build_client"),
+        patch.object(judge.llm, "build_client", new=_fake_client),
         patch.object(judge.llm, "complete", new=AsyncMock(return_value=_verdict_reply("tie"))),
     ):
         judgement = await judge.judge_runs(
@@ -301,7 +312,7 @@ async def test_one_book_failing_to_judge_keeps_the_others_judgement(tmp_path):
     data.book_path(tmp_path, "new", "beta").write_text("{corrupt")
 
     with (
-        patch.object(judge.llm, "build_client"),
+        patch.object(judge.llm, "build_client", new=_fake_client),
         patch.object(judge.llm, "complete", new=AsyncMock(return_value=_verdict_reply("tie"))),
     ):
         judgement = await judge.judge_runs(

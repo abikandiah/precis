@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from typing import Any
 
 from openai import (
@@ -76,6 +78,62 @@ _REPLY_EXCERPT_CHARS = 200
 # How much of a validation error to hand back to the model on a retry.
 _VALIDATION_FEEDBACK_CHARS = 2_000
 
+# How much of a retry's reason to report through `on_retry`: enough to see
+# what was wrong, short enough for one progress line.
+_RETRY_REASON_CHARS = 300
+
+# Told why a call is being retried, for progress output.
+RetryCallback = Callable[[str], None]
+
+
+def _no_retry_report(_: str) -> None:
+    pass
+
+
+# The SDK's own HTTP retries (rate limits, 5xx, timeouts, dropped
+# connections) happen inside one `create` call, out of this module's sight
+# except through the SDK's log. _create puts its call's `on_retry` here, and
+# _SDKRetryReporter turns the SDK's log lines into reports to it.
+_http_retry_report: ContextVar[RetryCallback | None] = ContextVar("precis_http_retry_report", default=None)
+_http_retry_reason: ContextVar[str] = ContextVar("precis_http_retry_reason", default="")
+
+
+class _SDKRetryReporter(logging.Handler):
+    """Reports the openai SDK's HTTP retries to the current call's
+    `on_retry`, with what went wrong. Reads the SDK's log messages, so an
+    SDK that rewords them only stops the reports; nothing breaks.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        report = _http_retry_report.get()
+        args = record.args if isinstance(record.args, tuple) else ()
+        if report is None or not isinstance(record.msg, str):
+            return
+        if record.msg.startswith("Encountered a timeout exception"):
+            _http_retry_reason.set("timed out")
+        elif record.msg.startswith("Encountered an HTTP status error") and args:
+            _http_retry_reason.set(f"HTTP {args[0]}")
+        elif record.msg.startswith("Encountered exception") and args:
+            _http_retry_reason.set(f"connection error: {args[0]}")
+        elif record.msg.startswith("Retrying request in") and len(args) == 3:
+            delay, attempt, total = args
+            reason = _http_retry_reason.get()
+            _http_retry_reason.set("")
+            report(f"HTTP retry {attempt} of {total} in {delay:.1f}s" + (f" ({reason})" if reason else ""))
+
+
+def report_sdk_retries() -> None:
+    """Routes the SDK's HTTP retries to each call's `on_retry`. For the CLI,
+    which owns the process's logging: it sets the SDK's logger to DEBUG (to
+    see why a retry happens) and stops it propagating, so nothing else
+    prints those records.
+    """
+    sdk_log = logging.getLogger("openai._base_client")
+    if not any(isinstance(h, _SDKRetryReporter) for h in sdk_log.handlers):
+        sdk_log.addHandler(_SDKRetryReporter())
+        sdk_log.setLevel(logging.DEBUG)
+        sdk_log.propagate = False
+
 
 class TransientLLMError(Exception):
     """Raised when a temporary failure outlasts its retries: either the
@@ -104,14 +162,16 @@ def _gateway_error_message(error: dict[str, Any]) -> str | None:
     return str(message) if message else None
 
 
+def _status_detail(exc: APIStatusError) -> str:
+    body = exc.body if isinstance(exc.body, dict) else {}
+    return f"HTTP {exc.status_code}: {_gateway_error_message(body) or exc.message}"
+
+
 def _transient_error(client: AsyncOpenAI, exc: Exception) -> TransientLLMError:
     """Wraps the last transient failure with what actually went wrong —
     the status and the gateway's own explanation.
     """
-    detail = str(exc)
-    if isinstance(exc, APIStatusError):
-        body = exc.body if isinstance(exc.body, dict) else {}
-        detail = f"HTTP {exc.status_code}: {_gateway_error_message(body) or exc.message}"
+    detail = _status_detail(exc) if isinstance(exc, APIStatusError) else str(exc)
     return TransientLLMError(
         f"LLM call failed after exhausting the client's {client.max_retries} built-in retries ({detail})"
     )
@@ -171,7 +231,7 @@ def _backoff_seconds(retry: int) -> float:
 _sleep = asyncio.sleep
 
 
-async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
+async def _create(client: AsyncOpenAI, on_retry: RetryCallback = _no_retry_report, **kwargs: Any) -> ChatCompletion:
     """One chat-completions request, with a provider error returned inside
     a 200 response treated as the failure it is (see _provider_error). The
     SDK's retry never sees these, and to complete_structured an empty
@@ -181,13 +241,22 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
 
     Every response is recorded to the current usage scope, errored ones
     included — a provider can bill for a generation that failed partway.
+    `on_retry` is told about each retry, the SDK's own HTTP retries included
+    once report_sdk_retries() is on. Any other HTTP error (a 400 for a
+    context that's too long, a 402 for credits) is a ProviderError, so
+    callers handle one error type for "the provider refused".
     """
     kwargs["extra_body"] = {**_USAGE_ACCOUNTING, **kwargs.get("extra_body", {})}
     for retry in range(_PROVIDER_ERROR_RETRIES + 1):
+        token = _http_retry_report.set(on_retry)
         try:
             response = await client.chat.completions.create(**kwargs)
         except _TRANSIENT_ERRORS as exc:
             raise _transient_error(client, exc) from exc
+        except APIStatusError as exc:
+            raise ProviderError(f"LLM request refused ({_status_detail(exc)})") from exc
+        finally:
+            _http_retry_report.reset(token)
         usage.record_llm_response(response)
         error = _provider_error(response)
         if error is None:
@@ -196,6 +265,7 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
         if not _is_retryable(error):
             raise ProviderError(f"LLM provider returned an error that retrying won't fix ({detail})")
         if retry < _PROVIDER_ERROR_RETRIES:
+            on_retry(f"provider error, retrying ({_excerpt(detail, _RETRY_REASON_CHARS)})")
             await _sleep(_backoff_seconds(retry))
     raise TransientLLMError(
         f"LLM call failed after {_PROVIDER_ERROR_RETRIES} retries of a provider error returned in a 200 response "
@@ -246,6 +316,14 @@ def _rejection(call: ChatCompletionMessageFunctionToolCall, reason: str) -> list
     ]
 
 
+def _describe_error(error: Any) -> str:
+    """One pydantic error as "where: what", so a retry report names the
+    field ("ideas.3.sources: …"), not just "Field required".
+    """
+    where = ".".join(str(part) for part in error["loc"])
+    return f"{where}: {error['msg']}" if where else error["msg"]
+
+
 def _parses(arguments: str) -> bool:
     try:
         json.loads(arguments)
@@ -267,12 +345,16 @@ async def complete(
     *,
     messages: list[ChatCompletionMessageParam],
     model: str | None = None,
+    timeout_seconds: float | None = None,
 ) -> str:
+    """A plain-text reply. `timeout_seconds` overrides
+    PRECIS_LLM_CALL_TIMEOUT_SECONDS, for a call known to take long.
+    """
     response = await _create(
         client,
         model=model or settings.llm_model,
         messages=messages,
-        timeout=settings.llm_call_timeout_seconds,
+        timeout=settings.llm_call_timeout_seconds if timeout_seconds is None else timeout_seconds,
     )
     return response.choices[0].message.content or ""
 
@@ -288,6 +370,7 @@ async def complete_structured[T: BaseModel](
     timeout_seconds: float | None = None,
     max_tokens: int | None = None,
     tool_models: Sequence[type[BaseModel]] | None = None,
+    on_retry: RetryCallback = _no_retry_report,
 ) -> T:
     """Forces schema-shaped output via tool-calling rather than free-form
     JSON-in-prose: `response_model`'s own JSON schema becomes the tool's
@@ -323,6 +406,9 @@ async def complete_structured[T: BaseModel](
     among them; the call is still forced to `response_model`'s. Calls that
     share a cached prompt prefix must send identical tools, since a
     provider's cache prefix starts with the tool definitions.
+
+    `on_retry` is told why each retry happens — a rejected attempt or a
+    provider error — so a run's progress shows what a retry cost, and why.
     """
     models = list(tool_models or [response_model])
     if response_model not in models:
@@ -337,6 +423,7 @@ async def complete_structured[T: BaseModel](
             client,
             model=model or settings.llm_model,
             messages=attempt_messages,
+            on_retry=on_retry,
             tools=tools,
             tool_choice=tool_choice,
             timeout=settings.llm_call_timeout_seconds if timeout_seconds is None else timeout_seconds,
@@ -351,15 +438,16 @@ async def complete_structured[T: BaseModel](
             # Another of the tools sent, despite the forced choice: validating
             # its arguments as the response model would be meaningless.
             wrong = calls[0] if calls else None
+            if wrong is not None:
+                did = f"called {wrong.function.name!r} instead"
+            else:
+                did = f"replied {_excerpt((choice.message.content or '').strip(), _REPLY_EXCERPT_CHARS)!r}"
             if attempt == max_attempts - 1:
-                if wrong is not None:
-                    did = f"called {wrong.function.name!r} instead"
-                else:
-                    did = f"replied {_excerpt((choice.message.content or '').strip(), _REPLY_EXCERPT_CHARS)!r}"
                 raise StructuredOutputError(
                     f"model did not call the expected tool {tool_name!r} after {max_attempts} attempts "
                     f"(model {response.model!r}, finish_reason {choice.finish_reason!r}, {did})"
                 )
+            on_retry(f"attempt {attempt + 1} rejected, retrying: didn't call {tool_name!r}, {did}")
             if wrong is not None and _parses(wrong.function.arguments):
                 reason = f"Rejected — that's the wrong tool. Call {tool_name} with the whole result."
                 attempt_messages = [*messages, *_rejection(wrong, reason)]
@@ -377,11 +465,14 @@ async def complete_structured[T: BaseModel](
                     f"after {max_attempts} attempts: {exc}"
                 ) from exc
             if isinstance(exc, ValidationError):
+                problem = "; ".join(_describe_error(e) for e in exc.errors())
                 error = _excerpt(str(exc), _VALIDATION_FEEDBACK_CHARS)
                 reason = f"Rejected — the result didn't validate:\n{error}\n\nCall {tool_name} again with the whole result, corrected."
                 attempt_messages = [*messages, *_rejection(call, reason)]
             else:
+                problem = f"its arguments weren't valid JSON (finish_reason {choice.finish_reason!r})"
                 attempt_messages = list(messages)
+            on_retry(f"attempt {attempt + 1} rejected, retrying: {_excerpt(problem, _RETRY_REASON_CHARS)}")
             continue
 
     raise StructuredOutputError(f"complete_structured called with max_attempts={max_attempts} < 1")

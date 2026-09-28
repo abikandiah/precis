@@ -73,6 +73,12 @@ KIND_CRITERIA: dict[Kind, dict[str, str]] = {
 
 ALL_CRITERIA: tuple[str, ...] = (*CRITERIA, *(name for extra in KIND_CRITERIA.values() for name in extra))
 
+# A judge compares two full sets of notes, often on a slower, stronger
+# model than the ones under test: the write call's long timeout, and fewer
+# HTTP retries so a stalled provider isn't paid for five times over.
+JUDGE_TIMEOUT_SECONDS = 300
+JUDGE_MAX_RETRIES = 2
+
 _SYSTEM = (
     "You judge two sets of study notes on the same book, written by different systems, and decide which is "
     "better. The notes exist to help a reader who has finished the book recall what it was about, its main "
@@ -152,7 +158,7 @@ async def _judge_once(
         {"role": "user", "content": _prompt(book, notes_a, notes_b)},
     ]
     for attempt in range(2):
-        reply = await llm.complete(client, messages=messages, model=model)
+        reply = await llm.complete(client, messages=messages, model=model, timeout_seconds=JUDGE_TIMEOUT_SECONDS)
         try:
             return parse_verdict(reply, criteria_for(book.known_file.kind))
         except ValueError:
@@ -253,7 +259,8 @@ async def judge_runs(
 
     with usage.track() as judge_usage:
         async with llm.build_client() as client:
-            judged = await asyncio.gather(*(one(client, book) for book in books))
+            judging = client.with_options(max_retries=JUDGE_MAX_RETRIES)
+            judged = await asyncio.gather(*(one(judging, book) for book in books))
     results = {slug: result for slug, result in judged if result is not None}
     judgement = {
         "candidate": candidate,
