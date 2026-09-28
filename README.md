@@ -93,20 +93,24 @@ creation. A bind-mounted directory must be owned by uid 1000.
 `evals/` holds the eval set — 8 well-known books (`books/`, known-files)
 with a reference summary each (`references/`) — and the runs generated from
 it (`runs/<label>/`). See [evals/README.md](evals/README.md). Both commands
-call paid models, so they run in Docker, with `evals/` bind-mounted at
-`/evals` (writable by uid 1000):
+call paid models, so they run in Docker. `compose.yaml` holds the `.env`,
+the hardening flags above, and the mounts — `evals/` at `/evals` (writable
+by uid 1000) and the `precis-data` cache volume — and builds the image as
+`precis:eval`, so eval builds never replace the `precis` image consumers
+run:
 
 ```
-docker run --rm ... --env-file .env \
-  -v "$(pwd)/evals:/evals" -v precis-data:/data \
-  precis eval run sonnet-5
+docker compose build
+
+docker compose run --rm precis eval run sonnet-5
 # generates every eval book into evals/runs/sonnet-5/ with PRECIS_LLM_MODEL,
 # skipping books already there; --book <slug> for just one
 
-docker run --rm ... --env-file .env -v "$(pwd)/evals:/evals" \
-  precis eval judge haiku-4-5 sonnet-5
+docker compose run --rm precis eval judge haiku-4-5 sonnet-5
 # judges the first run against the second with PRECIS_JUDGE_MODEL
 ```
+
+Rebuild after changing the source; `run` uses the last build.
 
 Research is cached per book, not per run, so runs comparing models write
 from identical research; `eval run --fresh` searches again.
