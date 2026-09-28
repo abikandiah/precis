@@ -159,7 +159,9 @@ async def test_write_notes_uses_the_fiction_model_for_fiction():
         ("D. Kahneman", False),  # another form of the name
         ("Kahneman, Daniel", False),
         ("N/A", False),  # a placeholder, not an author
+        ("None.", False),
         ("unknown", False),
+        ("Dr. Daniel Kahneman", False),  # a title isn't a given name
         ("Richard Thaler", True),
         ("Amos Kahneman", True),  # same surname, a different person
     ],

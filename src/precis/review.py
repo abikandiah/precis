@@ -60,6 +60,7 @@ from precis.write import (
     WRITE_MAX_TOKENS,
     WRITE_TIMEOUT_SECONDS,
     context_messages,
+    is_placeholder,
     shared_tools,
 )
 
@@ -67,11 +68,11 @@ from precis.write import (
 BOOK_KEY = "book"
 
 # What a model writes in a field it means to leave alone.
-_UNCHANGED = frozenset({"", "n/a", "na", "none", "null", "unchanged", "no change", "no changes"})
+_UNCHANGED = frozenset({"unchanged", "no change", "no changes"})
 
 
 def _unchanged(value: str | None) -> bool:
-    return value is None or value.strip().lower().rstrip(".") in _UNCHANGED
+    return is_placeholder(value, _UNCHANGED)
 
 
 class IdeaReview(BaseModel):
@@ -230,6 +231,12 @@ def _instructions(book: Book, issues: list[str]) -> str:
     counts = f"The notes need {low}-{high} ideas in the end"
     if book.kind == "non-fiction":
         counts += f", and {KEY_CLAIM_LIMITS[0]}-{KEY_CLAIM_LIMITS[1]} key claims"
+    claims = (
+        "- key_claims_for_review: if a claim is wrong, or whenever you drop an idea — then the whole corrected "
+        "list, without claims that rest on a dropped idea.\n"
+        if book.kind == "non-fiction"
+        else ""
+    )
     spoilers = (
         "- Spoilers: these notes must be spoiler-safe — premise and setup only, nothing past roughly the first "
         "act: no twists, reveals, deaths, betrayals, how relationships turn out, or the ending. The research "
@@ -259,8 +266,7 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "only ones the research supports, each citing its sources.\n"
         "- one_line_takeaway, synopsis: only if they're wrong, vague or unsupported — then the whole corrected "
         "text.\n"
-        "- key_claims_for_review: if a claim is wrong, or whenever you drop an idea — then the whole corrected "
-        "list, without claims that rest on a dropped idea.\n"
+        + claims
         + spoilers
         + f"\n{counts}. Most notes need few changes: don't rewrite what's already right. Call the tool with the "
         "result."

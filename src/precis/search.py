@@ -75,6 +75,10 @@ _NOT_A_SURNAME = {
     "foreword", "introduction", "illustrator", "illustrated", "by",
 }  # fmt: skip
 
+# Titles before a name — "Dr. Tim Spector" is Tim Spector. Dropped only
+# from the front, and never the last word, so they can't cost a surname.
+_HONORIFICS = {"dr", "prof", "professor", "sir", "dame", "lord", "lady", "mr", "mrs", "ms", "miss", "rev", "reverend"}
+
 # Leading articles dropped before matching a title — a page saying "Diet Myth"
 # is about "The Diet Myth" just as much.
 _ARTICLES = {"the", "a", "an"}
@@ -117,7 +121,7 @@ def title_key(title: str) -> str:
 
 def author_names(author: str | None) -> list[list[str]]:
     """Each credited person's name as normalize_text() words, given names
-    first, without role words ("editor", "Jr.") — "Spector, Tim" is
+    first, without role words ("editor", "Jr.") or titles ("Dr.") — "Spector, Tim" is
     ["tim", "spector"]. Empty for a missing or placeholder author.
     """
     if not author or author == PLACEHOLDER:
@@ -131,7 +135,10 @@ def author_names(author: str | None) -> list[list[str]]:
         pieces = [f"{pieces[1]} {pieces[0]}"]
     names = []
     for piece in pieces:
-        if words := [w for w in normalize_text(piece).split() if w not in _NOT_A_SURNAME]:
+        words = [w for w in normalize_text(piece).split() if w not in _NOT_A_SURNAME]
+        while len(words) > 1 and words[0] in _HONORIFICS:
+            words.pop(0)
+        if words:
             names.append(words)
     return names
 

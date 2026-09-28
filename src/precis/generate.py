@@ -1,5 +1,7 @@
 """A whole run: research the book, write its notes, check them in code,
-then review them against the research in one more call. A plain async
+then review them against the research in one more call. A review that fails
+leaves the written notes, which are already paid for, with a warning that
+they're unreviewed. A plain async
 function — the research cache (research.py) is the only persisted state, so
 an interrupted run just starts again without searching again.
 
@@ -12,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from precis import llm
 from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
 from precis.review import review_notes
@@ -50,11 +53,18 @@ async def generate(
     for issue in issues:
         progress(f"check: {issue}")
     progress("review: checking the notes against the research")
-    book, changes = await review_notes(known_file, found, written, issues)
-    for change in changes:
-        progress(f"review: {change}")
-    if not changes:
-        progress("review: no changes")
+    try:
+        book, changes = await review_notes(known_file, found, written, issues)
+    except (llm.StructuredOutputError, llm.TransientLLMError, llm.ProviderError) as exc:
+        progress(f"review: failed, keeping the unreviewed notes ({exc})")
+        failed = f"the review call failed, so these notes are unreviewed ({exc})"
+        # The check findings the review would have dealt with go to the reader instead.
+        book = written.model_copy(update={"warnings": [*written.warnings, failed, *issues]})
+    else:
+        for change in changes:
+            progress(f"review: {change}")
+        if not changes:
+            progress("review: no changes")
     # Research already printed its own warnings.
     for warning in book.warnings:
         if warning not in found.warnings:

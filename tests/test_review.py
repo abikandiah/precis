@@ -175,4 +175,4 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(_book("fiction", ideas=4), [])
     assert "The research contains spoilers" in text and "When unsure whether something is a spoiler" in text
-    assert "3-6 ideas" in text and "key claims" not in text
+    assert "3-6 ideas" in text and "key claims" not in text and "key_claims_for_review" not in text

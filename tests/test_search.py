@@ -114,6 +114,9 @@ def test_missing_title_matches_on_author_alone():
         ("Spector, Tim", [["tim", "spector"]]),
         ("J.K. Rowling", [["j", "k", "rowling"]]),
         ("Carl Sagan and Ann Druyan (editor)", [["carl", "sagan"], ["ann", "druyan"]]),
+        ("Dr. Tim Spector", [["tim", "spector"]]),
+        ("Prof Sir Tim Spector", [["tim", "spector"]]),
+        ("Miss", [["miss"]]),  # a title is never the whole name
         (None, []),
     ],
 )

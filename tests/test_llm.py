@@ -58,11 +58,11 @@ def _mock_client_with_sequence(*responses: MagicMock) -> MagicMock:
     return client
 
 
-def _tool_call(arguments: str) -> ChatCompletionMessageFunctionToolCall:
+def _tool_call(arguments: str, model: type[BaseModel] = _Verdict) -> ChatCompletionMessageFunctionToolCall:
     return ChatCompletionMessageFunctionToolCall(
         id="call_1",
         type="function",
-        function=Function(name="emit__verdict", arguments=arguments),
+        function=Function(name=f"emit_{model.__name__.lower()}", arguments=arguments),
     )
 
 
@@ -174,7 +174,7 @@ async def test_no_validation_context_means_unconstrained():
     sees None and skips its check — the default, unconstrained behavior
     every existing caller of complete_structured already relies on.
     """
-    client = _mock_client_returning([_tool_call('{"items": ["a", "b", "c"]}')])
+    client = _mock_client_returning([_tool_call('{"items": ["a", "b", "c"]}', _CountConstrained)])
     result = await complete_structured(client, messages=[], response_model=_CountConstrained)
     assert result.items == ["a", "b", "c"]
 
@@ -182,8 +182,8 @@ async def test_no_validation_context_means_unconstrained():
 @pytest.mark.asyncio
 async def test_validation_context_mismatch_triggers_retry_then_succeeds():
     client = _mock_client_with_sequence(
-        _response_with_tool_calls([_tool_call('{"items": ["a", "b", "c"]}')]),  # wrong count first
-        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}')]),  # correct on retry
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b", "c"]}', _CountConstrained)]),  # wrong count first
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}', _CountConstrained)]),  # correct on retry
     )
     result = await complete_structured(
         client,
@@ -198,7 +198,7 @@ async def test_validation_context_mismatch_triggers_retry_then_succeeds():
 
 @pytest.mark.asyncio
 async def test_validation_context_mismatch_raises_after_exhausting_attempts():
-    client = _mock_client_returning([_tool_call('{"items": ["a", "b", "c"]}')])
+    client = _mock_client_returning([_tool_call('{"items": ["a", "b", "c"]}', _CountConstrained)])
     with pytest.raises(StructuredOutputError, match="expected 2 items, got 3"):
         await complete_structured(
             client,
@@ -287,8 +287,8 @@ async def test_complete_also_retries_error_finish_reason(no_backoff):
 @pytest.mark.asyncio
 async def test_a_retry_after_a_validation_failure_shows_the_model_its_call_and_the_error():
     client = _mock_client_with_sequence(
-        _response_with_tool_calls([_tool_call('{"items": ["a"]}')]),
-        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}')]),
+        _response_with_tool_calls([_tool_call('{"items": ["a"]}', _CountConstrained)]),
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}', _CountConstrained)]),
     )
     original = [{"role": "user", "content": "go"}]
     await complete_structured(
@@ -305,8 +305,8 @@ async def test_a_retry_after_a_validation_failure_shows_the_model_its_call_and_t
 @pytest.mark.asyncio
 async def test_unparseable_arguments_are_retried_without_echoing_them():
     client = _mock_client_with_sequence(
-        _response_with_tool_calls([_tool_call('{"items": ["a"')]),  # cut off mid-JSON
-        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}')]),
+        _response_with_tool_calls([_tool_call('{"items": ["a"', _CountConstrained)]),  # cut off mid-JSON
+        _response_with_tool_calls([_tool_call('{"items": ["a", "b"]}', _CountConstrained)]),
     )
     original = [{"role": "user", "content": "go"}]
     await complete_structured(client, messages=original, response_model=_CountConstrained)
@@ -343,3 +343,42 @@ async def test_tool_models_sends_every_tool_but_forces_the_response_models():
     assert kwargs["tool_choice"]["function"]["name"] == "emit__verdict"
     with pytest.raises(ValueError, match="must include the response model"):
         await complete_structured(client, messages=[], response_model=_Verdict, tool_models=[_Other])
+
+
+@pytest.mark.asyncio
+async def test_a_call_to_another_sent_tool_is_rejected_with_feedback_not_validated():
+    client = _mock_client_with_sequence(
+        _response_with_tool_calls([_tool_call('{"note": "n"}', _Other)]),
+        _response_with_tool_calls([_tool_call('{"verified": true, "reason": "r"}')]),
+    )
+    original = [{"role": "user", "content": "go"}]
+    result = await complete_structured(client, messages=original, response_model=_Verdict, tool_models=[_Other, _Verdict])
+    assert result.verified is True
+    second = client.chat.completions.create.await_args_list[1].kwargs["messages"]
+    assert second[1]["tool_calls"][0]["function"]["name"] == "emit__other"
+    assert "wrong tool" in second[2]["content"] and "emit__verdict" in second[2]["content"]
+
+
+@pytest.mark.asyncio
+async def test_the_forced_tool_is_picked_out_of_several_calls():
+    client = _mock_client_returning(
+        [_tool_call('{"note": "n"}', _Other), _tool_call('{"verified": true, "reason": "r"}')]
+    )
+    result = await complete_structured(client, messages=[], response_model=_Verdict, tool_models=[_Other, _Verdict])
+    assert result.verified is True
+
+
+@pytest.mark.asyncio
+async def test_calling_the_wrong_tool_every_time_says_which_one():
+    client = _mock_client_returning([_tool_call('{"note": "n"}', _Other)])
+    with pytest.raises(StructuredOutputError, match="called 'emit__other' instead"):
+        await complete_structured(client, messages=[], response_model=_Verdict, tool_models=[_Other, _Verdict])
+
+
+@pytest.mark.asyncio
+async def test_transient_error_reports_the_clients_own_retry_budget():
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    client = MagicMock(max_retries=2)
+    client.chat.completions.create = AsyncMock(side_effect=APIConnectionError(request=request))
+    with pytest.raises(TransientLLMError, match="exhausting the client's 2 built-in retries"):
+        await complete(client, messages=[])

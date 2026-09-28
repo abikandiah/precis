@@ -183,8 +183,10 @@ audits every field for spoilers, with the write prompt's guards.
 The review is validated by building the book it would produce, by the
 book's own rules: too few or too many ideas, verdicts out of step with the
 ideas, a dropped idea whose claims weren't dealt with, or a half-returned
-synopsis is sent back with the reason, and the run fails only if it still
-can't fix it. A revised idea that leaves out its sources keeps the
+synopsis is sent back with the reason. If it still can't fix it, or the
+call fails outright, the run keeps the written notes (already paid for),
+with a warning that they're unreviewed and the check findings as warnings.
+A revised idea that leaves out its sources keeps the
 original's. Afterwards the checks run again, and whatever they still find
 is a warning for the reader, beside one naming the uncited ideas (and a
 book-level one when most are uncited).

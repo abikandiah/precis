@@ -104,7 +104,7 @@ def _gateway_error_message(error: dict[str, Any]) -> str | None:
     return str(message) if message else None
 
 
-def _transient_error(exc: Exception) -> TransientLLMError:
+def _transient_error(client: AsyncOpenAI, exc: Exception) -> TransientLLMError:
     """Wraps the last transient failure with what actually went wrong —
     the status and the gateway's own explanation.
     """
@@ -113,7 +113,7 @@ def _transient_error(exc: Exception) -> TransientLLMError:
         body = exc.body if isinstance(exc.body, dict) else {}
         detail = f"HTTP {exc.status_code}: {_gateway_error_message(body) or exc.message}"
     return TransientLLMError(
-        f"LLM call failed after exhausting the client's {settings.llm_max_retries} built-in retries ({detail})"
+        f"LLM call failed after exhausting the client's {client.max_retries} built-in retries ({detail})"
     )
 
 
@@ -187,7 +187,7 @@ async def _create(client: AsyncOpenAI, **kwargs: Any) -> ChatCompletion:
         try:
             response = await client.chat.completions.create(**kwargs)
         except _TRANSIENT_ERRORS as exc:
-            raise _transient_error(exc) from exc
+            raise _transient_error(client, exc) from exc
         usage.record_llm_response(response)
         error = _provider_error(response)
         if error is None:
@@ -222,13 +222,10 @@ def _excerpt(text: str, limit: int) -> str:
     return text[:limit] + "..." if len(text) > limit else text
 
 
-def _validation_feedback(
-    call: ChatCompletionMessageFunctionToolCall, tool_name: str, exc: Exception
-) -> list[ChatCompletionMessageParam]:
+def _rejection(call: ChatCompletionMessageFunctionToolCall, reason: str) -> list[ChatCompletionMessageParam]:
     """The rejected tool call and why it was rejected, as the turn a retry
     continues from.
     """
-    error = _excerpt(str(exc), _VALIDATION_FEEDBACK_CHARS)
     return [
         {
             "role": "assistant",
@@ -244,10 +241,17 @@ def _validation_feedback(
         {
             "role": "tool",
             "tool_call_id": call.id,
-            "content": f"Rejected — the result didn't validate:\n{error}\n\n"
-            f"Call {tool_name} again with the whole result, corrected.",
+            "content": reason,
         },
     ]
+
+
+def _parses(arguments: str) -> bool:
+    try:
+        json.loads(arguments)
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 def build_client() -> AsyncOpenAI:
@@ -341,15 +345,26 @@ async def complete_structured[T: BaseModel](
         )
 
         choice = response.choices[0]
-        tool_calls = choice.message.tool_calls or []
-        call = tool_calls[0] if tool_calls else None
-        if call is None or not isinstance(call, ChatCompletionMessageFunctionToolCall):
+        calls = [c for c in choice.message.tool_calls or [] if isinstance(c, ChatCompletionMessageFunctionToolCall)]
+        call = next((c for c in calls if c.function.name == tool_name), None)
+        if call is None:
+            # Another of the tools sent, despite the forced choice: validating
+            # its arguments as the response model would be meaningless.
+            wrong = calls[0] if calls else None
             if attempt == max_attempts - 1:
-                reply = _excerpt((choice.message.content or "").strip(), _REPLY_EXCERPT_CHARS)
+                if wrong is not None:
+                    did = f"called {wrong.function.name!r} instead"
+                else:
+                    did = f"replied {_excerpt((choice.message.content or '').strip(), _REPLY_EXCERPT_CHARS)!r}"
                 raise StructuredOutputError(
                     f"model did not call the expected tool {tool_name!r} after {max_attempts} attempts "
-                    f"(model {response.model!r}, finish_reason {choice.finish_reason!r}, replied {reply!r})"
+                    f"(model {response.model!r}, finish_reason {choice.finish_reason!r}, {did})"
                 )
+            if wrong is not None and _parses(wrong.function.arguments):
+                reason = f"Rejected — that's the wrong tool. Call {tool_name} with the whole result."
+                attempt_messages = [*messages, *_rejection(wrong, reason)]
+            else:
+                attempt_messages = list(messages)
             continue
 
         try:
@@ -362,7 +377,9 @@ async def complete_structured[T: BaseModel](
                     f"after {max_attempts} attempts: {exc}"
                 ) from exc
             if isinstance(exc, ValidationError):
-                attempt_messages = [*messages, *_validation_feedback(call, tool_name, exc)]
+                error = _excerpt(str(exc), _VALIDATION_FEEDBACK_CHARS)
+                reason = f"Rejected — the result didn't validate:\n{error}\n\nCall {tool_name} again with the whole result, corrected."
+                attempt_messages = [*messages, *_rejection(call, reason)]
             else:
                 attempt_messages = list(messages)
             continue
