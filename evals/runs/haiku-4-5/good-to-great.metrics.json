@@ -1,0 +1,27 @@
+{
+  "slug": "good-to-great",
+  "label": "haiku-4-5",
+  "model": "anthropic/claude-haiku-4.5",
+  "started_at": "2026-09-28T20:30:45+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "0f67f93aa787",
+    "sources": 20
+  },
+  "duration_seconds": 94.6,
+  "usage": {
+    "llm_calls": 3,
+    "prompt_tokens": 90174,
+    "completion_tokens": 8709,
+    "cached_tokens": 52730,
+    "llm_cost_usd": 0.092853,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 11,
+  "key_claims": 10,
+  "warnings": 0,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

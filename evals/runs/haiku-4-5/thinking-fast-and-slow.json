@@ -1,0 +1,203 @@
+{
+  "schema_version": "2",
+  "title": "Thinking, Fast and Slow",
+  "author": "Daniel Kahneman",
+  "year": 2011,
+  "isbn": "9780374533557",
+  "page_count": 499,
+  "kind": "non-fiction",
+  "one_line_takeaway": "Our minds operate through two distinct thinking systems—one fast and intuitive, one slow and deliberate—and understanding their different strengths and weaknesses helps explain why we make predictable errors in judgment and how we can make better decisions.",
+  "synopsis": "Kahneman presents decades of psychological research showing that human judgment and decision-making deviate systematically from the rationality assumed by traditional economics. The book introduces a foundational framework: System 1, which operates automatically and quickly through intuition and mental shortcuts, and System 2, which engages in deliberate, effortful reasoning. System 1 constantly generates suggestions, impressions, and stories about the world, while System 2 monitors and evaluates these suggestions—though often lazily endorses them without scrutiny.\n\nThe second major section catalogs the predictable biases and heuristics that emerge from System 1's operation. When faced with difficult questions, System 1 substitutes easier ones without our awareness. It uses mental shortcuts like anchoring (being influenced by irrelevant initial numbers), availability (judging likelihood based on how easily examples come to mind), and representativeness (judging probability by how closely something matches a category stereotype). System 1 is biased toward believing and confirming existing beliefs, jumps to conclusions from incomplete information, and constructs coherent narratives that feel true regardless of whether they rest on sufficient evidence.\n\nKahneman's most significant contribution is Prospect Theory, which shows how people actually make decisions about risk and money—differently from what rational economic models predict. People are loss-averse, feeling the pain of losses more acutely than the pleasure of equivalent gains. They evaluate outcomes relative to a reference point rather than in absolute terms. They also show predictable irrationality: they take excessive risks to avoid losses (the certainty effect) but become risk-averse when facing potential gains (the possibility effect). These patterns violate traditional utility theory but emerge consistently across experimental and real-world decisions.\n\nFinally, Kahneman distinguishes between the \"experiencing self,\" which lives through moments moment-to-moment, and the \"remembering self,\" which judges our lives retrospectively. We remember experiences through their peaks and endings, not their averages, and we make decisions aimed at creating good memories rather than good experiences. Overconfidence pervades our thinking because we tell coherent stories about the past, suffer from hindsight bias, and overestimate how much we understand the world. The book demonstrates these concepts through thought experiments and studies, showing readers their own biases at work and suggesting how awareness can help avoid costly mistakes when stakes are high.",
+  "ideas": [
+    {
+      "title": "System 1 and System 2: Two Systems of Thinking",
+      "summary": "The human mind operates through two distinct systems: System 1 is fast, automatic, intuitive, and effortless; System 2 is slow, deliberate, logical, and effortful. System 1 runs continuously and generates most of our impressions and intuitions, while System 2 engages only when needed for complex reasoning. Understanding their characteristics and interaction explains how we think and why we make predictable errors.",
+      "evidence": "Kahneman illustrates this with simple examples: responding instantly to 'What is 2+2?' uses System 1, while calculating '17 × 24' requires System 2. He describes System 1's automatic functions (recognizing faces, detecting emotion in a voice, understanding simple sentences) and System 2's effortful activities (focusing on a specific voice in a crowded room, checking logical validity, parking in a tight space). The famous 'invisible gorilla' experiment shows how focused System 2 attention can make us blind to obvious events occurring in our visual field.",
+      "sources": [
+        "S1",
+        "S2",
+        "S5"
+      ]
+    },
+    {
+      "title": "Cognitive Ease and the Illusion of Truth",
+      "summary": "When information is easy to process—due to familiarity, clear presentation, or positive mood—we experience cognitive ease, which leads us to trust information more and believe it is true. This creates an illusion of truth: repeated exposure to a statement makes it feel more familiar and therefore more believable, even if it is false. Marketers and authoritarian institutions exploit this by using repetition to make claims seem true.",
+      "evidence": "Kahneman explains how factors like clear fonts, simple language, and positive moods induce cognitive ease and increase belief in statements. He notes that stocks with pronounceable ticker symbols perform better over time, likely because pronounceability induces cognitive ease. He states: 'A reliable way to make people believe in falsehoods is frequent repetition, because familiarity is not easily distinguished from truth.'",
+      "sources": [
+        "S1",
+        "S7",
+        "S9"
+      ]
+    },
+    {
+      "title": "Heuristics and Substitution: Answering Easy Questions Instead of Hard Ones",
+      "summary": "When System 1 encounters a difficult question, it often answers an easier, related question instead—usually without our awareness. This substitution is efficient when the easy question is a good proxy for the hard one, but it leads to systematic errors in judgment. The process occurs automatically and shapes many of our intuitive assessments.",
+      "evidence": "When asked 'How satisfied are you with your life?' people often substitute the easier question 'What is my current mood?' and answer based on their mood rather than a genuine life assessment. Kahneman's 'Linda problem' exemplifies this: subjects asked whether Linda (described as young, outspoken, concerned with social justice) is more likely a bank teller or a bank teller and feminist overwhelmingly choose the latter, substituting 'Is Linda a feminist?' for the actual probability question. The substitution is so automatic that few people realize it occurred.",
+      "sources": [
+        "S1",
+        "S7",
+        "S9"
+      ]
+    },
+    {
+      "title": "Anchoring: How Initial Numbers Bias Estimates",
+      "summary": "When estimating unknown quantities, people are heavily influenced by an initial number—the anchor—even when that number is obviously irrelevant. Anchoring works through two mechanisms: adjustment (starting from the anchor and making insufficient adjustments) and priming (the anchor priming related ideas in memory). This bias affects estimates across many domains, from prices to probabilities.",
+      "evidence": "Kahneman describes experiments where people estimate the height of a line differently depending on whether they start from the top or bottom of the page, being pulled toward the anchor. Subjects asked 'Was Mahatma Gandhi more than 114 years old when he died?' give much higher estimates of his age than those asked 'Was he more or less than 35 years old?' Even obviously random anchors, like spinning a wheel of fortune or one's social security number's last digits, influence subsequent estimates.",
+      "sources": [
+        "S1",
+        "S5",
+        "S7"
+      ]
+    },
+    {
+      "title": "Availability Heuristic: Judging Likelihood by Ease of Recall",
+      "summary": "People estimate the probability or frequency of an event based on how easily examples come to mind, rather than on actual statistical frequency. While this heuristic is usually reliable, it produces systematic errors because factors unrelated to actual frequency—such as emotional salience, media coverage, and personal experience—influence how readily instances come to mind.",
+      "evidence": "Kahneman shows how people overestimate the frequency of dramatic events like plane crashes or murders because such events are emotionally vivid and well-publicized. Someone whose friends have been bitten by dogs will overestimate how frequently dog attacks occur. The easier it is to recall consequences of an action, the greater people perceive those consequences to be, leading to distorted risk assessment.",
+      "sources": [
+        "S1",
+        "S2",
+        "S5"
+      ]
+    },
+    {
+      "title": "Representativeness and Base Rate Neglect",
+      "summary": "When judging whether something belongs to a category, System 1 asks how closely it matches the typical features of that category, often ignoring the base rate—the actual frequency of the category in the population. This leads to systematic misjudgments, particularly when base rates and similarity information point in different directions.",
+      "evidence": "The classic example: given that Steve is 'shy and withdrawn' with 'a need for order and structure,' subjects judge he is more likely a librarian than a farmer, ignoring that farmers vastly outnumber librarians. Similarly, when told John is 'athletic' and 'a strong advocate of LGBTQ rights,' people find 'basketball player and gay' more likely than 'basketball player,' even though the former is a subset of the latter. System 1 substitutes the question 'How similar is Steve to a typical librarian?' for the harder question 'What is the probability Steve is a librarian given the population base rates?'",
+      "sources": [
+        "S1",
+        "S2",
+        "S7"
+      ]
+    },
+    {
+      "title": "Loss Aversion and Prospect Theory",
+      "summary": "Kahneman's Prospect Theory explains that people do not evaluate outcomes in absolute terms or even by their expected utility, but rather relative to a reference point. Crucially, losses loom much larger than gains: the pain of losing $100 is felt more intensely than the pleasure of gaining $100. This asymmetry shapes risk-taking behavior in predictable ways, making people take excessive risks to avoid losses but play it safe to protect gains.",
+      "evidence": "When offered a coin flip with 50% chance to win $1,000 or guaranteed $500, most people choose the sure thing. But when offered 50% chance to lose $1,000 or guaranteed loss of $500, most choose the gamble. The same outcome (losing $500) is treated differently depending on the reference point. Kahneman shows people experience reduced sensitivity to changes in wealth—losing $100 hurts more if you start with $200 than if you start with $1,000.",
+      "sources": [
+        "S1",
+        "S2",
+        "S5"
+      ]
+    },
+    {
+      "title": "Overconfidence and WYSIATI (What You See Is All There Is)",
+      "summary": "People are systematically overconfident in their understanding of the world and their judgments. This overconfidence stems partly from WYSIATI—the mind's tendency to construct coherent stories from available information while treating that information as complete, ignoring what is missing. The more coherent and compelling the story, the more confident we feel, regardless of whether the story rests on sufficient evidence.",
+      "evidence": "Kahneman cites the planning fallacy: people consistently underestimate the time and cost of projects. American kitchen remodeling in 2002 was expected to average $18,658 but actually cost $38,769. He attributes this to hindsight bias and the narrative fallacy—we construct stories to explain the past that make it seem more predictable than it was. We overestimate our understanding of the world because we focus on what we know and ignore what we do not know (Known Unknowns and Unknown Unknowns).",
+      "sources": [
+        "S1",
+        "S4",
+        "S7",
+        "S9"
+      ]
+    },
+    {
+      "title": "Priming: Unconscious Influences on Thought and Action",
+      "summary": "Exposure to a stimulus unconsciously influences our response to a subsequent stimulus, often without awareness. Priming effects shape our thoughts, emotions, and actions through automatic associations. For example, being primed with words related to old age causes people to walk more slowly; reminders of money make people more individualistic and less helpful to others.",
+      "evidence": "When people are unconsciously exposed to the word 'soup' through priming (via the word 'eat'), they are quicker to recognize 'soup' in blurry text and become primed for food-related associations like 'fork,' 'hungry,' and 'diet.' People reading about the elderly unconsciously walk slower afterward. In word completion tasks, if you have been thinking about food, you complete 'SO_P' as 'SOUP,' but if you have been thinking about cleanliness, you complete it as 'SOAP.' The effects occur without conscious awareness and demonstrate System 1's associative machinery.",
+      "sources": [
+        "S1",
+        "S7",
+        "S9"
+      ]
+    },
+    {
+      "title": "The Experiencing Self and the Remembering Self",
+      "summary": "Kahneman distinguishes two selves: the experiencing self lives through moments and experiences life as it unfolds; the remembering self judges our lives retrospectively and makes decisions about future experiences. These two selves can want different things—the remembering self judges experiences by their peak moments and endings (the peak-end rule), not by their average or total duration, creating a fundamental mismatch between what makes us happy and what we remember as making us happy.",
+      "evidence": "Kahneman's research on happiness shows that our memories override our actual experiences in guiding our decisions. We make choices aimed at creating good memories rather than good experiences. For example, a longer vacation with a disappointing ending will be remembered less fondly than a shorter vacation with a better ending, even though the experiencing self lived through more pleasant moments during the longer vacation. We often stay at conference to avoid feeling we wasted our investment, prioritizing the memory we will create over the actual experience.",
+      "sources": [
+        "S1",
+        "S4",
+        "S7"
+      ]
+    },
+    {
+      "title": "The Confluence of Biases: Coherence, Confirmation, and the Halo Effect",
+      "summary": "System 1 seeks coherence and is biased toward belief and confirmation. Once we form a belief or impression, System 1 brings to mind confirmatory instances while ignoring contradictory evidence, and our overall impression of a person or situation (the halo effect) biases our evaluation of their specific traits. These biases work together to create strong, stable beliefs that resist change.",
+      "evidence": "When asked 'Is Sam friendly?' different instances of Sam's behavior come to mind than when asked 'Is Sam unfriendly?'—demonstrating confirmation bias. If you like a political leader's politics, you are likely to also like their voice and appearance, showing the halo effect. System 1 constructs coherent stories and once a wrong conclusion is accepted as true, it triggers the associative mechanism, spreading related ideas through the belief system. System 2, often lazy or overloaded, fails to correct these biased impressions.",
+      "sources": [
+        "S1",
+        "S7",
+        "S9"
+      ]
+    },
+    {
+      "title": "Ego Depletion: Mental Effort Depletes Willpower",
+      "summary": "Exerting self-control is mentally tiring and depletes a shared pool of mental energy, a phenomenon called ego depletion. After a demanding task requiring self-control or concentration, people are less willing and able to exert self-control in subsequent challenges. This reveals that willpower and cognitive effort draw on the same limited resource, making decision-making quality dependent on our cognitive state.",
+      "evidence": "Research by Roy Baumeister's group shows that after exerting self-control or engaging in a demanding cognitive task, people become more likely to yield to temptation, make selfish choices, and display poor judgment. Glucose depletion plays a role: studies of parole judges found they were more likely to grant parole immediately after meal breaks and more likely to deny it when hungry and depleted. Replenishing glucose levels can partially counter the effects of ego depletion, showing the biological basis of mental fatigue.",
+      "sources": [
+        "S1",
+        "S7",
+        "S8"
+      ]
+    }
+  ],
+  "key_claims_for_review": [
+    {
+      "prompt": "What is the core difference between System 1 and System 2, and what role does each play in our thinking?",
+      "answer": "System 1 is fast, automatic, intuitive, and effortless; it generates most of our impressions and runs continuously. System 2 is slow, deliberate, logical, and effortful; it engages only when needed for complex reasoning. System 1 constantly sends suggestions to System 2, which then searches for confirmation rather than evidence, which is why System 2 often lazily endorses System 1's intuitions."
+    },
+    {
+      "prompt": "How does the availability heuristic lead us to misjudge the frequency of events?",
+      "answer": "We estimate how often an event occurs based on how easily examples come to mind, not on actual statistical frequency. Emotionally vivid or well-publicized events—like plane crashes or dramatic crimes—are easier to recall, so we overestimate their frequency. Personal experiences also make certain events feel more common than they statistically are."
+    },
+    {
+      "prompt": "In the Linda problem, why do most people answer that Linda is more likely to be a bank teller and feminist than just a bank teller, and what does this reveal about our thinking?",
+      "answer": "People judge Linda more likely to be a 'bank teller and feminist' because she matches the stereotype of a feminist better than a generic bank teller, so System 1 substitutes the easier question 'Is Linda a feminist?' for the harder probability question. This violates the laws of probability (all feminist bank tellers are bank tellers, so the subset cannot be more likely), revealing how System 1 jumps to conclusions based on similarity rather than logic."
+    },
+    {
+      "prompt": "What is anchoring, and why does it affect our estimates even when the anchor is obviously irrelevant?",
+      "answer": "Anchoring is the tendency to be influenced by an initial number when estimating an unknown quantity, even when that number is irrelevant. It works through adjustment (starting from the anchor and making insufficient adjustments) and priming (the anchor priming related ideas). Even random anchors like spinning a wheel of fortune or social security numbers influence estimates because the process is largely unconscious."
+    },
+    {
+      "prompt": "Explain the base rate neglect bias and give an example of how it leads to misguided judgments.",
+      "answer": "We judge the probability that something belongs to a category based on how closely it matches the category stereotype, while ignoring the base rate—how common the category actually is in the population. For example, when told Steve is shy and detail-oriented, people judge him more likely to be a librarian than a farmer, ignoring that farmers vastly outnumber librarians. We focus on the similarity question ('How much does Steve match a librarian?') rather than the probability question ('What proportion of people like Steve are librarians?')."
+    },
+    {
+      "prompt": "What does loss aversion predict about how people take risks with money, and how does it differ from expected utility theory?",
+      "answer": "Loss aversion predicts that losses feel roughly twice as painful as equivalent gains feel good, so people will take excessive risks to avoid losses (the certainty effect) but play it safe to protect existing gains (the possibility effect). When facing a gamble to lose money, most people choose to gamble rather than accept a guaranteed loss. This contradicts expected utility theory, which predicts consistent risk preferences regardless of framing."
+    },
+    {
+      "prompt": "What is WYSIATI, and how does it contribute to overconfidence?",
+      "answer": "WYSIATI stands for 'What You See Is All There Is'—the tendency to construct coherent stories from available information while treating that information as complete. We ignore what we do not know (Known Unknowns and Unknown Unknowns). The more coherent and compelling the story we construct, the more confident we feel in our judgments, regardless of whether that confidence is justified by the evidence available."
+    },
+    {
+      "prompt": "How does priming work, and what does it reveal about the automatic nature of System 1?",
+      "answer": "Priming occurs when exposure to a stimulus unconsciously influences our response to a subsequent stimulus. Being exposed to words related to old age causes people to walk slower; being primed with the concept of money makes people more individualistic and less helpful. Priming effects demonstrate that much of System 1's activity is completely unconscious and automatic, operating without our awareness or control."
+    },
+    {
+      "prompt": "Explain the distinction between the experiencing self and the remembering self, and why it matters for happiness.",
+      "answer": "The experiencing self lives through moments and experiences life as it unfolds; the remembering self judges experiences retrospectively. The remembering self evaluates experiences by their peak moments and endings (the peak-end rule), not by their average duration. This creates a mismatch: we make decisions aimed at creating good memories rather than good experiences, so we might endure less pleasant experiences if they lead to a better ending to remember."
+    },
+    {
+      "prompt": "What is the planning fallacy, and what does it reveal about hindsight bias and narrative fallacy?",
+      "answer": "The planning fallacy is our tendency to underestimate the time and cost of future projects—American kitchen remodeling expected to cost $18,658 actually averaged $38,769. This occurs because of hindsight bias (forgetting what we used to believe about similar projects) and narrative fallacy (constructing stories about the past that make it seem more predictable than it was). These stories make us overconfident that we understand how projects will unfold."
+    },
+    {
+      "prompt": "How does ego depletion affect judgment and decision-making, and what role does glucose play?",
+      "answer": "Exerting self-control or engaging in demanding cognitive tasks depletes a shared pool of mental energy, leaving us less willing and able to exert self-control in subsequent tasks. Parole judges were more likely to grant parole after meal breaks and more likely to deny it when hungry and depleted, showing that decision quality suffers with mental fatigue. Replenishing glucose levels can partially counter ego depletion, suggesting a biological basis for mental energy."
+    },
+    {
+      "prompt": "What is the conjunction fallacy, and why do people make this error?",
+      "answer": "The conjunction fallacy is the tendency to judge a conjunction (A and B) as more probable than its parts (A alone), which violates the laws of probability. In the Linda problem, people judge 'Linda is a bank teller and feminist' more likely than 'Linda is a bank teller' because feminist bank teller matches their stereotype better. System 1 substitutes the question 'How similar is Linda to a feminist?' for the harder probability question, leading to this predictable logical error."
+    },
+    {
+      "prompt": "How do confirmation bias and the halo effect work together to stabilize our beliefs?",
+      "answer": "Once we form an initial belief or impression, confirmation bias leads us to seek and notice evidence that confirms it while ignoring contradictory evidence. The halo effect means our overall positive or negative impression biases our evaluation of specific traits, making it hard to see exceptions. Together, these biases create stable, resistant beliefs: System 1 constructs a coherent story, and System 2 lazily endorses it without critical scrutiny."
+    },
+    {
+      "prompt": "What does Kahneman mean by cognitive ease, and how does it influence our judgment?",
+      "answer": "Cognitive ease refers to the fluency with which we process information—when information is familiar, clearly presented, in a readable font, or when we are in a good mood, we experience cognitive ease. When experiencing cognitive ease, we tend to trust our intuitions, accept information as true, and rely more on System 1. This creates an illusion of truth through repetition: familiarity becomes indistinguishable from truth, which marketers and institutions exploit."
+    },
+    {
+      "prompt": "According to Kahneman, when should we trust expert intuition, and when should we be skeptical of it?",
+      "answer": "Expert intuition is valid in domains where expertise is possible—situations where there is regular feedback, patterns can be learned, and the environment is stable enough to develop valid intuitions (like chess masters recognizing good moves). It should not be trusted in domains like long-term political forecasting or stock picking, where the environment is unpredictable, feedback is absent or delayed, and so-called experts are not actually better than chance. The key distinction is whether the domain allows true learning from experience."
+    }
+  ],
+  "tags": [
+    "psychology",
+    "economics",
+    "philosophy",
+    "science"
+  ],
+  "warnings": []
+}
