@@ -1,8 +1,11 @@
 """Research: search the web once per book, keep the pages about it, and
 check the known-file's identity against them (docs/blueprint.md, Pipeline).
 
-Three searches run in parallel with full page text. Their raw results are
-cached on disk per slug, so a rerun doesn't search again; everything after
+Three searches run in parallel with full page text. When they come back
+thin — fewer than FOLLOW_UP_BELOW pages naming the book and its author —
+three follow-up searches look wider, so the credits go to the lesser-known
+books that need them. Raw results, follow-ups included, are cached on disk
+per slug, so a rerun doesn't search again; everything after
 the fetch — filtering, the identity checks, dedupe, excerpts — is
 `build_research`, a pure function over those results, so changing it never
 needs a refetch.
@@ -53,17 +56,21 @@ ProgressCallback = Callable[[str], None]
 CACHE_VERSION = 1
 
 RESULTS_PER_QUERY = 8
-# ~4 characters per token: each page is capped at ~3k tokens and the whole
-# research at ~30k, so one book's research is a fixed, cacheable prompt
-# prefix of known size.
-PAGE_CHARS = 12_000
-TOTAL_CHARS = 120_000
+# ~4 characters per token: each page is capped at ~6k tokens and the whole
+# research at ~60k, so one book's research is a bounded, cacheable prompt
+# prefix. A lesser-known book's few pages are often its only detailed
+# ones, so a page gets room; a famous book's research fills the total with
+# its best-ranked pages.
+PAGE_CHARS = 24_000
+TOTAL_CHARS = 240_000
 # Research stops once less than this is left of the total — a page cut
 # that short isn't worth including.
 MIN_PAGE_CHARS = 2_000
 # Fewer sources than this about the book warns that the notes will lean on
 # the model's own knowledge.
 MIN_SOURCES = 2
+# Fewer sources than this from the first searches runs the follow-ups.
+FOLLOW_UP_BELOW = 5
 
 # Any opening or closing source tag inside page text, however spelled — a
 # page can't close its own block, or open a fake one, and pose as something
@@ -134,6 +141,32 @@ def research_queries(known_file: KnownFile) -> list[str]:
     if known_file.kind == "fiction":
         return [f"{book} themes analysis", f"{book} novel review", f"{book} synopsis"]
     return [f"{book} summary key ideas", f"{book} book review", f"{book} author interview"]
+
+
+def follow_up_queries(known_file: KnownFile) -> list[str]:
+    """Wider searches for a book the first ones found little on: the book
+    alone, then the kinds of page a lesser-known book still has. Fiction
+    never searches the book alone or for chapter summaries, which bring
+    back plot summaries with the ending.
+    """
+    book = f'"{short_title(known_file.title)}" {known_file.author}'
+    if known_file.kind == "fiction":
+        return [f"{book} book review", f"{book} publisher description", f"{book} literary criticism"]
+    return [book, f"{book} chapter summary", f"{book} publisher description"]
+
+
+def _needs_follow_up(known_file: KnownFile, results_per_query: list[list[SearchResult]]) -> bool:
+    """Whether the first searches came back thin: fewer than FOLLOW_UP_BELOW
+    pages naming both the book and its author. That includes none naming
+    the author: a lesser-known book's hits are often title-only (a
+    same-titled play, an excerpt cut before the byline), and a wider search
+    may find the author. A wrong author costs one wasted round of follow-ups
+    before the identity check fails.
+    """
+    try:
+        return len(build_research(known_file, results_per_query).sources) < FOLLOW_UP_BELOW
+    except ResearchError:
+        return True
 
 
 def _url_key(url: str) -> str:
@@ -282,27 +315,53 @@ def _cache_identity(known_file: KnownFile) -> dict[str, Any]:
     }
 
 
-def load_cache(path: Path, known_file: KnownFile) -> tuple[list[list[SearchResult]], str] | None:
-    """The cached results and when they were fetched, or None when there's
-    no usable cache for this known-file.
+@dataclass(frozen=True)
+class Cached:
+    results: list[list[SearchResult]]
+    fetched_at: str
+    # None when no follow-ups were searched; [] lists when they ran and
+    # found nothing.
+    follow_ups: list[list[SearchResult]] | None
+
+
+def _results(data: Any) -> list[list[SearchResult]]:
+    return [[SearchResult(**r) for r in query_results] for query_results in data]
+
+
+def load_cache(path: Path, known_file: KnownFile) -> Cached | None:
+    """The cached results, or None when there's no usable cache for this
+    known-file. A cache with follow-ups for other queries than today's is
+    stale; one from before follow-ups existed is used as it is.
     """
     try:
         data = json.loads(path.read_text())
         identity = _cache_identity(known_file)
         if {k: data.get(k) for k in identity} != identity:
             return None
-        results = [[SearchResult(**r) for r in query_results] for query_results in data["results"]]
-        return results, str(data["fetched_at"])
+        follow_ups = None
+        if "follow_up_queries" in data:
+            if data["follow_up_queries"] != follow_up_queries(known_file):
+                return None
+            follow_ups = _results(data["follow_up_results"])
+        return Cached(_results(data["results"]), str(data["fetched_at"]), follow_ups)
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
 
-def save_cache(path: Path, known_file: KnownFile, results_per_query: list[list[SearchResult]]) -> None:
-    data = {
+def save_cache(
+    path: Path,
+    known_file: KnownFile,
+    results_per_query: list[list[SearchResult]],
+    follow_ups: list[list[SearchResult]] | None = None,
+) -> None:
+    data: dict[str, Any] = {
         **_cache_identity(known_file),
         "fetched_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "results": [[asdict(r) for r in query_results] for query_results in results_per_query],
     }
+    if follow_ups is not None:
+        data["follow_up_queries"] = follow_up_queries(known_file)
+        data["follow_up_results"] = [[asdict(r) for r in query_results] for query_results in follow_ups]
     path.parent.mkdir(parents=True, exist_ok=True)
     # Written whole or not at all: a half-written cache would be read back
     # as a corrupt one and silently refetched.
@@ -311,12 +370,11 @@ def save_cache(path: Path, known_file: KnownFile, results_per_query: list[list[S
     os.replace(tmp, path)
 
 
-async def fetch(known_file: KnownFile, client: SearchClient) -> tuple[list[list[SearchResult]], list[str]]:
+async def fetch(queries: list[str], client: SearchClient) -> tuple[list[list[SearchResult]], list[str]]:
     """Each query's results, and an error line per query that failed — a
     failed query counts as no results, so one timeout doesn't throw away
     the searches already paid for. Raises only when every query failed.
     """
-    queries = research_queries(known_file)
     outcomes = await asyncio.gather(
         *(client.search(q, max_results=RESULTS_PER_QUERY) for q in queries),
         return_exceptions=True,
@@ -334,6 +392,39 @@ async def fetch(known_file: KnownFile, client: SearchClient) -> tuple[list[list[
     if len(errors) == len(queries):
         raise ResearchError(f"every search failed — try again later ({errors[0]})")
     return results, errors
+
+
+async def _search(
+    known_file: KnownFile, client: SearchClient, path: Path, progress: ProgressCallback
+) -> tuple[list[list[SearchResult]], list[list[SearchResult]] | None]:
+    """The first searches, the follow-ups when those come back thin, and
+    the cache written from both. Cached only when every search ran: a
+    partial fetch would be served to every later run. A search that ran
+    and found nothing is a finding (an obscure book has no interviews); one
+    that failed isn't. An empty fetch is an outage, not a finding either.
+    """
+    results, errors = await fetch(research_queries(known_file), client)
+    for error in errors:
+        progress(f"research: {error}")
+    progress(f"research: {len(results)} searches, {sum(map(len, results))} results")
+    follow_ups = None
+    if _needs_follow_up(known_file, results):
+        progress("research: thin, running follow-up searches")
+        try:
+            follow_ups, follow_up_errors = await fetch(follow_up_queries(known_file), client)
+        except ResearchError as exc:
+            follow_up_errors = [str(exc)]
+            progress(f"research: follow-ups failed, continuing without them ({exc})")
+        else:
+            for error in follow_up_errors:
+                progress(f"research: {error}")
+            progress(f"research: {len(follow_ups)} follow-up searches, {sum(map(len, follow_ups))} results")
+        errors += follow_up_errors
+    if not errors and any(results):
+        save_cache(path, known_file, results, follow_ups)
+    elif errors:
+        progress("research: not cached, since a search failed — the next run searches again")
+    return results, follow_ups
 
 
 async def research(
@@ -355,24 +446,17 @@ async def research(
 
     path = cache_path(slug, cache_dir)
     cached = None if fresh else load_cache(path, known_file)
+    # A cache hit is the research exactly as first fetched, follow-ups and
+    # all, with no network call — so runs comparing models write from
+    # identical research. Follow-ups run only as part of a fresh search, and
+    # the cache is written once every search, follow-ups included, has run.
     if cached:
-        results, fetched_at = cached
-        progress(f"research: using search results cached {fetched_at} (--fresh to search again)")
+        results, follow_ups = cached.results, cached.follow_ups
+        progress(f"research: using search results cached {cached.fetched_at} (--fresh to search again)")
     else:
-        results, errors = await fetch(known_file, client or build_search_client())
-        for error in errors:
-            progress(f"research: {error}")
-        # Cached only when every search ran: a partial fetch would be served
-        # to every later run. A search that ran and found nothing is a
-        # finding (an obscure book has no interviews); one that failed isn't.
-        # An empty fetch is an outage, not a finding either.
-        if not errors and any(results):
-            save_cache(path, known_file, results)
-        elif errors:
-            progress("research: not cached, since a search failed — the next run searches again")
-        progress(f"research: {len(results)} searches, {sum(map(len, results))} results")
+        results, follow_ups = await _search(known_file, client or build_search_client(), path, progress)
 
-    found = build_research(known_file, results, trust_known=trust_known)
+    found = build_research(known_file, [*results, *(follow_ups or [])], trust_known=trust_known)
     progress(f"research: {found.summary()}")
     for warning in found.warnings:
         progress(f"research warning: {warning}")

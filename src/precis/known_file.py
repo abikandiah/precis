@@ -87,18 +87,20 @@ def _lookup_open_library(isbn: str) -> dict:
 
     search_url = f"{OPEN_LIBRARY_SEARCH_URL}?isbn={isbn}&fields=title,author_name"
     search_body = _fetch_json(search_url)
+    # Every field is checked for its type: a malformed record degrades to
+    # placeholders like a failed lookup, never crashing a batch midway.
     docs = search_body.get("docs") if search_body else None
-    if docs:
-        record = docs[0]
-        if title := record.get("title"):
+    if isinstance(docs, list) and docs and isinstance(record := docs[0], dict):
+        if isinstance(title := record.get("title"), str) and title:
             result["title"] = title
-        if authors := record.get("author_name"):
-            result["author"] = ", ".join(authors)
+        authors = record.get("author_name")
+        if isinstance(authors, list) and (names := [a for a in authors if isinstance(a, str)]):
+            result["author"] = ", ".join(names)
 
     edition_body = _fetch_json(f"{OPEN_LIBRARY_EDITION_URL}/{isbn}.json")
     if edition_body:
         publish_date = edition_body.get("publish_date")
-        if publish_date and (match := re.search(r"\d{4}", publish_date)):
+        if isinstance(publish_date, str) and (match := re.search(r"\d{4}", publish_date)):
             result["year"] = int(match.group())
         # Usually a number, but some records have text like "320 p.".
         page_count = edition_body.get("number_of_pages")

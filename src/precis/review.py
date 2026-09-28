@@ -9,7 +9,7 @@ What happens to an idea the research can't validate:
 
 - Supported by its cited sources: kept.
 - Unsupported but not contradicted — the research is silent: kept, uncited,
-  and named in a warning. ~30k tokens of research can't hold everything,
+  and named in a warning. Research excerpts can't hold everything,
   and the model knows well-known books; the reader, who has read the book,
   is the final check.
 - Contradicted, or not specific to this book (it could describe any book on
@@ -44,7 +44,7 @@ from pydantic import (
 )
 
 from precis import llm
-from precis.checks import check_notes
+from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     IDEA_LIMITS,
@@ -56,7 +56,7 @@ from precis.schema import (
     citation_problems,
     notes_shape_problems,
 )
-from precis.search import normalize_text
+from precis.search import normalize_text, overlap
 from precis.write import (
     FAITHFUL_RULE,
     SOURCE_IDS_KEY,
@@ -221,6 +221,26 @@ def _verdict_problems(book: Book, review: Review) -> list[str]:
     return problems
 
 
+def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea], list[Idea]]:
+    """New ideas split into the ones to add and the ones saying much the same
+    as an idea already kept or an earlier new one (checks.py's near-duplicate
+    test). The first baseline's review added "Build a Climate Where Truth Can
+    Be Heard" beside "Confront the Brutal Facts". Repeats are dropped, not
+    sent back: a retry that repeats one again would lose the whole review.
+    """
+    seen = [content_words(f"{i.title} {i.summary}") for i in kept]
+    added: list[Idea] = []
+    repeats: list[Idea] = []
+    for idea in new_ideas:
+        words = content_words(f"{idea.title} {idea.summary}")
+        if any(overlap(words, other) >= DUPLICATE_OVERLAP for other in seen):
+            repeats.append(idea)
+        else:
+            added.append(idea)
+            seen.append(words)
+    return added, repeats
+
+
 def _merge(book: Book, review: Review) -> tuple[list[Idea], list[KeyClaim] | None, list[str]]:
     """The ideas and claims the review leaves, and what it changed."""
     ideas: list[Idea] = []
@@ -242,8 +262,10 @@ def _merge(book: Book, review: Review) -> tuple[list[Idea], list[KeyClaim] | Non
             changes.append(f'revised "{original.title}": {verdict.reason}')
         else:
             ideas.append(original)
-    ideas += review.new_ideas
-    changes += [f'added "{i.title}"' for i in review.new_ideas]
+    added, repeats = _without_repeats(ideas, review.new_ideas)
+    ideas += added
+    changes += [f'added "{i.title}"' for i in added]
+    changes += [f'left out new idea "{i.title}": it repeats an idea the notes have' for i in repeats]
     claims = book.key_claims_for_review
     if review.key_claims_for_review is not None:
         claims = review.key_claims_for_review
@@ -296,7 +318,8 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "specific to this book (it could describe any book on the topic), or it repeats another idea.\n\n"
         "Then:\n"
         "- new_ideas: a major idea the book makes that the notes miss, or a replacement for a dropped one — "
-        "only ones the research supports, each citing its sources. An idea is something the book argues (or, "
+        "only ones the research supports, each citing its sources. Not a part or restatement of an idea the "
+        "notes already have: sharpen that idea with revise instead. An idea is something the book argues (or, "
         "for a novel, a theme it develops), not an observation about the book, its genre or its reception.\n"
         "- one_line_takeaway, synopsis: only if they misstate the book or are vague — then the whole corrected "
         "text.\n"

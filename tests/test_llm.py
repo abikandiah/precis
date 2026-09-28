@@ -444,3 +444,17 @@ async def test_the_sdks_own_http_retries_are_reported_with_why():
     reported: list[str] = []
     await llm._create(client, on_retry=reported.append, model="m", messages=[])
     assert len(reported) == 1 and reported[0].startswith("HTTP retry 1 of 2 in ") and reported[0].endswith("(HTTP 503)")
+
+
+def test_the_sdk_retry_reporter_never_raises_into_the_sdk(monkeypatch):
+    import logging
+
+    reported: list[str] = []
+    token = llm._http_retry_report.set(reported.append)
+    try:
+        record = logging.LogRecord("openai._base_client", logging.INFO, "", 0, "Retrying request in %f seconds (retry %i of %s)", ("soon", 1, 2), None)
+        monkeypatch.setattr(logging, "raiseExceptions", False)
+        llm._SDKRetryReporter().emit(record)
+    finally:
+        llm._http_retry_report.reset(token)
+    assert reported == []

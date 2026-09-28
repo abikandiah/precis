@@ -99,20 +99,36 @@ again.
 Three advanced searches run in parallel, with full page text: for
 non-fiction, summary/key ideas, book review, author interview; for fiction,
 themes/analysis, novel review, synopsis (not "plot summary", which gives
-away the ending). Of the results:
+away the ending).
+
+**Follow-ups for thin research:** when those come back with fewer than 5
+pages naming both the book and its author, three wider searches run — the
+book alone, a chapter summary and a publisher description (fiction: book
+review, publisher description and literary criticism — never the book alone
+or chapter summaries, which bring back the ending). Famous books
+never need them; lesser-known ones, which lean hardest on the research, get
+the extra credits. Pages naming the book but never its author don't count
+as thin: that's a wrong author, which more searching won't fix.
+
+Of the results:
 
 - Only pages naming both the book and its author are kept, judged on the
   provider's matched excerpt rather than the whole page (a "best books"
   list names dozens).
 - Duplicates go: the same page under another URL, and copies of one article
   (80%+ shared vocabulary).
-- Each page is cleaned of navigation-sized lines and excerpted to ~3k
+- Each page is cleaned of navigation-sized lines and excerpted to ~6k
   tokens, cut from just before it first names the book; the total is capped
-  at ~30k tokens. Sources are numbered `S1`, `S2`, … in rank order,
-  interleaved across the three searches.
+  at ~60k tokens. A lesser-known book's few pages are often its only
+  detailed ones, so each gets room. Sources are numbered `S1`, `S2`, … in
+  rank order, interleaved across the searches.
 
-The raw results are cached per slug (`PRECIS_CACHE_DIR/research/`) and
-reused until `--fresh` or the known-file's title, author or kind changes.
+The raw results, follow-ups included, are cached per slug
+(`PRECIS_CACHE_DIR/research/`) and reused until `--fresh` or the
+known-file's title, author or kind changes. A cache hit never searches:
+it's the research exactly as first fetched, so runs comparing models write
+from identical research. Follow-ups run only as part of a fresh search, and
+the cache is written once every search, follow-ups included, has run.
 Everything after the fetch is a pure function over the cache, so changing
 it never needs a refetch. A search that fails keeps the others' results but
 isn't cached; one that ran and found nothing is.
@@ -150,10 +166,12 @@ the review call's `cached_tokens` (docs/v2-plan.md).
   later detail means leaving it out, never blurring the setup.
 
 The response is validated as it arrives — at least one idea, a review deck
-for non-fiction and none for fiction, tags from the closed vocabulary,
+for non-fiction and none for fiction, 2-4 tags from the closed vocabulary,
 citation IDs that exist in the research — and a retry after a failure
 shows the model its rejected call and the error. Retries are for output
-that can't be used, not for a count outside the asked-for range.
+that can't be used, not for a count outside the asked-for range. Tags
+outside the vocabulary, repeated, or past the fourth are dropped rather
+than retried; only fewer than two usable ones are sent back.
 
 **Identity backstop:** a real but wrong author named next to the book on
 some page (a comparison, a reading list) passes research's code checks, so
@@ -171,7 +189,7 @@ No check matches facts against the research. The first baseline run had
 one — numbers and proper nouns in an idea's evidence that weren't in its
 cited sources — and it caught no inventions across 8 books, while its
 flags (Tolstoy in *Into the Wild*, Wickham in *Pride and Prejudice*, all
-correct) led the review to strip correct details. ~30k tokens of excerpts
+correct) led the review to strip correct details. Tens of thousands of tokens of excerpts
 can't hold everything, so "not in the research" isn't "invented".
 Accuracy is the review's job, and the evals' judge measures it.
 
@@ -186,8 +204,8 @@ audits every field for spoilers, with the write prompt's guards.
 
 The review judges whether the notes are faithful to the book, not whether
 the book is right: a critic disputing the author is never a reason to
-change an idea. And the research's silence isn't contradiction — ~30k
-tokens of excerpts can't hold everything, so a specific the model is
+change an idea. And the research's silence isn't contradiction — the
+excerpts can't hold everything, so a specific the model is
 confident is from the book stays; the reader, who has read the book, is
 the final check. The first baseline's review broke both: it dropped a
 Sapiens idea because critics dispute Harari, and made correct details
@@ -212,7 +230,9 @@ vaguer because the research didn't mention them.
 The review is validated by building the book it would produce, by the
 book's own rules: no ideas left, a verdict naming no idea or a second
 verdict for one, a dropped idea whose claims weren't dealt with, or a
-half-returned synopsis is sent back with the reason. An idea with no
+half-returned synopsis is sent back with the reason. A new idea repeating
+one the notes keep (the near-duplicate check) is left out rather than sent
+back, since a retry that repeats it again would lose the whole review. An idea with no
 verdict is kept as written. If it still can't fix it, or the
 call fails outright, the run keeps the written notes (already paid for),
 with a warning that they're unreviewed and the check findings as warnings.

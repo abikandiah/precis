@@ -105,6 +105,14 @@ class _SDKRetryReporter(logging.Handler):
     """
 
     def emit(self, record: logging.LogRecord) -> None:
+        # Never raise into the SDK's retry path: a reworded log call would
+        # turn a recoverable 429 into a crash.
+        try:
+            self._report(record)
+        except Exception:  # noqa: BLE001
+            self.handleError(record)
+
+    def _report(self, record: logging.LogRecord) -> None:
         report = _http_retry_report.get()
         args = record.args if isinstance(record.args, tuple) else ()
         if report is None or not isinstance(record.msg, str):

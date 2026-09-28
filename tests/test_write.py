@@ -63,7 +63,7 @@ def test_a_valid_nonfiction_draft_passes():
     [
         (_draft(ideas=0), "non-fiction", "at least one idea"),
         (_draft(claims=0), "non-fiction", "non-fiction needs key_claims_for_review"),
-        (_draft(tags=["psychology", "made-up"]), "non-fiction", "closed non-fiction vocabulary"),
+        (_draft(tags=["psychology", "made-up"]), "non-fiction", "give 2-4 tags from the closed non-fiction vocabulary"),
     ],
 )
 def test_draft_counts_and_tags_are_validated_per_kind(data, kind, message):
@@ -204,3 +204,9 @@ def test_the_author_mismatch_description_covers_pen_names():
 
 def test_key_claims_mustnt_just_restate_an_idea_title():
     assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION)
+
+
+def test_unknown_repeated_or_extra_tags_are_dropped_not_retried():
+    tags = [{"name": "x"}, "self-help", "psychology", "psychology", "science", "business", "economics", "history"]
+    draft = _validate(write.DraftWithClaims, _draft(tags=tags))
+    assert draft.tags == ["psychology", "science", "business", "economics"]

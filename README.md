@@ -41,7 +41,8 @@ docker run --rm \
   precis generate /input/thinking-fast-and-slow.json --output /output/thinking-fast-and-slow.json
 ```
 
-A run researches the book (three web searches), writes the notes in one
+A run researches the book (three web searches, three more when those
+find little), writes the notes in one
 model call, checks them in code, and reviews them against the research in
 a second call. It fails — before the model call where it can — when no
 page online names the book, or pages name it but not its author, or the

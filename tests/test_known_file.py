@@ -82,6 +82,9 @@ def test_year_and_page_count_come_from_the_edition_not_the_work():
     [
         [_response({"docs": []}), _response({})],  # a miss
         [_response(None), _response([1, 2, 3])],  # bodies that aren't objects
+        # malformed records: a doc that isn't an object, fields of the wrong type
+        [_response({"docs": ["not a record"]}), _response({"publish_date": 2003})],
+        [_response({"docs": [{"title": 7, "author_name": "A"}]}), _response({"publish_date": ["2003"]})],
         urllib.error.URLError("no network"),
     ],
 )

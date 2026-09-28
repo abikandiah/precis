@@ -40,7 +40,7 @@ from precis.schema import (
 )
 from precis.search import author_names
 
-# Output runs to several thousand tokens on top of ~30k tokens of research,
+# Output runs to several thousand tokens on top of up to ~60k tokens of research,
 # well past the default per-call timeout. Fewer HTTP-level retries than the
 # default, so a stalled provider costs minutes, not half an hour of
 # timeouts. The token cap is far above a full set of notes, so a reply is
@@ -104,6 +104,24 @@ class Draft(BaseModel):
     def _null_placeholders(cls, author: str | None) -> str | None:
         """"N/A" or "unknown" means no mismatch, not an author called that."""
         return None if author is None or is_placeholder(author, _NO_AUTHOR) else author.strip()
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _keep_known_tags(cls, tags: Any, info: ValidationInfo) -> Any:
+        """Tags outside the vocabulary, repeats, and any past the fourth are
+        dropped rather than failing the call: a whole write retry for one
+        invented tag ("self-help") cost more than the tag is worth. Only
+        fewer than two usable tags is sent back.
+        """
+        kind = (info.context or {}).get(KIND_KEY)
+        if kind is None or not isinstance(tags, list):
+            return tags
+        known = [t for t in dict.fromkeys(t for t in tags if isinstance(t, str)) if t in tags_for_kind(kind)][:4]
+        if len(known) < 2:
+            raise ValueError(
+                f"give 2-4 tags from the closed {kind} vocabulary (got {tags!r}): {sorted(tags_for_kind(kind))!r}"
+            )
+        return known
 
     @field_validator("tags")
     @classmethod

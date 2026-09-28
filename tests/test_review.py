@@ -218,3 +218,19 @@ def test_ideas_sharing_a_title_take_their_verdicts_in_order():
     assert [i.summary for i in reviewed.ideas] == ["topic0word", "topic2word", "topic3word", "topic4word", "topic5word"]
     with pytest.raises(ValidationError, match="'Idea 0' has more than one verdict"):
         _validate({"ideas": [*verdicts, {"title": "Idea 0", "verdict": "keep"}]}, book)
+
+
+def test_a_new_idea_repeating_one_the_notes_keep_is_left_out_not_sent_back():
+    repeat = {"title": "Idea 2 again", "summary": "topic2word", "evidence": "e", "sources": ["S1"]}
+    fresh = {"title": "Idea 9", "summary": "topic9word", "evidence": "e", "sources": ["S1"]}
+    reviewed, changes = _apply({"ideas": _verdicts(), "new_ideas": [repeat, fresh, {**fresh, "title": "Idea 9 again"}]})
+    assert [i.title for i in reviewed.ideas][-1] == "Idea 9"
+    assert changes == [
+        'added "Idea 9"',
+        'left out new idea "Idea 2 again": it repeats an idea the notes have',
+        'left out new idea "Idea 9 again": it repeats an idea the notes have',
+    ]
+    # A dropped idea's replacement may cover the same ground.
+    verdicts = _verdicts(i2={"verdict": "drop", "reason": "r"})
+    reviewed, _ = _apply({"ideas": verdicts, "new_ideas": [repeat], "key_claims_for_review": _CLAIMS})
+    assert reviewed.ideas[-1].title == "Idea 2 again"

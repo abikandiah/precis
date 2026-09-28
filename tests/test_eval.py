@@ -102,7 +102,7 @@ def test_load_books_requires_a_reference(tmp_path):
 def test_eval_set_has_the_planned_mix_of_bibliographic_known_files():
     books = data.load_books(REPO_EVALS)
     kinds = [b.known_file.kind for b in books]
-    assert (kinds.count("non-fiction"), kinds.count("fiction")) == (6, 2)
+    assert (kinds.count("non-fiction"), kinds.count("fiction")) == (7, 3)
     for book in books:
         assert book.known_file.has_title and book.known_file.has_author, book.slug
 

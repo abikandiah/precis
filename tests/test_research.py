@@ -184,9 +184,15 @@ def test_render_frames_sources_as_data_and_escapes_them():
 # --- research(): cache ------------------------------------------------------------
 
 
+_ENOUGH = [_page(f"https://{tag}.org", _prose(tag)) for tag in "abcde"]
+
+
 def _client(results=None) -> AsyncMock:
+    """A search client returning the same pages for every query: by
+    default enough of them that no follow-ups run.
+    """
     client = AsyncMock()
-    client.search.return_value = results if results is not None else [_page("https://a.org", _LINE)]
+    client.search.return_value = results if results is not None else _ENOUGH
     return client
 
 
@@ -242,7 +248,7 @@ async def test_every_search_failing_is_an_error(tmp_path):
 
 async def test_a_search_that_ran_and_found_nothing_is_still_cached(tmp_path):
     client = AsyncMock()
-    client.search.side_effect = [[_page("https://a.org", _prose("a"))], [], [_page("https://b.org", _prose("b"))]]
+    client.search.side_effect = [[_page("https://a.org", _prose("a"))], [], [_page("https://b.org", _prose("b"))], [], [], []]
     await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
     assert research.cache_path("tfas", tmp_path).exists()
 
@@ -259,7 +265,7 @@ async def test_a_failed_identity_check_is_still_cached_so_trust_known_reruns_fre
     with pytest.raises(research.ResearchError):
         await research.research(wrong, slug="tfas", client=client, cache_dir=tmp_path)
     await research.research(wrong, slug="tfas", client=client, cache_dir=tmp_path, trust_known=True)
-    assert client.search.await_count == 3
+    assert client.search.await_count == 6  # the first searches and the follow-ups, once
 
 
 @pytest.mark.parametrize("update", [{"author": PLACEHOLDER}, {"title": None}, {"isbn": ""}])
@@ -268,6 +274,56 @@ async def test_research_refuses_a_known_file_that_isnt_ready(tmp_path, update):
     with pytest.raises(research.ResearchError, match="isn't ready"):
         await research.research(BOOK.model_copy(update=update), slug="x", client=client, cache_dir=tmp_path)
     client.search.assert_not_called()
+
+
+# --- research(): follow-ups for thin research --------------------------------------------
+
+
+async def test_thin_research_runs_the_follow_ups_once_and_caches_them(tmp_path):
+    client = AsyncMock()
+    thin = [[_page("https://a.org", _prose("a"))], [], []]
+    wider = [[_page(f"https://{t}.org", _prose(t)) for t in "wxyz"], [], []]
+    client.search.side_effect = [*thin, *wider]
+    messages: list[str] = []
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path, on_progress=messages.append)
+    queries = [call.args[0] for call in client.search.await_args_list]
+    assert queries == [*research.research_queries(BOOK), *research.follow_up_queries(BOOK)]
+    assert "research: thin, running follow-up searches" in messages
+    assert [s.url for s in found.sources] == ["https://a.org", "https://w.org", "https://x.org", "https://y.org", "https://z.org"]
+
+    again = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert client.search.await_count == 6 and again == found
+
+
+async def test_a_book_the_first_searches_miss_is_found_by_the_follow_ups(tmp_path):
+    client = AsyncMock()
+    client.search.side_effect = [[_other_book("https://o.org")], [], [], [_page("https://a.org", _prose("a"))], [], []]
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert [s.url for s in found.sources] == ["https://a.org"]
+
+
+async def test_title_only_hits_get_follow_ups_that_can_find_the_author(tmp_path):
+    title_only = _page("https://play.org", _prose("p"), content="Thinking, Fast and Slow, a play")
+    client = AsyncMock()
+    client.search.side_effect = [[title_only], [], [], [_page("https://a.org", _prose("a"))], [], []]
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert [s.url for s in found.sources] == ["https://a.org"]
+
+
+async def test_failed_follow_ups_keep_the_first_research_but_nothing_is_cached(tmp_path):
+    client = AsyncMock()
+    client.search.side_effect = [[_page("https://a.org", _prose("a"))], [], [], *[TimeoutError("slow")] * 3]
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert [s.url for s in found.sources] == ["https://a.org"]
+    assert not research.cache_path("tfas", tmp_path).exists()
+
+
+async def test_a_cache_hit_never_searches_even_when_thin(tmp_path):
+    research.save_cache(research.cache_path("tfas", tmp_path), BOOK, [[_page("https://a.org", _prose("a"))], [], []])
+    client = _client()
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    client.search.assert_not_called()
+    assert [s.url for s in found.sources] == ["https://a.org"]
 
 
 # --- search client and CLI -----------------------------------------------------------

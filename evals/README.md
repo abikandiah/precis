@@ -1,6 +1,8 @@
 # Eval set
 
-The fixed set of books every pipeline change is measured on. Commands and
+The fixed set of books every pipeline change is measured on. The first eight
+are famous, so the model knows them well; the last two are lesser-known,
+like much of a real library, so the notes lean on the research. Commands and
 output are described in docs/blueprint.md's CLI contract; the Docker
 invocation is in the top-level README.
 
@@ -14,6 +16,8 @@ invocation is in the top-level README.
 | `the-immortal-life-of-henrietta-lacks` | non-fiction, story-shaped | braided narrative with science and ethics |
 | `nineteen-eighty-four` | fiction | themes; spoiler safety |
 | `pride-and-prejudice` | fiction | themes; spoiler safety |
+| `the-integrity-of-the-personality` | non-fiction, psychology | lesser-known (1960): research is thin, so it tests the follow-up searches and notes that lean on few sources |
+| `a-month-in-the-country` | fiction | lesser-known short novel: thin research, themes and spoiler safety |
 
 - `books/<slug>.json` — the known-file, checked by hand.
 - `references/<slug>.json` — a reference summary written by Claude
