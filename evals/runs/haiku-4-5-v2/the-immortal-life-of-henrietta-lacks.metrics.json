@@ -1,0 +1,27 @@
+{
+  "slug": "the-immortal-life-of-henrietta-lacks",
+  "label": "haiku-4-5-v2",
+  "model": "anthropic/claude-haiku-4.5",
+  "started_at": "2026-09-28T22:13:04+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "cb62f1f29d61",
+    "sources": 19
+  },
+  "duration_seconds": 95.7,
+  "usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 67415,
+    "completion_tokens": 9114,
+    "cached_tokens": 30336,
+    "llm_cost_usd": 0.093267,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 12,
+  "key_claims": 13,
+  "warnings": 4,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

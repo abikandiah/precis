@@ -1,0 +1,77 @@
+{
+  "schema_version": "2",
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "year": 1813,
+  "isbn": "9780141439518",
+  "page_count": 480,
+  "kind": "fiction",
+  "one_line_takeaway": "Pride and Prejudice traces how two people must overcome their own flaws—pride and prejudice—to see each other truly and find love.",
+  "synopsis": "Set in early 19th-century rural England, Pride and Prejudice follows the Bennet family, who live on an entailed estate that will pass to a distant male cousin. Mrs. Bennet is desperate to marry off her five daughters to secure their futures, as women have few paths to financial independence. When the wealthy Mr. Bingley rents the nearby Netherfield estate and the even wealthier Mr. Darcy arrives with him, opportunity seems to knock—but first impressions prove deceptive.\\n\\nElizabeth Bennet, the spirited second daughter, takes an immediate dislike to the proud and aloof Mr. Darcy after he insults her appearance at a ball. Meanwhile, her gentle elder sister Jane catches the eye of the charming Mr. Bingley. As the two couples move in similar social circles, Elizabeth's contempt for Darcy seems justified, especially when she befriends the charming militia officer Mr. Wickham, who claims Darcy has wronged him.\\n\\nThe novel explores the constraints placed on women of this era: their dependence on marriage for security, the fragility of reputation, the rigid social hierarchies that govern whom one can marry, and the gap between appearances and true character. Through a diverse cast—from the ridiculous Mr. Collins, the pompous clergyman heir to the Bennet estate, to the sharp-tongued Lady Catherine de Bourgh to Elizabeth's warm and sensible Aunt Gardiner—Austen paints a world where wit, intelligence, and moral character matter far less than wealth, connections, and propriety, yet where individual virtue and self-awareness offer a path to genuine connection and happiness.</synopsis>",
+  "ideas": [
+    {
+      "title": "Pride blinds people to truth",
+      "summary": "Both Elizabeth and Darcy let pride distort their judgment of each other. Darcy's pride about his social rank leads him to dismiss Elizabeth as beneath him at first, while Elizabeth's pride in her own perceptiveness prevents her from revising her harsh opinion of him even when evidence suggests she has misjudged him. Only by recognizing and humbling their pride can they see each other clearly.",
+      "evidence": "Darcy initially refuses to dance with Elizabeth, remarking she is 'not handsome enough'; Elizabeth overhears and develops a strong prejudice against him. Later, Darcy finds himself drawn to her wit and intelligence, but his belief in his own social superiority makes him reluctant to acknowledge such feelings. Elizabeth's certainty in her judgments leads her to trust Wickham's account of Darcy's supposed treachery without questioning it deeply.",
+      "sources": [
+        "S1",
+        "S7",
+        "S16"
+      ]
+    },
+    {
+      "title": "Prejudice stems from incomplete information and social conditioning",
+      "summary": "The novel shows how prejudgment—forming opinions based on preconceptions rather than true knowledge—leads characters astray. Darcy judges the Bennet family by its lower social rank and the vulgarity of Mrs. Bennet without seeing the worth of Elizabeth and Jane. Elizabeth accepts Wickham's self-serving lies and judges Darcy by his manner rather than his actions. Both must learn that reputation and rank can mask (or be masked by) true character.",
+      "evidence": "Darcy's initial prejudice against Elizabeth rests on her family's lack of wealth and her mother's embarrassing behavior. Elizabeth's prejudice against Darcy is fed by Wickham's fabricated account of how Darcy denied him a church position out of jealousy. Caroline Bingley deliberately plays on existing prejudices to turn Darcy against Elizabeth by emphasizing Mrs. Bennet's vulgarity.",
+      "sources": [
+        "S1",
+        "S3",
+        "S16"
+      ]
+    },
+    {
+      "title": "Reputation is both fragile and consequential for women",
+      "summary": "A woman's reputation determines her social prospects and her family's standing. The novel demonstrates that female respectability depends on strict adherence to rules of propriety, a burden not equally shared by men. A single misstep threatens not just an individual but her entire household.",
+      "evidence": "Elizabeth's walks alone through muddy fields to visit Jane at Netherfield are considered shockingly improper by the Bingley sisters, though Darcy admires her loyalty. The Bennet family's anxiety about their daughters' conduct and the constant concern with how their behavior will be perceived reflects the precarious nature of women's standing in society.",
+      "sources": [
+        "S1",
+        "S7"
+      ]
+    },
+    {
+      "title": "Social class constrains individual choice and worth",
+      "summary": "The rigid class system of the era means that people are valued first by their wealth and rank rather than by their character or abilities. The Bennet family, though respectable, are perpetually aware of their middle-class status and the vast gulf between themselves and the landed gentry like Darcy and his aunt Lady Catherine. This hierarchy is portrayed as both absurd and enormously consequential for women's opportunities.",
+      "evidence": "Darcy initially considers Elizabeth beneath him due to her family's lower rank, despite her superior wit and intelligence. Lady Catherine de Bourgh's sense of entitlement and her expectation to control others' marriages stem entirely from her wealth and social position. Mr. Collins's obsequiousness to Lady Catherine and his contempt for those of lower rank exemplify how the class system deforms people's characters.",
+      "sources": [
+        "S1",
+        "S7",
+        "S16"
+      ]
+    },
+    {
+      "title": "Women's limited options make marriage a matter of survival, not just romance",
+      "summary": "In this world, marriage is women's primary—often only—path to financial security and social standing. Most Bennet daughters view marriage pragmatically, as a necessity for their survival once their father dies and the estate passes to a distant male cousin. The tension between marrying for love and marrying for security drives much of the novel's exploration of women's constrained agency.",
+      "evidence": "Mrs. Bennet's desperation to marry off her daughters stems from real financial vulnerability; without a son, the family estate is entailed to Mr. Collins and cannot pass through the female line. This economic reality makes marriage not a luxury but a fundamental necessity for the daughters' survival and comfort.",
+      "sources": [
+        "S1",
+        "S3",
+        "S7"
+      ]
+    },
+    {
+      "title": "Self-knowledge and willingness to change are required for growth",
+      "summary": "The novel emphasizes that happiness requires people to recognize their own flaws and be willing to question their assumptions. Characters who resist self-examination remain trapped in patterns of behavior, while those capable of reflection have better prospects for understanding others and finding connection.",
+      "evidence": "The contrast between characters is stark: Mr. Collins's obsequious rigidity and Lady Catherine's imperious certainty never waver, leaving them isolated and ridiculous. The Gardiners, by contrast, are portrayed as wise and kind precisely because they see others clearly and act with judgment rather than assumption.",
+      "sources": [
+        "S7",
+        "S8"
+      ]
+    }
+  ],
+  "tags": [
+    "fiction-literary",
+    "romance",
+    "drama"
+  ],
+  "warnings": []
+}

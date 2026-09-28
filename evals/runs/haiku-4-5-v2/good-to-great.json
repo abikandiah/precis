@@ -1,0 +1,198 @@
+{
+  "schema_version": "2",
+  "title": "Good to Great",
+  "author": "Jim Collins",
+  "year": 2001,
+  "isbn": "9780066620992",
+  "page_count": 300,
+  "kind": "non-fiction",
+  "one_line_takeaway": "Great companies are built through disciplined execution of timeless principles—particularly humble leadership, the right people, brutal honesty, focus, and persistent momentum—not through charisma, bold strategy, or sudden breakthroughs.",
+  "synopsis": "Jim Collins investigates a puzzle: why do most good companies never become great? After Built to Last examined how great companies stayed great, Collins wanted to understand how mediocre or underperforming companies could transform into sustained excellence. He and his research team studied 11 companies that made a leap from good to great—generating stock returns at least three times the general market average over 15 years—and compared them against companies in similar circumstances that failed to make the leap.\n\nThe research revealed that greatness is not about visionary leadership, bold strategy shifts, or technological breakthroughs. Instead, it comes from seven interconnected disciplines executed with consistency over years. The first is finding the right type of leader: not the charismatic celebrity CEO but the \"Level 5 Leader\" who combines intense personal humility with unwavering professional resolve. These leaders focus on organizational success rather than personal glory, credit others for wins, take full responsibility for losses, and set up their successors for continued success.\n\nThe second discipline reverses conventional wisdom: great companies ask \"Who?\" before \"What?\"—they assemble the right people first, then determine strategy. This runs counter to the typical assumption that you set vision and strategy, then rally people behind them. Getting the right people on the bus, removing the wrong ones, and putting top performers on the biggest opportunities (not the biggest problems) matters more than having a perfect plan.\n\nThe third is confronting brutal facts while maintaining absolute faith in ultimate success—what Collins calls the Stockdale Paradox, named after Admiral Jim Stockdale, a Vietnam POW who survived by never losing faith he would prevail while facing harsh realities. Great companies create cultures where truth can be heard, debates are vigorous, and decisions rest on evidence rather than wishful thinking.\n\nThe remaining disciplines—identifying a Hedgehog Concept (the intersection of what you can be best at, what you're passionate about, and what drives your economic engine), building a culture of discipline, using technology as an accelerator not a creator, and maintaining a Flywheel of compounding momentum—all work together through consistent, unglamorous execution over 15 years or more to produce the appearance of overnight success.",
+  "ideas": [
+    {
+      "title": "Level 5 Leadership",
+      "summary": "Great companies are led by Level 5 leaders, who blend extreme personal humility with intense professional will. Unlike celebrity CEOs who seek the spotlight, they channel ambition into building great institutions, credit external factors for success, take full responsibility for failures, and prepare successors to succeed without them. This paradoxical combination of modesty and ferocious determination is the foundational leadership requirement for transformation.",
+      "evidence": "The research identified Level 5 leaders across the 11 good-to-great companies, including Colman Mockler, David Maxwell, Darwin Smith, Joe Cullman, and Fred Allen. Admiral Jim Stockdale exemplified this through his resilience and leadership as the highest-ranking POW in the Hanoi Hilton, never losing faith in prevailing while confronting brutal reality.",
+      "sources": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "title": "First Who, Then What",
+      "summary": "Rather than setting vision and strategy first, then hiring people to execute them, good-to-great companies prioritize getting the right people on the bus, removing the wrong ones, and placing top performers in the right seats before determining where to drive. This approach enables flexibility and eliminates most management problems, since the right people don't need to be tightly managed.",
+      "evidence": "Collins uses the metaphor of getting people 'on the bus' and the right people 'in the right seats.' Good-to-great companies were rigorous about people decisions from the top down, avoiding both endless hiring and rapid layoffs, and placed their best people on their biggest opportunities, not their biggest problems.",
+      "sources": [
+        "S1",
+        "S2",
+        "S16"
+      ]
+    },
+    {
+      "title": "The Stockdale Paradox",
+      "summary": "Great companies confront brutal facts about their current reality while maintaining unwavering faith that they will ultimately prevail. This paradox—named after Admiral Jim Stockdale, a Vietnam POW—avoids both naive optimism (which leads to broken hearts when expectations fail) and pessimistic paralysis. The discipline to face harsh truths combined with faith in eventual success defines successful navigation through adversity.",
+      "evidence": "Stockdale explained to Collins that the POWs who died were the optimists who believed they would be released by Christmas, Easter, or Thanksgiving, only to be disappointed repeatedly. Meanwhile, Stockdale himself maintained faith in ultimate victory while never denying the brutality of his captivity. Good-to-great companies created climates where truth could be heard through questioning, dialogue, autopsies without blame, and red-flag mechanisms.",
+      "sources": [
+        "S1",
+        "S2",
+        "S16"
+      ]
+    },
+    {
+      "title": "The Hedgehog Concept",
+      "summary": "Great companies identify and focus ruthlessly on a simple concept at the intersection of three circles: what they can be the best in the world at, what they are deeply passionate about, and what drives their economic engine. This is not a goal or strategy but an understanding, and it typically takes years to discover. Like the hedgehog in the fable that knows one big thing, companies must transcend the 'curse of competence'—the assumption that their current core business is what they should be best at.",
+      "evidence": "Collins uses the hedgehog-and-fox fable: the fox pursues many ends and sees the world as complex, while the hedgehog simplifies everything into one principle that guides all action. Good-to-great companies discovered their Hedgehog Concept on average after 4 years of iterative understanding. For example, Kroger understood it had to become a superstore operator, not a traditional grocer, and rebuilt its entire system accordingly.",
+      "sources": [
+        "S1",
+        "S2",
+        "S16",
+        "S17"
+      ]
+    },
+    {
+      "title": "Confront the Brutal Facts (Yet Never Lose Faith)",
+      "summary": "Good-to-great companies systematically expose themselves to harsh realities rather than hiding from them, creating cultures where people can speak truth and leaders genuinely listen. This involves leading with questions rather than answers, engaging in vigorous dialogue and debate, conducting autopsies of decisions without blame, and building mechanisms that turn information into signals that cannot be ignored.",
+      "evidence": "A&P faced brutal facts about changing consumer preferences (bigger stores, more choice, fresh goods) through its Golden Key experiment but then closed it, unwilling to diverge from tradition. Kroger, facing the same realities, acted on them ruthlessly, rebuilding its entire system city by city to match the new model and becoming number one by 1999.",
+      "sources": [
+        "S1",
+        "S16"
+      ]
+    },
+    {
+      "title": "A Culture of Discipline",
+      "summary": "Great companies build cultures where disciplined people, disciplined thought, and disciplined action eliminate the need for hierarchy, bureaucracy, and excessive control. When combined with an ethic of entrepreneurship, this culture produces superior performance. Discipline comes not from systems and rules imposed to compensate for incompetence, but from hiring the right people and maintaining rigorous standards.",
+      "evidence": "Collins contrasts good-to-great companies, which rarely restructured or laid off, with comparison companies that restructured 5 times more frequently. A culture of discipline means knowing when to say no, maintaining focus on core priorities, and avoiding the trap of busyness that plagues growing organizations.",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "title": "Technology Accelerators",
+      "summary": "Good-to-great companies view technology as an accelerator of momentum, not a creator of it. They pioneer careful application of selected technologies because of their drive for excellence, not out of fear of being left behind. Technology by itself is never a primary cause of greatness or decline; the principles of leadership, people, focus, and discipline matter far more.",
+      "evidence": "While the comparison companies sometimes pursued technology to spark transformation, good-to-great companies adopted technology only after determining where their Hedgehog Concept pointed them. They never let technology choices drive strategy.",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "title": "The Flywheel and the Doom Loop",
+      "summary": "Great companies' transformation resembles relentlessly pushing a giant, heavy flywheel turn after turn, building momentum until a point of breakthrough, then beyond. Outside observers see dramatic results and assume sudden revolution, but insiders experience it as organic, cumulative buildup. The Doom Loop is the inverse: new programs, leaders, or directions fail to build momentum, disappoint, and prompt reactive change without understanding.",
+      "evidence": "Companies that launched dramatic change programs and restructurings almost never made the leap to greatness. Good-to-great transformations took 15-30 years and looked like overnight successes only in hindsight. Each of Collins' six principles adds momentum to the flywheel, working together coherently rather than independently.",
+      "sources": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "title": "Good as the Enemy of Great",
+      "summary": "The book's foundational premise is that the vast majority of companies never become great precisely because they become quite good. Complacency with 'good enough' performance is the biggest obstacle to pursuing greatness. Many leaders accept mediocrity because a good company is easier to run than a great one, and the status quo feels secure.",
+      "evidence": "Collins notes that his previous book, Built to Last, studied companies that were always great from the beginning. Good to Great addresses the harder problem: companies that are not born with great DNA and must consciously transform through sustained discipline.",
+      "sources": [
+        "S1",
+        "S10"
+      ]
+    },
+    {
+      "title": "Luck and 'Who Luck'",
+      "summary": "Collins identifies luck as a factor in business success and argues that great leaders view themselves as fortunate rather than uniquely skilled. 'Who Luck'—encountering key people and mentors who shape your thinking and character—plays a particular role. Level 5 Leaders credit good luck for favorable circumstances while taking responsibility for setbacks, reflecting their humility about their own role in success.",
+      "evidence": "Level 5 Leaders consistently attribute achievements to favorable circumstances and mentors rather than claiming sole credit. Collins notes in his own research development how mentors like Jerry Porras at Stanford shaped his methodology and thinking.",
+      "sources": [
+        "S3"
+      ]
+    },
+    {
+      "title": "Simplicity and Enduring Principles",
+      "summary": "Collins' research was designed to uncover enduring principles applicable to any organization, not temporary best practices or industry-specific tactics. The concepts are simple to understand but difficult to execute consistently over years. The book avoids complex jargon in favor of clear metaphors and frameworks.",
+      "evidence": "Collins and his team deliberately rejected searching for best practices and instead sought timeless principles. The findings—Level 5 Leadership, First Who Then What, the Hedgehog Concept—are not complicated ideas but require relentless discipline to implement and sustain.",
+      "sources": [
+        "S3",
+        "S10"
+      ]
+    },
+    {
+      "title": "The 11 Good-to-Great Companies and Research Definition of Greatness",
+      "summary": "Collins identified 11 companies that made the leap from good to great: Abbott, Circuit City, Fannie Mae, Gillette, Kimberly-Clark, Kroger, Nucor, Philip Morris, Pitney Bowes, Walgreens, and Wells Fargo. A company qualified as 'good-to-great' if it had experienced 15 years of stock returns at or below the general market, followed by a distinct transition point and at least 15 more years of cumulative returns three times the general market average. This rigorous definition distinguished sustainable transformation from temporary spikes.",
+      "evidence": "The 11 companies generated cumulative stock returns that beat the general stock market by an average of seven times in the 15 years following their transition points—better than twice the results of composite indexes of world-class companies like Coca-Cola, Intel, GE, and Merck.",
+      "sources": [
+        "S1",
+        "S10"
+      ]
+    },
+    {
+      "title": "Build a Climate Where Truth Can Be Heard",
+      "summary": "To confront brutal facts, great companies create organizational cultures and practices where truth surfaces and leaders genuinely listen. This involves four key practices: leading with questions rather than answers, engaging in vigorous dialogue and debate (not coercion), conducting autopsies of decisions without blame to enable learning, and building 'red flag mechanisms' that turn information into signals that cannot be ignored.",
+      "evidence": "Collins describes how good-to-great leaders must foster climates where people feel safe speaking uncomfortable truths, contrasting this with charismatic leaders who can become liabilities when the focus is on them rather than reality. The A&P/Kroger example shows how failing to institutionalize this practice leads to ignored harsh truths.",
+      "sources": [
+        "S1",
+        "S16"
+      ]
+    }
+  ],
+  "key_claims_for_review": [
+    {
+      "prompt": "What is a Level 5 Leader and how do they differ from other effective leaders?",
+      "answer": "A Level 5 Leader combines extreme personal humility with intense professional will. Unlike charismatic or celebrity CEOs, they focus on organizational success rather than personal glory, credit external factors and others for wins, take full responsibility for failures, and set up their successors to succeed without them. They lead through inspired standards rather than charisma."
+    },
+    {
+      "prompt": "Why do good-to-great companies prioritize 'First Who, Then What' instead of setting strategy first?",
+      "answer": "Getting the right people on the bus first allows the organization to adapt to a changing world, eliminates management problems since the right people don't need tight oversight, and ensures that even a great strategy won't succeed if you have the wrong people. Once you have the right team, determining where to drive becomes clearer."
+    },
+    {
+      "prompt": "What is the Stockdale Paradox and why does it matter for company transformation?",
+      "answer": "The Stockdale Paradox means maintaining unwavering faith that you will ultimately prevail while simultaneously confronting the brutal facts of your current reality. It avoids naive optimism that leads to disillusionment and paralytic pessimism. Good-to-great companies practice both honest assessment and steadfast belief in success."
+    },
+    {
+      "prompt": "What is the Hedgehog Concept and why must companies transcend the 'curse of competence'?",
+      "answer": "The Hedgehog Concept is the intersection of what you can be best in the world at, what you're deeply passionate about, and what drives your economic engine. The curse of competence is assuming your current core business is what you should be best at; great companies must challenge this and discover their true focus, which often takes years."
+    },
+    {
+      "prompt": "Why did Kroger succeed while A&P failed when both faced the same market shift toward superstores?",
+      "answer": "Both companies confronted the brutal fact that the old grocery model was becoming obsolete. A&P ran an experiment (Golden Key) but then closed it, unwilling to diverge from tradition. Kroger acted on the harsh truth, systematically rebuilding its entire store system to match the new reality, becoming number one by 1999."
+    },
+    {
+      "prompt": "How do good-to-great companies differ from comparison companies in their use of layoffs and restructuring?",
+      "answer": "Good-to-great companies were rigorous but not ruthless about people decisions, using layoffs 5 times less frequently than comparison companies. Rather than constant restructuring, they built a culture of discipline and hired the right people from the start, making excessive restructuring unnecessary."
+    },
+    {
+      "prompt": "What role does technology play in the transformation from good to great?",
+      "answer": "Good-to-great companies view technology as an accelerator of momentum driven by their Hedgehog Concept, never as a primary creator of transformation. They adopt technology out of commitment to excellence, not fear of being left behind. Technology by itself is never a root cause of greatness or decline."
+    },
+    {
+      "prompt": "Why does the Flywheel metaphor apply to good-to-great transformations rather than dramatic change programs?",
+      "answer": "The Flywheel represents cumulative momentum built turn by turn through consistent execution of disciplined principles over 15+ years. Companies that launch dramatic change programs and wrenching restructurings almost never make the leap to greatness. The transformation looks revolutionary from outside but feels organic and gradual to insiders."
+    },
+    {
+      "prompt": "How did Collins identify the 11 good-to-great companies and what metric defined their greatness?",
+      "answer": "Collins studied companies that had 15 years of stock returns at or below the general market, experienced a distinct transition point, then sustained cumulative returns at least three times the general market average for the next 15 years. The 11 companies—Abbott, Circuit City, Fannie Mae, Gillette, Kimberly-Clark, Kroger, Nucor, Philip Morris, Pitney Bowes, Walgreens, and Wells Fargo—beat the market by an average of seven times in 15 years."
+    },
+    {
+      "prompt": "Why is 'good' often the enemy of great according to Collins?",
+      "answer": "Most companies never pursue greatness because they become satisfied with being good—complacency with good performance blocks the motivation to pursue sustained excellence. Good companies are easier to run than great ones, so leaders often accept the status quo rather than endure the discipline required for transformation."
+    },
+    {
+      "prompt": "What specific practices help good-to-great companies create a climate where brutal truths are heard?",
+      "answer": "Great companies lead with questions rather than answers, engage in vigorous dialogue and debate (not coercion), conduct autopsies of decisions without blame to enable learning, and build 'red flag mechanisms' that turn information into signals that cannot be ignored."
+    },
+    {
+      "prompt": "How should good-to-great companies approach placing their best people?",
+      "answer": "Put your best people on your biggest opportunities, not your biggest problems. Managing problems can only make you good; building opportunities is the only way to become great. Many comparison companies wasted top talent on troubled areas, missing the strategic opportunities that could drive transformation."
+    },
+    {
+      "prompt": "What is a Culture of Discipline and why does it matter more than hierarchy or rules?",
+      "answer": "A Culture of Discipline means disciplined people, disciplined thought, and disciplined action that eliminate the need for hierarchy, bureaucracy, and excessive control. When combined with entrepreneurial initiative, it produces superior performance. Discipline comes from hiring and retaining the right people and maintaining rigorous standards, not from systems imposed to compensate for incompetence."
+    },
+    {
+      "prompt": "How do Level 5 Leaders view luck and their own role in success?",
+      "answer": "Level 5 Leaders credit good luck for favorable circumstances and often attribute achievements to key mentors and relationships, viewing themselves as fortunate rather than uniquely skilled. At the same time, they take full responsibility for setbacks, never blaming external circumstances or bad luck for failures."
+    }
+  ],
+  "tags": [
+    "business",
+    "economics",
+    "psychology"
+  ],
+  "warnings": [
+    "after review, ideas 5 and 13 (\"Confront the Brutal Facts (Yet Never Lose Faith)\", \"Build a Climate Where Truth Can Be Heard\") say much the same thing",
+    "13 key ideas, outside the 5-12 asked for"
+  ]
+}
