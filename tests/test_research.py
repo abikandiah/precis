@@ -158,12 +158,13 @@ def test_pages_are_capped_individually_and_in_total():
     assert len(found.sources) == research.TOTAL_CHARS // research.PAGE_CHARS
 
 
-def test_thin_research_warns():
+def test_thin_research_warns_by_pages_or_by_text():
     found = research.build_research(BOOK, [[_page("https://a.org", _LINE)]])
-    assert any("only 1 page(s)" in w for w in found.warnings)
-    assert not research.build_research(
-        BOOK, [[_page("https://a.org", _prose("a")), _page("https://b.org", _prose("b"))]]
-    ).warnings
+    assert any("only 1 page(s)" in w and "expect them to be general" in w for w in found.warnings)
+    # Many pages, little text: still thin.
+    snippets = [_page(f"https://{t}.org", _prose(t)) for t in "abcdefgh"]
+    assert any("only 8 page(s)" in w for w in research.build_research(BOOK, [snippets]).warnings)
+    assert not research.build_research(BOOK, [[_page(f"https://{t}.org", _long(t)) for t in "abcd"]]).warnings
 
 
 def test_render_frames_sources_as_data_and_escapes_them():
@@ -184,7 +185,12 @@ def test_render_frames_sources_as_data_and_escapes_them():
 # --- research(): cache ------------------------------------------------------------
 
 
-_ENOUGH = [_page(f"https://{tag}.org", _prose(tag)) for tag in "abcde"]
+def _long(tag: str) -> str:
+    """A full page (past PAGE_CHARS) with its own vocabulary."""
+    return "\n".join(f"{_LINE} {tag}sentence{j}." for j in range(400))
+
+
+_ENOUGH = [_page(f"https://{tag}.org", _long(tag)) for tag in "abcde"]
 
 
 def _client(results=None) -> AsyncMock:
@@ -277,6 +283,13 @@ async def test_research_refuses_a_known_file_that_isnt_ready(tmp_path, update):
 
 
 # --- research(): follow-ups for thin research --------------------------------------------
+
+
+async def test_many_pages_of_little_text_count_as_thin(tmp_path):
+    client = AsyncMock()
+    client.search.side_effect = [[_page(f"https://{t}.org", _prose(t)) for t in "abcdef"], [], [], [], [], []]
+    await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert client.search.await_count == 6
 
 
 async def test_thin_research_runs_the_follow_ups_once_and_caches_them(tmp_path):

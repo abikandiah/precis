@@ -31,9 +31,16 @@ the blueprint.
   research → write.
 - [x] **Checks + review** — `checks.py`, `review.py`, wired into
   `generate`.
-- [ ] **Baseline** — the first full eval run becomes the baseline; confirm
-  < $0.50 a book, that OpenRouter reports `usage.cost`, and that
-  `cache_control` reaches Anthropic (`cached_tokens` on the review call).
-- [ ] **Tune** — Haiku vs Sonnet and prompt variants, judged pairwise
-  against the baseline.
+- [x] **Baseline** — `evals/runs/haiku-4-5`: $0.087 a book, OpenRouter
+  reports `usage.cost`, and the review call reads the research from the
+  prompt cache.
+- [ ] **Tune** — done so far, compared by reading the runs: review
+  faithfulness and spoiler rules (`haiku-4-5-v2`), bigger research pages,
+  follow-up searches for thin research, and two lesser-known eval books
+  (`haiku-4-5-research`, $0.09 a book). Left: Haiku vs Sonnet, above all
+  on the lesser-known books, where the model's own knowledge is the
+  ceiling.
+- [ ] **book-keeper on schema v2** — book-keeper's `schema.ts` is still v1
+  (`chapters`, `parts`, no `ideas`), so it can't show v2's notes. Needed
+  before generating the library.
 - [ ] **Exemplars** — only if evals show a gap.

@@ -102,7 +102,9 @@ themes/analysis, novel review, synopsis (not "plot summary", which gives
 away the ending).
 
 **Follow-ups for thin research:** when those come back with fewer than 5
-pages naming both the book and its author, three wider searches run — the
+pages naming both the book and its author, or under ~20k tokens of text in
+all (The Integrity of the Personality's first searches found 18 pages but
+~11k tokens of snippets), three wider searches run — the
 book alone, a chapter summary and a publisher description (fiction: book
 review, publisher description and literary criticism — never the book alone
 or chapter summaries, which bring back the ending). Famous books
@@ -135,8 +137,10 @@ isn't cached; one that ran and found nothing is.
 
 **Identity checks**, in code, before any model call: the run fails when no
 page names the book (a mistyped or made-up title), or pages name it but none
-names its author. `--trust-known` turns both into warnings. Fewer than two
-sources warns that the notes lean on the model's own knowledge.
+names its author. `--trust-known` turns both into warnings. Research that ends thin — fewer
+than two sources or under ~20k tokens — warns that the notes lean on the
+model's own knowledge and will be general: the fallback when the web has
+little on a book is general but true notes, flagged as such.
 
 ### Write (`write.py`)
 
@@ -182,8 +186,13 @@ name and the real name, or an added co-author isn't a mismatch.
 ### Checks (`checks.py`)
 
 Code checks on the written notes, each a specific lead for the review:
-ideas or answers that describe the text ("the author discusses…") instead of
-stating the idea, and near-duplicate ideas (half their vocabulary shared).
+ideas, evidence or answers that describe the text ("the book examines…",
+"Storr traces…") instead of stating the idea or giving the book's example,
+and near-duplicate ideas (half their vocabulary shared). A general
+statement of what the book argues is a fine fallback when research is
+thin; a description of the text isn't. The author's surname counts as a
+subject in summaries and answers, not in evidence, where "Krakauer
+describes his 1977 climb of Devils Thumb" is the example itself.
 
 No check matches facts against the research. The first baseline run had
 one — numbers and proper nouns in an idea's evidence that weren't in its

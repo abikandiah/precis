@@ -38,3 +38,20 @@ def test_near_duplicate_ideas_are_flagged():
         ]
     )
     assert any(i.startswith('ideas 1 and 2 ("Loss aversion"') for i in check_notes(book))
+
+
+def test_evidence_and_the_authors_surname_as_subject_are_checked_too():
+    book = _book(
+        [
+            _idea("Stages", summary="Collins traces growth from good to great.", evidence="The book examines ten firms."),
+            _idea(
+                "Hedgehog",
+                summary="Collins argues that great firms focus on one thing.",
+                evidence="Collins describes how Walgreens bet everything on convenient drugstores.",
+            ),
+        ]
+    )
+    issues = check_notes(book)
+    assert 'idea 1 "Stages": describes the text instead of stating the idea' in issues
+    assert 'idea 1 "Stages": its evidence describes the text instead of giving the book\'s example' in issues
+    assert not any('"Hedgehog"' in i for i in issues)

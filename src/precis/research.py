@@ -2,7 +2,8 @@
 check the known-file's identity against them (docs/blueprint.md, Pipeline).
 
 Three searches run in parallel with full page text. When they come back
-thin — fewer than FOLLOW_UP_BELOW pages naming the book and its author —
+thin — fewer than FOLLOW_UP_BELOW pages naming the book and its author, or
+under THIN_CHARS of text in all —
 three follow-up searches look wider, so the credits go to the lesser-known
 books that need them. Raw results, follow-ups included, are cached on disk
 per slug, so a rerun doesn't search again; everything after
@@ -71,6 +72,11 @@ MIN_PAGE_CHARS = 2_000
 MIN_SOURCES = 2
 # Fewer sources than this from the first searches runs the follow-ups.
 FOLLOW_UP_BELOW = 5
+# Less text than this (~20k tokens) is thin however many pages it came
+# from: The Integrity of the Personality's first searches found 18 pages
+# but ~11k tokens of snippets, and the notes came out vague. Every famous
+# eval book's research is 30k+ tokens. Also warns when research ends thin.
+THIN_CHARS = 80_000
 
 # Any opening or closing source tag inside page text, however spelled — a
 # page can't close its own block, or open a fake one, and pose as something
@@ -157,16 +163,18 @@ def follow_up_queries(known_file: KnownFile) -> list[str]:
 
 def _needs_follow_up(known_file: KnownFile, results_per_query: list[list[SearchResult]]) -> bool:
     """Whether the first searches came back thin: fewer than FOLLOW_UP_BELOW
-    pages naming both the book and its author. That includes none naming
+    pages naming both the book and its author, or less than THIN_CHARS of
+    text across them. That includes none naming
     the author: a lesser-known book's hits are often title-only (a
     same-titled play, an excerpt cut before the byline), and a wider search
     may find the author. A wrong author costs one wasted round of follow-ups
     before the identity check fails.
     """
     try:
-        return len(build_research(known_file, results_per_query).sources) < FOLLOW_UP_BELOW
+        found = build_research(known_file, results_per_query)
     except ResearchError:
         return True
+    return len(found.sources) < FOLLOW_UP_BELOW or found.chars < THIN_CHARS
 
 
 def _url_key(url: str) -> str:
@@ -289,10 +297,11 @@ def build_research(
         if remaining < MIN_PAGE_CHARS:
             break
 
-    if len(sources) < MIN_SOURCES:
+    chars = sum(len(s.text) for s in sources)
+    if len(sources) < MIN_SOURCES or chars < THIN_CHARS:
         warnings.append(
-            f"research found only {len(sources)} page(s) about this book — the notes lean on the model's own "
-            "knowledge, so check them closely."
+            f"research found only {len(sources)} page(s), ~{chars // 4:,} tokens, about this book — the notes lean "
+            "on the model's own knowledge, so expect them to be general and check them closely."
         )
     return Research(sources=sources, warnings=warnings)
 
