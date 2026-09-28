@@ -1,0 +1,27 @@
+{
+  "slug": "good-to-great",
+  "label": "nemotron-ultra-free",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "started_at": "2026-09-28T23:07:32+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "9ff319fde99f",
+    "sources": 20
+  },
+  "duration_seconds": 261.2,
+  "usage": {
+    "llm_calls": 3,
+    "prompt_tokens": 113726,
+    "completion_tokens": 5366,
+    "cached_tokens": 0,
+    "llm_cost_usd": 0.0,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 8,
+  "key_claims": 10,
+  "warnings": 0,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

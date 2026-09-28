@@ -1,0 +1,27 @@
+{
+  "slug": "nineteen-eighty-four",
+  "label": "nemotron-ultra-free",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "started_at": "2026-09-28T23:11:53+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "917ddf12bcf9",
+    "sources": 12
+  },
+  "duration_seconds": 260.3,
+  "usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 86994,
+    "completion_tokens": 9455,
+    "cached_tokens": 34560,
+    "llm_cost_usd": 0.0,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 6,
+  "key_claims": 0,
+  "warnings": 0,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

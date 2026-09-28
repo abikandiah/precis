@@ -1,0 +1,87 @@
+{
+  "schema_version": "2",
+  "title": "Nineteen Eighty-Four",
+  "author": "George Orwell",
+  "year": 1949,
+  "isbn": "9780451524935",
+  "page_count": 328,
+  "kind": "fiction",
+  "one_line_takeaway": "In a totalitarian superstate where the Party rewrites history and polices thought, a low-ranking bureaucrat's quiet rebellion exposes the terrifying reach of state power over truth and the self.",
+  "synopsis": "The novel is set in an imagined future, the year 1984, in London (now called Airstrip One), the capital of Oceania—one of three perpetually warring superstates that dominate the globe. Oceania is ruled by the Party, an oligarchical regime led by the enigmatic figurehead Big Brother, whose face stares from posters warning 'BIG BROTHER IS WATCHING YOU.' The Party's ideology, Ingsoc (English Socialism), demands absolute obedience in deed and thought, enforced by the Thought Police, ubiquitous telescreens, and a culture of mutual suspicion. Society is divided into the privileged Inner Party, the subservient Outer Party, and the mass of proles who are kept distracted and politically inert. Winston Smith, a 39-year-old member of the Outer Party, works in the Records Department of the Ministry of Truth, where his job is to alter historical documents so that the Party's past pronouncements always appear correct. Though he outwardly conforms, Winston secretly despises the Party and nurses a desperate desire for truth,",
+  "ideas": [
+    {
+      "title": "Totalitarian Control and Surveillance",
+      "summary": "The Party maintains absolute power through omnipresent surveillance (telescreens, hidden microphones, the Thought Police), psychological manipulation (Two Minutes Hate, propaganda), and the threat of vaporization. The state seeks not just obedience but total interior conformity, making thoughtcrime—the mere harboring of unorthodox ideas—the ultimate offense.",
+      "evidence": "Winston's work at the Ministry of Truth, the telescreens in every room, the posters of Big Brother, the Two Minutes Hate ritual, the Parsons children spying on their parents.",
+      "sources": [
+        "S1",
+        "S4",
+        "S5",
+        "S8",
+        "S10"
+      ]
+    },
+    {
+      "title": "Manipulation of Truth and History",
+      "summary": "The Party's slogan 'Who controls the past controls the future: who controls the present controls the past' encapsulates its systematic rewriting of records, newspapers, photographs, and even language to align with current doctrine. Winston's job exemplifies this: he falsifies the past daily, dropping original documents into memory holes. The result is a society where objective reality is eroded and citizens cannot trust their own memories.",
+      "evidence": "Winston's alterations of Times articles, the memory holes, the shifting enemy from Eurasia to Eastasia during Hate Week, the concept of unpersons.",
+      "sources": [
+        "S1",
+        "S4",
+        "S5",
+        "S10"
+      ]
+    },
+    {
+      "title": "Language as Mind Control (Newspeak)",
+      "summary": "The Party develops Newspeak, a reduced vocabulary designed to eliminate words that could express dissent, thereby narrowing the range of thought. By removing synonyms, antonyms, and nuanced concepts (e.g., replacing 'bad' with 'ungood'), the Party aims to make thoughtcrime linguistically impossible.",
+      "evidence": "Syme's work on the Newspeak dictionary, the Party's goal to destroy words, the slogans 'War is Peace,' 'Freedom is Slavery,' 'Ignorance is Strength,' the appendix on Principles of Newspeak.",
+      "sources": [
+        "S1",
+        "S4",
+        "S5",
+        "S10"
+      ]
+    },
+    {
+      "title": "Individual vs. Collective Identity",
+      "summary": "The Party seeks to eradicate individual identity by demanding total submergence into the collective, using surveillance, sexual suppression, and the transformation of family ties into instruments of state loyalty. The struggle to maintain a private self—through secret thought, personal memory, and intimate connection—becomes an act of political resistance.",
+      "evidence": "Winston's diary writing, the Junior Anti-Sex League's campaign against private loyalties, the Parsons children denouncing their father to the Thought Police, the Party's insistence that 'freedom is slavery' and its demand for ideological uniformity.",
+      "sources": [
+        "S1",
+        "S4",
+        "S5",
+        "S11"
+      ]
+    },
+    {
+      "title": "Class Structure and the Proles",
+      "summary": "Oceania's society is rigidly stratified into the Inner Party (2%), the Outer Party (13%), and the proles (85%). The Party maintains control by keeping the proles distracted with entertainment and basic needs, granting them relative intellectual freedom because they are deemed incapable of organized revolt, while the Outer Party suffers intense surveillance. Winston both despairs of and pins hope on the proles as the only force numerous enough to overthrow the Party.",
+      "evidence": "Winston's observations of prole neighborhoods, the Party's slogan 'Proles and animals are free,' the contrast between Outer Party surveillance and prole neglect, the Party's dismissal of proles as politically unconscious.",
+      "sources": [
+        "S1",
+        "S5",
+        "S6",
+        "S10",
+        "S11"
+      ]
+    },
+    {
+      "title": "Perpetual War as a Tool of Social Control",
+      "summary": "The Party sustains a permanent state of war among the three superstates (Oceania, Eurasia, Eastasia) not to achieve victory but to consume industrial output, maintain a hierarchical society, and keep the population in a state of fear and dependence. The slogan 'War is Peace' captures this inversion: war becomes the means to preserve internal stability and the Party's power.",
+      "evidence": "The three superstates locked in shifting alliances, the Party's slogan 'War is Peace,' the Two Minutes Hate directed at the enemy of the moment, the economic function of war described in the Party's ideology.",
+      "sources": [
+        "S1",
+        "S5",
+        "S7"
+      ]
+    }
+  ],
+  "tags": [
+    "dystopian",
+    "fiction-literary",
+    "science-fiction",
+    "drama"
+  ],
+  "warnings": []
+}

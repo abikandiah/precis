@@ -1,0 +1,73 @@
+{
+  "schema_version": "2",
+  "title": "A Month in the Country",
+  "author": "J. L. Carr",
+  "year": 1980,
+  "isbn": "9780141046679",
+  "page_count": 94,
+  "kind": "fiction",
+  "one_line_takeaway": "A World War I veteran spends a summer restoring a medieval church mural in a Yorkshire village, finding unexpected healing through art, friendship, and the rhythms of rural life.",
+  "synopsis": "In the summer of 1920, Tom Birkin — a young World War I veteran suffering from shell shock, a facial twitch from a gas attack, and the collapse of his marriage — arrives in the remote Yorkshire village of Oxgodby. He has been hired to uncover and restore a medieval wall painting in the parish church, a project funded by a bequest from the late Miss Hebron. Penniless and rootless, Tom persuades the unsympathetic vicar, Reverend Keach, to let him sleep in the church's bell tower while he works.",
+  "ideas": [
+    {
+      "title": "Healing through Art and Work",
+      "summary": "The painstaking restoration of the medieval mural becomes a metaphor for Tom's own emotional recovery. As he scrapes away centuries of whitewash to reveal a magnificent Last Judgment scene, the focused, rhythmic labor gives him purpose and a sense of mastery, while his growing connection to the long-dead anonymous painter — even finding a hair from the artist's beard in the pigment — anchors him in a continuum of human making that transcends his trauma.",
+      "evidence": "Tom's daily work on the scaffolding uncovering the mural 'as if solving a jigsaw'; his realization that the painting is a masterpiece; the discovery of the medieval painter's hair in the paint; the vicar's wife Alice visiting quietly to watch the progress; Tom's own reflection that the work 'ironed him out'.",
+      "sources": [
+        "S1",
+        "S3",
+        "S4",
+        "S14"
+      ]
+    },
+    {
+      "title": "War Trauma and Survival",
+      "summary": "Both Tom and the archaeologist Charles Moon carry the invisible wounds of the Western Front. Their shared history creates an immediate, wordless understanding — a 'tacit camaraderie of soldiers' — expressed through morning tea rituals and long silences. Tom's facial twitch and stammer are physical remnants of Passchendaele; Moon's choice to sleep in his excavation trench ('living in a hole') hints at a psyche still seeking the safety of the dugout. The novel portrays trauma not as something cured but as a condition these men learn to live alongside.",
+      "evidence": "Tom's gas-attack twitch and stammer; Moon's recognition of Tom as a fellow soldier from his demeanor; their daily tea together; Moon sleeping in his trench; the novel's implication that Moon may have been further marginalized by his sexuality; Tom's later reflection that Moon died in another war.",
+      "sources": [
+        "S1",
+        "S3",
+        "S4",
+        "S14"
+      ]
+    },
+    {
+      "title": "The Passage of Time and Nostalgia",
+      "summary": "The narrative is framed by an elderly Tom looking back across decades, aware that the perfect summer of 1920 exists now only as a 'sealed room furnished by the past.' The novel simultaneously celebrates the intensity of that fleeting happiness and refuses to romanticize it — Tom knows he could never have stayed, that 'people move away, grow older, die,' and that the mural itself will eventually fade again. The changing season from high summer to autumn's first breath marks the inevitable end of the interlude.",
+      "evidence": "The opening and closing reflections of the older narrator; the recurring line 'Ah, those days... for many years afterwards their happiness haunted me'; the medieval mural as art that has survived centuries only to be whitewashed and rediscovered; the shift in weather signaling Tom's departure; the final acknowledgment that he never returned to Oxgodby.",
+      "sources": [
+        "S1",
+        "S2",
+        "S4",
+        "S8",
+        "S10"
+      ]
+    },
+    {
+      "title": "Transient Human Connection",
+      "summary": "Tom's healing is catalyzed by brief but profound relationships that remain unconsummated or unspoken. The stationmaster's daughter Kathy Ellerbeck 'adopts' him into village life with practical kindness — food, a gramophone, invitations to Sunday dinner. With Moon he shares a veteran's shorthand. With Alice Keach, the vicar's young, beautiful, lonely wife, he develops a charged but chaste bond conducted in muted conversations across the church. Each connection is limited by circumstance, yet each leaves a permanent imprint on memory.",
+      "evidence": "Kathy bringing Tom comforts and integrating him into her family and chapel community; the morning tea ritual with Moon; Alice slipping into a back pew to watch Tom work, their conversations 'no more than a remark, a question, answer, exclamation'; the unacknowledged mutual attraction that neither acts upon; Alice's departure with her husband leaving only a wordless farewell.",
+      "sources": [
+        "S1",
+        "S3",
+        "S4",
+        "S10"
+      ]
+    },
+    {
+      "title": "Art as Meaning in a Disenchanted World",
+      "summary": "The medieval mural's subject — the Final Judgment with its weighings of souls, Christ in Majesty, and eternal fire — represents a worldview in which salvation and damnation were the organizing facts of life. Tom, an atheist who has lived through the hell of Passchendaele, finds in the painting's artistry rather than its theology a source of meaning. The anonymous painter's dedication to a work he knew would be obscured mirrors Tom's own commitment to craftsmanship in a world that no longer guarantees transcendence. Art becomes the vehicle for 'salving' the soul when religion no longer does.",
+      "evidence": "Tom's realization that the mural is a masterpiece; his observation of the painter's technical foresight (avoiding cinnabar on lips because lime would blacken it); the contrast between 'Bible hell' (timeless) and the hell of Passchendaele; Birkin's reflection that he 'lived with a very great artist, my secret sharer'; the novel's suggestion that art has replaced religion as a source of meaning in modern life.",
+      "sources": [
+        "S14",
+        "S4",
+        "S3"
+      ]
+    }
+  ],
+  "tags": [
+    "fiction-literary",
+    "drama"
+  ],
+  "warnings": []
+}
