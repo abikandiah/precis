@@ -1,0 +1,82 @@
+{
+  "schema_version": "2",
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "year": 1813,
+  "isbn": "9780141439518",
+  "page_count": 480,
+  "kind": "fiction",
+  "one_line_takeaway": "Two people blinded by their first impressions must overcome pride and prejudice to discover true love and mutual understanding in an England where a woman's future depends entirely on making a good marriage.",
+  "synopsis": "Pride and Prejudice is set in early 19th-century rural England, primarily in Hertfordshire and Derbyshire, where marriage and social standing determine a woman's security and happiness. The novel centers on the Bennet family—Mr. and Mrs. Bennet and their five unmarried daughters—who live on an entailed estate that will pass to a distant male cousin. Mrs. Bennet is desperate to marry off her daughters to wealthy men, while Elizabeth Bennet, the spirited and intelligent second daughter, values personal judgment and independence over financial security.\n\nWhen Charles Bingley, a rich young bachelor, rents the nearby estate of Netherfield Park, Mrs. Bennet sees opportunity. Bingley is charming and immediately attracts Jane, the eldest Bennet daughter. His close friend Mr. Fitzwilliam Darcy, even wealthier but proud and reserved, proves disagreeable at their first meeting. When Darcy refuses to dance with Elizabeth and insults her appearance, she develops a strong prejudice against him that seems confirmed when the charming militia officer George Wickham tells her Darcy wronged him years ago.\n\nAs Elizabeth and Darcy encounter each other repeatedly at social gatherings, Darcy finds himself drawn to Elizabeth's wit and intelligence, despite her lower social standing. Elizabeth, however, remains convinced of his arrogance and cruelty. The novel explores the tension between social class and individual worth, the dangers of judging by first impressions, and the conflict between marrying for security versus love—themes embodied in the various sisters' different approaches to matrimony. Elizabeth must confront her own hasty judgments while Darcy must examine the pride that makes him look down on anyone outside his immediate social circle.",
+  "ideas": [
+    {
+      "title": "Pride blinds us to truth and makes us act cruelly without awareness",
+      "summary": "Both Darcy and Elizabeth display pride that distorts their perception of each other. Darcy's pride in his social rank prevents him from seeing Elizabeth's true worth. Elizabeth's pride in her ability to judge character makes her confident in her harsh first impressions of Darcy.",
+      "evidence": "Darcy refuses to dance with Elizabeth at the first ball and makes a cutting remark about her appearance. Elizabeth overhears Darcy's insult and develops an instant prejudice against him.",
+      "sources": [
+        "S1",
+        "S7",
+        "S16"
+      ]
+    },
+    {
+      "title": "Prejudice—judging based on preconceptions rather than truth—poisons relationships and understanding",
+      "summary": "The novel shows how characters form prejudices based on first impressions, class assumptions, and incomplete information, leading them to misunderstand each other's motives and character. Prejudice operates at both personal and social levels, as characters judge one another based on wealth, family status, and superficial qualities rather than actual worth.",
+      "evidence": "Elizabeth prejudges Darcy as arrogant based on his refusal to dance with her and his perceived rudeness. Darcy initially dismisses Elizabeth as beneath him socially. Caroline Bingley and Lady Catherine treat the Bennets with disdain because of their lower social standing. The title itself signals that both pride and prejudice are central obstacles to truth and connection.",
+      "sources": [
+        "S1",
+        "S7",
+        "S16",
+        "S19"
+      ]
+    },
+    {
+      "title": "A woman's security and future depend almost entirely on marriage, forcing her to balance love against practical necessity",
+      "summary": "The novel is saturated with the reality that marriage is the only path to financial security and social respectability for women of the period. The Bennet daughters' futures are uncertain because their father's estate is entailed to a male heir, making advantageous marriages not merely desirable but essential. The different sisters' responses to this pressure—Elizabeth's insistence on marrying for love, Charlotte's pragmatic acceptance of marriage without it, Jane's gentle hopefulness—reveal the tension between personal happiness and survival.",
+      "evidence": "Mrs. Bennet's obsessive focus on marrying off her daughters stems from legitimate anxiety: once Mr. Bennet dies, his cousin Mr. Collins will inherit Longbourn, leaving the daughters without home or means unless married. Charlotte Lucas, Elizabeth's friend, accepts Mr. Collins's proposal explicitly for financial security rather than love, reasoning that 'a comfortable home' matters more than affection. The opening line's irony—that a wealthy man must want a wife—points to the economic desperation of women without fortune or family protection.",
+      "sources": [
+        "S1",
+        "S3",
+        "S7",
+        "S12",
+        "S19"
+      ]
+    },
+    {
+      "title": "Social class distinctions are rigid and consequential, determining how people are treated and what futures are available to them",
+      "summary": "Class divisions structure the entire social world of the novel. Darcy and Bingley, as wealthy landowners, occupy the highest rank; the Bennets, as middle-class gentry without independent wealth, are viewed as their inferiors; working people and trade-made fortunes fall lower still. These divisions affect marriage prospects, social acceptance, and even how characters are spoken to. The novel critiques the cruelty and absurdity of such rigid hierarchies while showing how real the stakes are for those caught in lower positions.",
+      "evidence": "Darcy initially sees the Bennets as beneath him socially, and his aunt Lady Catherine speaks to Elizabeth with open disdain about her mother's connections. Caroline Bingley looks down on the Bennets' family and their lack of consequence. The Bennets must work to maintain their reputation in society to preserve their daughters' marriage prospects, while Darcy and his circle take their social standing for granted. Mr. Collins's servility toward Lady Catherine and his anxiety about his social position demonstrate how thoroughly the class system shapes behavior and self-worth.",
+      "sources": [
+        "S1",
+        "S7",
+        "S12",
+        "S19"
+      ]
+    },
+    {
+      "title": "Reputation, particularly for women, is fragile and consequential, with individual lapses affecting the entire family's standing",
+      "summary": "In the society Austen depicts, a woman's reputation—her perceived virtue and propriety—is her most valuable asset and is easily damaged. A single woman's improper behavior or questionable associations can ruin not only her own marriage prospects but those of her sisters, threatening the family's entire social position and security. The novel emphasizes how little room for error women have and how much they depend on others' discretion and support.",
+      "evidence": "Elizabeth is concerned about appearing improper during her solo visits and walks, aware that her actions reflect on her family. The younger sisters Lydia and Kitty flirt openly with soldiers, behavior that others view as dangerously forward. Mrs. Bennet's vulgar remarks and inappropriate comments in public damage the family's standing. The novel shows that maintaining reputation requires constant vigilance and conformity to narrow social rules, a burden that falls particularly heavily on unmarried women.",
+      "sources": [
+        "S1",
+        "S12",
+        "S19"
+      ]
+    },
+    {
+      "title": "True love requires seeing past surface appearances and social conventions to recognize a person's actual character",
+      "summary": "The novel suggests that genuine love is built on understanding and mutual respect rather than on attraction, wealth, or social compatibility. The central romance between Elizabeth and Darcy turns on their potential to see each other's true natures beneath the pride and prejudice that initially obscure them.",
+      "evidence": "Elizabeth insists she will marry only for love, not money or status, distinguishing her values from the mercenary marriages around her. Darcy finds himself drawn to Elizabeth's wit and intelligence despite her lower social standing, suggesting that genuine attraction transcends social hierarchy.",
+      "sources": [
+        "S7",
+        "S8"
+      ]
+    }
+  ],
+  "tags": [
+    "fiction-literary",
+    "romance",
+    "drama"
+  ],
+  "warnings": []
+}

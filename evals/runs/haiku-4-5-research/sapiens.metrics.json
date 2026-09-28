@@ -1,0 +1,27 @@
+{
+  "slug": "sapiens",
+  "label": "haiku-4-5-research",
+  "model": "anthropic/claude-haiku-4.5",
+  "started_at": "2026-09-28T22:42:24+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "7289f4fa6f15",
+    "sources": 17
+  },
+  "duration_seconds": 52.5,
+  "usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 126183,
+    "completion_tokens": 5006,
+    "cached_tokens": 59767,
+    "llm_cost_usd": 0.112364,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 12,
+  "key_claims": 10,
+  "warnings": 0,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

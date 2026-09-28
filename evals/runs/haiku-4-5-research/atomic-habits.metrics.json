@@ -1,0 +1,27 @@
+{
+  "slug": "atomic-habits",
+  "label": "haiku-4-5-research",
+  "model": "anthropic/claude-haiku-4.5",
+  "started_at": "2026-09-28T22:37:13+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "1580725671f7",
+    "sources": 22
+  },
+  "duration_seconds": 67.2,
+  "usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 126753,
+    "completion_tokens": 7218,
+    "cached_tokens": 60243,
+    "llm_cost_usd": 0.123685,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 14,
+  "key_claims": 15,
+  "warnings": 1,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}

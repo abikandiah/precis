@@ -1,0 +1,27 @@
+{
+  "slug": "thinking-fast-and-slow",
+  "label": "haiku-4-5-research",
+  "model": "anthropic/claude-haiku-4.5",
+  "started_at": "2026-09-28T22:44:49+00:00",
+  "error": null,
+  "research": {
+    "fingerprint": "4c24fff29514",
+    "sources": 20
+  },
+  "duration_seconds": 62.6,
+  "usage": {
+    "llm_calls": 2,
+    "prompt_tokens": 124568,
+    "completion_tokens": 5806,
+    "cached_tokens": 58517,
+    "llm_cost_usd": 0.115562,
+    "cost_missing": 0,
+    "searches": 0,
+    "search_credits": 0
+  },
+  "ideas": 12,
+  "key_claims": 12,
+  "warnings": 0,
+  "duplicate_idea_rate": 0.0,
+  "citation_coverage": 1.0
+}
