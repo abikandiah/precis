@@ -174,24 +174,40 @@ class Idea(BaseModel):
 def notes_shape_problems(
     kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
 ) -> list[str]:
-    """The per-kind counts a book's notes must meet. Shared by `Book` and
-    the write call's own response model (write.py), so a miscount is a
-    retryable validation failure at the call, and the final book can't
-    disagree with it.
+    """What makes a book's notes unusable: no ideas, a non-fiction book
+    with no review deck, or fiction with one. Shared by `Book` and the
+    write and review calls' response models, so it's a retryable validation
+    failure at the call and the final book can't disagree with it. Counts
+    outside IDEA_LIMITS or KEY_CLAIM_LIMITS aren't problems, only warnings
+    (notes_count_warnings).
     """
     problems = []
-    low, high = IDEA_LIMITS[kind]
-    if not low <= len(ideas) <= high:
-        noun = "themes" if kind == "fiction" else "key ideas"
-        problems.append(f"a {kind} book needs {low}-{high} ideas ({noun}), got {len(ideas)}")
+    if not ideas:
+        problems.append("the notes need at least one idea")
     if kind == "fiction":
         if key_claims:
             problems.append("fiction has no key_claims_for_review")
-    else:
+    elif not key_claims:
+        problems.append("non-fiction needs key_claims_for_review")
+    return problems
+
+
+def notes_count_warnings(
+    kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
+) -> list[str]:
+    """Counts outside the limits the prompts ask for. The limits guide the
+    model; missing them isn't worth a retry, so the reader is told instead.
+    """
+    warnings = []
+    low, high = IDEA_LIMITS[kind]
+    if not low <= len(ideas) <= high:
+        noun = "themes" if kind == "fiction" else "key ideas"
+        warnings.append(f"{len(ideas)} {noun}, outside the {low}-{high} asked for")
+    if kind == "non-fiction":
         low, high = KEY_CLAIM_LIMITS
         if not low <= len(key_claims or []) <= high:
-            problems.append(f"non-fiction needs {low}-{high} key_claims_for_review, got {len(key_claims or [])}")
-    return problems
+            warnings.append(f"{len(key_claims or [])} key claims, outside the {low}-{high} asked for")
+    return warnings
 
 
 def citation_problems(ideas: list[Idea], source_ids: set[str]) -> list[str]:

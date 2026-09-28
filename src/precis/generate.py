@@ -20,7 +20,7 @@ from precis import llm
 from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
 from precis.review import review_notes
-from precis.schema import Book, KnownFile
+from precis.schema import Book, KnownFile, notes_count_warnings
 from precis.write import write_notes
 
 
@@ -63,7 +63,7 @@ async def _write_and_review(
     written = await write_notes(known_file, found, trust_known=trust_known, client=client)
     progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
 
-    issues = check_notes(written, found)
+    issues = check_notes(written)
     for issue in issues:
         progress(f"check: {issue}")
     progress("review: checking the notes against the research")
@@ -79,6 +79,8 @@ async def _write_and_review(
             progress(f"review: {change}")
         if not changes:
             progress("review: no changes")
+    if counts := notes_count_warnings(book.kind, book.ideas, book.key_claims_for_review):
+        book = book.model_copy(update={"warnings": [*book.warnings, *counts]})
     # Research already printed its own warnings.
     for warning in book.warnings:
         if warning not in found.warnings:

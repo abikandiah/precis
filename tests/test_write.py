@@ -61,10 +61,8 @@ def test_a_valid_nonfiction_draft_passes():
 @pytest.mark.parametrize(
     ("data", "kind", "message"),
     [
-        (_draft(ideas=4), "non-fiction", "5-12 ideas"),
-        (_draft(ideas=13), "non-fiction", "5-12 ideas"),
-        (_draft(claims=4), "non-fiction", "5-15 key_claims_for_review"),
-        (_draft("fiction", ideas=7), "fiction", "3-6 ideas"),
+        (_draft(ideas=0), "non-fiction", "at least one idea"),
+        (_draft(claims=0), "non-fiction", "non-fiction needs key_claims_for_review"),
         (_draft(tags=["psychology", "made-up"]), "non-fiction", "closed non-fiction vocabulary"),
     ],
 )

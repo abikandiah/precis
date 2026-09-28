@@ -44,7 +44,7 @@ def _validate(data: dict, book: Book | None = None) -> review.Review:
 
 def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
     book = book or _book()
-    return review.apply_review(book, _validate(data, book), RESEARCH)
+    return review.apply_review(book, _validate(data, book))
 
 
 # --- validation: the book the review would produce --------------------------------------
@@ -56,14 +56,9 @@ def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
         ({"ideas": [*_verdicts(), {"title": "Idea 9", "verdict": "keep"}]}, "'Idea 9' isn't one of the ideas"),
         ({"ideas": [*_verdicts(), {"title": "Idea 2", "verdict": "drop"}]}, "'Idea 2' has more than one verdict"),
         ({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r"})}, "revise but has no revised idea"),
-        ({"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}, "5-12 ideas .*got 13"),
+        ({"ideas": _verdicts(**{f"i{n}": {"verdict": "drop", "reason": "r"} for n in range(6)})}, "at least one idea"),
         ({"ideas": _verdicts(), "new_ideas": [_idea(9, ["S4"])]}, r"cites \['S4'\]"),
         ({"ideas": _verdicts(), "new_ideas": [_idea(9, [])]}, "new idea 'Idea 9' must cite"),
-        ({"ideas": _verdicts(), "key_claims_for_review": _CLAIMS[:3]}, "5-15"),
-        (
-            {"ideas": _verdicts(i0={"verdict": "drop"}, i1={"verdict": "drop"})},
-            "keep or revise an idea you dropped",
-        ),
         # Claims resting on a dropped idea must be dealt with.
         ({"ideas": _verdicts(i0={"verdict": "drop", "reason": "contradicted"})}, "return key_claims_for_review"),
         ({"ideas": _verdicts(), "synopsis": "Paragraph two, fixed."}, "the whole corrected synopsis"),
@@ -72,6 +67,17 @@ def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
 def test_the_review_is_validated_against_the_book_it_would_produce(data, message):
     with pytest.raises(ValidationError, match=message):
         _validate(data)
+
+
+def test_counts_outside_the_limits_dont_fail_the_review():
+    reviewed, _ = _apply({"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]})
+    assert len(reviewed.ideas) == 13
+
+
+def test_a_review_can_drop_below_the_minimum():
+    verdicts = _verdicts(**{f"i{n}": {"verdict": "drop", "reason": "r"} for n in range(5)})
+    reviewed, _ = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS})
+    assert [i.title for i in reviewed.ideas] == ["Idea 5"]
 
 
 def test_fiction_rejects_a_review_deck():
@@ -157,9 +163,9 @@ def test_mostly_uncited_ideas_warn_of_thin_research():
 
 
 def test_what_the_checks_still_find_after_the_review_becomes_a_warning():
-    invented = {"title": "Idea 1", "summary": "s", "evidence": "Smith's 1999 study", "sources": ["S1"]}
-    reviewed, _ = _apply({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r", "revised": invented})})
-    assert any(w.startswith("after review, idea 2 \"Idea 1\": its evidence names ['1999', 'Smith']") for w in reviewed.warnings)
+    meta = {"title": "Idea 1", "summary": "The author discusses it.", "evidence": "e", "sources": ["S1"]}
+    reviewed, _ = _apply({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r", "revised": meta})})
+    assert 'after review, idea 2 "Idea 1": describes the text instead of stating the idea' in reviewed.warnings
 
 
 # --- the call -------------------------------------------------------------------------------

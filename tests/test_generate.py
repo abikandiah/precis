@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from precis import generate as generate_module
 from precis.llm import StructuredOutputError
 from precis.research import Research
-from precis.schema import KnownFile
+from precis.schema import Book, KnownFile
 
 BOOK = KnownFile(isbn="1", title="T", author="A", kind="fiction")
 
@@ -12,13 +12,14 @@ BOOK = KnownFile(isbn="1", title="T", author="A", kind="fiction")
 async def test_generate_researches_writes_checks_then_reviews():
     found = Research(sources=[], warnings=["thin research"])
     written = SimpleNamespace(ideas=[], key_claims_for_review=None)
-    reviewed = SimpleNamespace(warnings=["thin research", "author mismatch"])
+    reviewed = SimpleNamespace(kind="fiction", ideas=[], key_claims_for_review=None, warnings=["thin research", "author mismatch"])
     messages: list[str] = []
     with (
         patch.object(generate_module.llm, "build_client") as build_client,
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)) as research,
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)) as write,
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])) as check,
+        patch.object(generate_module, "notes_count_warnings", new=MagicMock(return_value=[])),
         patch.object(
             generate_module, "review_notes", new=AsyncMock(return_value=(reviewed, ['dropped "X": generic']))
         ) as review,
@@ -31,7 +32,7 @@ async def test_generate_researches_writes_checks_then_reviews():
     assert (kwargs["slug"], kwargs["trust_known"], kwargs["fresh"]) == ("t", True, True)
     assert write.await_args.args == (BOOK, found)
     assert write.await_args.kwargs["trust_known"] is True
-    check.assert_called_once_with(written, found)
+    check.assert_called_once_with(written)
     assert review.await_args.args == (BOOK, found, written, ["idea 1: a finding"])
     # One client for both calls, closed at the end of the run.
     client = build_client.return_value.__aenter__.return_value
@@ -53,6 +54,7 @@ async def test_a_failed_review_keeps_the_written_notes_with_a_warning():
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])),
+        patch.object(generate_module, "notes_count_warnings", new=MagicMock(return_value=[])),
         patch.object(generate_module, "review_notes", new=AsyncMock(side_effect=StructuredOutputError("bad"))),
     ):
         result = await generate_module.generate(BOOK, slug="t", on_progress=messages.append)
@@ -60,3 +62,25 @@ async def test_a_failed_review_keeps_the_written_notes_with_a_warning():
     warnings = written.model_copy.call_args.kwargs["update"]["warnings"]
     assert warnings[0] == "from write" and "unreviewed" in warnings[1] and warnings[2] == "idea 1: a finding"
     assert "review: no changes" not in messages
+
+
+def _nonfiction(ideas: int) -> Book:
+    return Book.model_validate({
+        "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "one_line_takeaway": "t", "synopsis": "s",
+        "ideas": [{"title": f"Idea {n}", "summary": "s", "evidence": "e"} for n in range(ideas)],
+        "key_claims_for_review": [{"prompt": "Q?", "answer": "A."}] * 5, "tags": ["business", "economics"],
+    })  # fmt: skip
+
+
+async def test_counts_outside_the_limits_become_warnings_whether_or_not_the_review_ran():
+    found = Research(sources=[], warnings=[])
+    written = _nonfiction(13)
+    for review in (AsyncMock(return_value=(written, [])), AsyncMock(side_effect=StructuredOutputError("bad"))):
+        with (
+            patch.object(generate_module.llm, "build_client"),
+            patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
+            patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
+            patch.object(generate_module, "review_notes", new=review),
+        ):
+            result = await generate_module.generate(BOOK, slug="t")
+        assert result.book.warnings[-1] == "13 key ideas, outside the 5-12 asked for"

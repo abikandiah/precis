@@ -1,5 +1,5 @@
 """Per-run cost and usage accounting: LLM calls, tokens, the gateway's own
-reported cost, and search credits.
+reported cost, and searches with the credits they use.
 
 `track()` opens a scope; every LLM response (llm._create) and search
 (search.TavilySearchClient) inside it is recorded onto that scope's `Usage`.
@@ -11,7 +11,8 @@ record onto the one `Usage` their run opened.
 Cost is whatever the gateway reports per response (OpenRouter's
 `usage.cost`, in USD) — measured, not estimated from a price table. A
 response with no reported cost is counted in `cost_missing` so a total that
-undercounts says so.
+undercounts says so. Searches aren't priced: they run on Tavily's free
+monthly credits, so they're counted in credits against that allowance.
 """
 
 from __future__ import annotations
@@ -22,9 +23,7 @@ from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from typing import Any
 
-# Tavily pay-as-you-go price per credit; research's advanced searches cost
-# 2 credits each. Only used to put searches and LLM calls on one total.
-SEARCH_USD_PER_CREDIT = 0.008
+# Research's advanced searches cost 2 Tavily credits each.
 CREDITS_PER_SEARCH = 2
 
 
@@ -39,20 +38,10 @@ class Usage:
     searches: int = 0
     search_credits: int = 0
 
-    @property
-    def search_cost_usd(self) -> float:
-        return self.search_credits * SEARCH_USD_PER_CREDIT
-
-    @property
-    def total_cost_usd(self) -> float:
-        return self.llm_cost_usd + self.search_cost_usd
-
     def to_dict(self) -> dict[str, Any]:
-        return {
-            **asdict(self),
-            "search_cost_usd": round(self.search_cost_usd, 6),
-            "total_cost_usd": round(self.total_cost_usd, 6),
-        }
+        # A sum of per-call floats; rounded so metrics.json doesn't carry
+        # float noise like 0.30000000000000004.
+        return {**asdict(self), "llm_cost_usd": round(self.llm_cost_usd, 6)}
 
     def summary(self) -> str:
         tokens = f"{self.prompt_tokens:,} in / {self.completion_tokens:,} out tokens"
@@ -61,8 +50,7 @@ class Usage:
         missing = f", {self.cost_missing} call(s) reported no cost" if self.cost_missing else ""
         return (
             f"usage: {self.llm_calls} LLM call(s), {tokens}, ${self.llm_cost_usd:.4f}{missing}; "
-            f"{self.searches} search(es), {self.search_credits} credit(s) ~${self.search_cost_usd:.4f}; "
-            f"total ~${self.total_cost_usd:.4f}"
+            f"{self.searches} search(es), {self.search_credits} credit(s)"
         )
 
 

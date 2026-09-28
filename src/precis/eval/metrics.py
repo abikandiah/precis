@@ -64,7 +64,7 @@ def summarize(metrics: list[dict[str, Any]]) -> dict[str, Any]:
     `failed` and toward cost (the money was spent), not the quality means.
     """
     ok = [m for m in metrics if not m.get("error")]
-    costs = [m["usage"]["total_cost_usd"] for m in metrics if m.get("usage")]
+    costs = [m["usage"]["llm_cost_usd"] for m in metrics if m.get("usage")]
     return {
         "books": len(metrics),
         "failed": len(metrics) - len(ok),

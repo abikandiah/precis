@@ -61,9 +61,9 @@ title, author, year, isbn, page_count, kind    from the known-file
 one_line_takeaway      one sentence
 synopsis               3-5 paragraphs
 ideas                  [{ title, summary, evidence, sources }]
-                         non-fiction: 5-12 key ideas
-                         fiction: 3-6 themes
-key_claims_for_review  [{ prompt, answer }], non-fiction only, 5-15
+                         non-fiction: 5-12 key ideas asked for
+                         fiction: 3-6 themes asked for
+key_claims_for_review  [{ prompt, answer }], non-fiction only, 5-15 asked for
 tags                   2-4 from the closed vocabulary for the kind
 reader_notes           the known-file's notes, when given
 warnings               anything the reader should check
@@ -76,6 +76,9 @@ warnings               anything the reader should check
 - **`evidence`** is the study, story, example or figure the author uses
   (non-fiction), or the characters and situations that carry a theme
   (fiction). It makes the notes memorable and the grounding checkable.
+- **Counts guide the model; they don't fail a run.** A count outside what
+  was asked for is a warning. Only notes with no ideas, or non-fiction
+  without a review deck, are rejected.
 - **`sources`** lists the research sources (`S1`, `S2`, …) behind an idea;
   empty means it rests on the model's own knowledge of the book.
 - Fields with no value are absent, not null.
@@ -140,9 +143,11 @@ the review call's `cached_tokens` (docs/v2-plan.md).
 - Fiction's instructions repeat the spoiler rule and warn that the research
   contains spoilers.
 
-The response is validated as it arrives — counts per kind, tags from the
-closed vocabulary, citation IDs that exist in the research — and a retry
-after a failure shows the model its rejected call and the error.
+The response is validated as it arrives — at least one idea, a review deck
+for non-fiction and none for fiction, tags from the closed vocabulary,
+citation IDs that exist in the research — and a retry after a failure
+shows the model its rejected call and the error. Retries are for output
+that can't be used, not for a count outside the asked-for range.
 
 **Identity backstop:** a real but wrong author named next to the book on
 some page (a comparison, a reading list) passes research's code checks, so
@@ -154,14 +159,15 @@ name and the real name, or an added co-author isn't a mismatch.
 
 Code checks on the written notes, each a specific lead for the review:
 ideas or answers that describe the text ("the author discusses…") instead of
-stating the idea; near-duplicate ideas (half their vocabulary shared); and
-**evidence specifics** — numbers and proper nouns in an idea's evidence
-(study names, figures, people, dates: where invention hides) that aren't in
-the sources it cites, or, for an uncited idea, anywhere in the research.
-A capitalized word opening a sentence counts as a name only if the research
-never uses it in lowercase, so "However" or "Participants" isn't one.
-Numbers match however their units and magnitudes are written: "42km" is
-"42 km", "$2.5m" is "$2.5 million".
+stating the idea, and near-duplicate ideas (half their vocabulary shared).
+
+No check matches facts against the research. The first baseline run had
+one — numbers and proper nouns in an idea's evidence that weren't in its
+cited sources — and it caught no inventions across 8 books, while its
+flags (Tolstoy in *Into the Wild*, Wickham in *Pride and Prejudice*, all
+correct) led the review to strip correct details. ~30k tokens of excerpts
+can't hold everything, so "not in the research" isn't "invented".
+Accuracy is the review's job, and the evals' judge measures it.
 
 ### Review (`review.py`)
 
@@ -187,9 +193,10 @@ audits every field for spoilers, with the write prompt's guards.
   replacements for dropped ones; they must cite the research.
 
 The review is validated by building the book it would produce, by the
-book's own rules: too few or too many ideas, verdicts out of step with the
-ideas, a dropped idea whose claims weren't dealt with, or a half-returned
-synopsis is sent back with the reason. If it still can't fix it, or the
+book's own rules: no ideas left, a verdict naming no idea or a second
+verdict for one, a dropped idea whose claims weren't dealt with, or a
+half-returned synopsis is sent back with the reason. An idea with no
+verdict is kept as written. If it still can't fix it, or the
 call fails outright, the run keeps the written notes (already paid for),
 with a warning that they're unreviewed and the check findings as warnings.
 A revised idea that leaves out its sources keeps the
@@ -223,7 +230,7 @@ precis tags [--output <path>]
 precis eval run <label> [--book <slug>]... [--trust-known] [--fresh]
     → generates every eval book (evals/) into evals/runs/<label>/: each
       book's JSON plus <slug>.metrics.json — measured cost (the gateway's
-      usage.cost plus search credits), duration, idea and claim counts,
+      usage.cost), searches and their credits, duration, idea and claim counts,
       warnings, duplicate-idea rate, citation coverage. A book already
       there is skipped, so a rerun finishes a partial run without paying
       twice. Research is cached per book, not per run, so runs comparing
@@ -267,9 +274,11 @@ carries only the command's output.
   There's no whole-run limit: the per-call timeouts bound a run, at about
   an hour in the worst case (a stalled provider on both the write and the
   review call, through every retry).
-- **Cost:** every run reports the gateway-reported cost of its calls plus
-  its search credits. Target: under $0.50 a book on average, measured on
-  the eval set.
+- **Cost:** every run reports the gateway-reported cost of its calls.
+  Target: under $0.50 a book on average, measured on the eval set.
+  Searches aren't priced: they run on Tavily's free tier (1,000 credits a
+  month; a book's 3 advanced searches use 6), and runs report the credits
+  used against it.
 - **Docker:** see the Docker boundary above. The image runs as a non-root
   user and writes only to `/output`, `/data` (the research cache, on a
   named volume) and `/tmp`; README.md has the `docker run` hardening flags.

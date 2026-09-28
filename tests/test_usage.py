@@ -51,7 +51,7 @@ def test_searches_count_credits():
         usage.record_search()
     assert tracked.searches == 2
     assert tracked.search_credits == 2 * usage.CREDITS_PER_SEARCH
-    assert tracked.total_cost_usd == 2 * usage.CREDITS_PER_SEARCH * usage.SEARCH_USD_PER_CREDIT
+    assert tracked.llm_cost_usd == 0
 
 
 def test_nothing_is_recorded_outside_a_scope():

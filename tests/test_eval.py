@@ -66,9 +66,9 @@ def test_book_metrics_counts_ideas_claims_and_warnings():
 
 
 def test_summarize_counts_failed_books_toward_cost_only():
-    ok = {"usage": {"total_cost_usd": 0.2, "llm_calls": 4, "searches": 3}, "duration_seconds": 10,
+    ok = {"usage": {"llm_cost_usd": 0.2, "llm_calls": 4, "searches": 3}, "duration_seconds": 10,
           "ideas": 8, "warnings": 0, "duplicate_idea_rate": 0.1, "citation_coverage": None}
-    failed = {"error": "boom", "usage": {"total_cost_usd": 0.1, "llm_calls": 1, "searches": 1}, "duration_seconds": 2}
+    failed = {"error": "boom", "usage": {"llm_cost_usd": 0.1, "llm_calls": 1, "searches": 1}, "duration_seconds": 2}
     s = metrics.summarize([ok, failed])
     assert s["failed"] == 1
     assert s["total_cost_usd"] == pytest.approx(0.3)
