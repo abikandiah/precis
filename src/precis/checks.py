@@ -36,8 +36,11 @@ _META = re.compile(
     r"|\bthe author (argues|explains|shows) (that )?this\b",
     re.IGNORECASE,
 )
-# In evidence, the author describing something is the example itself.
-_META_EVIDENCE = re.compile(rf"\b(the|this) (book|chapter|text|novel|work) {_DESCRIBING}\b", re.IGNORECASE)
+# In evidence, the author describing something is the example itself, and
+# so is "the book includes X" partway through ("…Krakauer's sister. The book
+# includes critical letters he received"). Only evidence that opens by
+# describing the text ("The book examines ten firms.") has no example.
+_META_EVIDENCE = re.compile(rf"^\s*(the|this) (book|chapter|text|novel|work) {_DESCRIBING}\b", re.IGNORECASE)
 
 
 def _describes_text(text: str, surnames: list[str] = [], *, evidence: bool = False) -> bool:  # noqa: B006 — never mutated

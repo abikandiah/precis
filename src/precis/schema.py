@@ -210,15 +210,15 @@ def notes_count_warnings(
     return warnings
 
 
-def citation_problems(ideas: list[Idea], source_ids: set[str]) -> list[str]:
-    """Ideas citing a source the research doesn't have. Shared by the write
-    and review calls' response models.
+def without_unknown_sources(idea: Idea, source_ids: set[str]) -> tuple[Idea, list[str]]:
+    """The idea without citations of sources the research doesn't have, and
+    those it dropped. Shared by the write and review calls' response models,
+    which both leave a bad citation out rather than send the call back: a
+    retry that repeats it would lose the whole call.
     """
-    return [
-        f"idea {idea.title!r} cites {unknown!r}, which aren't research sources"
-        for idea in ideas
-        if (unknown := [s for s in idea.sources if s not in source_ids])
-    ]
+    if not (unknown := [s for s in idea.sources if s not in source_ids]):
+        return idea, []
+    return idea.model_copy(update={"sources": [s for s in idea.sources if s in source_ids]}), unknown
 
 
 class Book(BaseModel):

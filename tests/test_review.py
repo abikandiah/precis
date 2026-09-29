@@ -97,13 +97,20 @@ def test_uncited_new_ideas_and_unknown_sources_are_left_out_not_sent_back():
 def test_a_drop_without_new_claims_keeps_them_with_a_warning():
     reviewed, _ = _apply({"ideas": _verdicts(i0={"verdict": "drop", "reason": "contradicted"})})
     assert reviewed.key_claims_for_review == _book().key_claims_for_review
-    assert any("dropped Idea 0" in w and "key claims" in w for w in reviewed.warnings)
+    assert any("dropped Idea 0" in w and w.endswith("rests on it") for w in reviewed.warnings)
+
+
+def test_two_drops_without_new_claims_warn_about_them():
+    verdicts = _verdicts(i0={"verdict": "drop", "reason": "wrong"}, i1={"verdict": "drop", "reason": "wrong"})
+    reviewed, _ = _apply({"ideas": verdicts})
+    assert any(w.endswith("rests on them") for w in reviewed.warnings)
 
 
 def test_a_partial_synopsis_is_left_out():
     reviewed, changes = _apply({"ideas": _verdicts(), "synopsis": "Paragraph two, fixed."})
     assert reviewed.synopsis == SYNOPSIS
     assert any("synopsis as written" in c for c in changes)
+    assert any("synopsis" in w and "check it" in w for w in reviewed.warnings)
 
 
 def test_empty_or_placeholder_fields_mean_nothing_to_fix():

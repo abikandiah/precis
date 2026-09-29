@@ -73,11 +73,10 @@ def test_draft_counts_and_tags_are_validated_per_kind(data, kind, message):
         _validate(model, data, kind)
 
 
-def test_an_idea_citing_a_source_that_isnt_in_the_research_is_rejected():
+def test_a_citation_of_a_source_that_isnt_in_the_research_is_dropped():
     data = _draft()
-    data["ideas"][1]["sources"] = ["S7"]
-    with pytest.raises(ValidationError, match=r"cites \['S7'\], which aren't research sources"):
-        _validate(write.DraftWithClaims, data)
+    data["ideas"][1]["sources"] = ["S1", "S7"]
+    assert _validate(write.DraftWithClaims, data).ideas[1].sources == ["S1"]
 
 
 def test_a_malformed_source_id_is_rejected():

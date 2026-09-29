@@ -398,7 +398,7 @@ async def complete_structured[T: BaseModel](
     "must be exactly N items") into a `model_validator` so a mismatch is a
     real schema failure that this retry loop already handles, rather than
     a separate check the caller does after the fact with no chance to
-    retry (write.py's per-kind counts and citation IDs). A retry after a validation failure shows the model its rejected
+    retry (write.py's per-kind shape and tags). A retry after a validation failure shows the model its rejected
     call and the error, so it can fix the specific problem rather than
     rolling the dice again.
 

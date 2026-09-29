@@ -55,3 +55,16 @@ def test_evidence_and_the_authors_surname_as_subject_are_checked_too():
     assert 'idea 1 "Stages": describes the text instead of stating the idea' in issues
     assert 'idea 1 "Stages": its evidence describes the text instead of giving the book\'s example' in issues
     assert not any('"Hedgehog"' in i for i in issues)
+
+
+def test_evidence_describing_the_text_after_its_example_is_fine():
+    book = _book(
+        [
+            _idea(
+                "Critics",
+                evidence="McCandless died in the bus on the Stampede Trail. The book includes critical letters "
+                "Krakauer received from Alaskans who called him reckless.",
+            ),
+        ]
+    )
+    assert not any("evidence" in i for i in check_notes(book))

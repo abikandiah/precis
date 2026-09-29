@@ -163,7 +163,7 @@ def test_thin_research_warns_by_pages_or_by_text():
     assert any("only 1 page(s)" in w and "expect them to be general" in w for w in found.warnings)
     # Many pages, little text: still thin.
     snippets = [_page(f"https://{t}.org", _prose(t)) for t in "abcdefgh"]
-    assert any("only 8 page(s)" in w for w in research.build_research(BOOK, [snippets]).warnings)
+    assert any("8 pages about this book but only ~" in w for w in research.build_research(BOOK, [snippets]).warnings)
     assert not research.build_research(BOOK, [[_page(f"https://{t}.org", _long(t)) for t in "abcd"]]).warnings
 
 

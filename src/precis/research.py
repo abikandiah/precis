@@ -27,9 +27,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import os
 import re
-import tempfile
 import unicodedata
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -39,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from precis.config import settings
+from precis.files import write_atomic
 from precis.known_file import preflight_check
 from precis.schema import KnownFile
 from precis.search import (
@@ -298,13 +297,19 @@ def build_research(
         if remaining < MIN_PAGE_CHARS:
             break
 
-    chars = sum(len(s.text) for s in sources)
-    if len(sources) < MIN_SOURCES or chars < THIN_CHARS:
-        warnings.append(
-            f"research found only {len(sources)} page(s), ~{chars // 4:,} tokens, about this book — the notes lean "
-            "on the model's own knowledge, so expect them to be general and check them closely."
-        )
-    return Research(sources=sources, warnings=warnings)
+    research = Research(sources=sources, warnings=warnings)
+    tokens = f"~{research.chars // 4:,} tokens"
+    if len(sources) < MIN_SOURCES:
+        found = f"only {len(sources)} page(s) about this book ({tokens})"
+    elif research.chars < THIN_CHARS:
+        found = f"{len(sources)} pages about this book but only {tokens} of text"
+    else:
+        return research
+    warnings.append(
+        f"research found {found} — the notes lean on the model's own knowledge, so expect them to be general "
+        "and check them closely."
+    )
+    return research
 
 
 def cache_path(slug: str, cache_dir: str | Path | None = None) -> Path:
@@ -372,19 +377,9 @@ def save_cache(
     if follow_ups is not None:
         data["follow_up_queries"] = follow_up_queries(known_file)
         data["follow_up_results"] = [[asdict(r) for r in query_results] for query_results in follow_ups]
-    path.parent.mkdir(parents=True, exist_ok=True)
     # Written whole or not at all: a half-written cache would be read back
     # as a corrupt one and silently refetched.
-    # A temp file of its own, so two runs caching one book at once don't
-    # replace each other's.
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(json.dumps(data, ensure_ascii=False) + "\n")
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
+    write_atomic(path, json.dumps(data, ensure_ascii=False) + "\n")
 
 
 async def fetch(queries: list[str], client: SearchClient) -> tuple[list[list[SearchResult]], list[str]]:

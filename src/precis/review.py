@@ -55,6 +55,7 @@ from precis.schema import (
     KeyClaim,
     KnownFile,
     notes_shape_problems,
+    without_unknown_sources,
 )
 from precis.search import normalize_text, overlap
 from precis.write import (
@@ -166,6 +167,10 @@ class Review(BaseModel):
             if field == "synopsis" and len(value) < len(book.synopsis) / 2:
                 # Most likely only the part it changed: the rest would be lost.
                 changes.append("left the synopsis as written: the review returned only part of it")
+                warnings.append(
+                    "the review tried to correct the synopsis but returned only part of it, so it's as "
+                    "written — check it for errors"
+                )
                 continue
             updates[field] = value
             changes.append(f"revised {field}")
@@ -236,10 +241,12 @@ def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea
 
 def _cited(idea: Idea, source_ids: set[str] | None, changes: list[str]) -> Idea:
     """The idea without citations of sources the research doesn't have."""
-    if source_ids is None or not (unknown := [s for s in idea.sources if s not in source_ids]):
+    if source_ids is None:
         return idea
-    changes.append(f'removed unknown sources {unknown!r} from "{idea.title}"')
-    return idea.model_copy(update={"sources": [s for s in idea.sources if s in source_ids]})
+    cited, unknown = without_unknown_sources(idea, source_ids)
+    if unknown:
+        changes.append(f'removed unknown sources {unknown!r} from "{idea.title}"')
+    return cited
 
 
 def _merge(
@@ -290,7 +297,8 @@ def _merge(
         changes.append("revised key_claims_for_review")
     elif dropped := [r.title for r in review.ideas if r.verdict == "drop"]:
         warnings.append(
-            f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests on it"
+            f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests on "
+            f"{'them' if len(dropped) > 1 else 'it'}"
         )
     return ideas, claims, changes, warnings
 

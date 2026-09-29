@@ -170,12 +170,13 @@ the review call's `cached_tokens` (docs/v2-plan.md).
   later detail means leaving it out, never blurring the setup.
 
 The response is validated as it arrives — at least one idea, a review deck
-for non-fiction and none for fiction, 2-4 tags from the closed vocabulary,
-citation IDs that exist in the research — and a retry after a failure
-shows the model its rejected call and the error. Retries are for output
-that can't be used, not for a count outside the asked-for range. Tags
-outside the vocabulary, repeated, or past the fourth are dropped rather
-than retried; only fewer than two usable ones are sent back.
+for non-fiction and none for fiction, 2-4 tags from the closed vocabulary —
+and a retry after a failure shows the model its rejected call and the
+error. Retries are for output that can't be used, not for a count outside
+the asked-for range. What can be left out instead is, since a failed retry
+loses the whole run: tags outside the vocabulary, repeated, or past the
+fourth (only fewer than two usable ones are sent back), and citations of
+sources the research doesn't have.
 
 **Identity backstop:** a real but wrong author named next to the book on
 some page (a comparison, a reading list) passes research's code checks, so
@@ -192,7 +193,10 @@ and near-duplicate ideas (half their vocabulary shared). A general
 statement of what the book argues is a fine fallback when research is
 thin; a description of the text isn't. The author's surname counts as a
 subject in summaries and answers, not in evidence, where "Krakauer
-describes his 1977 climb of Devils Thumb" is the example itself.
+describes his 1977 climb of Devils Thumb" is the example itself. Evidence
+is flagged only when it opens by describing the text ("The book examines
+ten firms."): partway through, "the book includes the letters Krakauer
+received" is the example too.
 
 No check matches facts against the research. The first baseline run had
 one — numbers and proper nouns in an idea's evidence that weren't in its

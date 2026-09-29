@@ -33,10 +33,10 @@ from precis.schema import (
     KeyClaim,
     KnownFile,
     Tags,
-    citation_problems,
     notes_shape_problems,
     tags_for_kind,
     validate_tags,
+    without_unknown_sources,
 )
 from precis.search import author_names
 
@@ -142,15 +142,21 @@ class Draft(BaseModel):
         validate_tags(tags, (info.context or {}).get(KIND_KEY))
         return tags
 
+    @field_validator("ideas")
+    @classmethod
+    def _drop_unknown_sources(cls, ideas: list[Idea], info: ValidationInfo) -> list[Idea]:
+        """Citations of sources the research doesn't have are dropped, like
+        unusable tags: a retry that repeats one would lose the whole call.
+        """
+        if (source_ids := (info.context or {}).get(SOURCE_IDS_KEY)) is None:
+            return ideas
+        return [without_unknown_sources(idea, source_ids)[0] for idea in ideas]
+
     @model_validator(mode="after")
     def _check_notes(self, info: ValidationInfo) -> Draft:
-        context = info.context or {}
-        problems = []
-        if kind := context.get(KIND_KEY):
-            problems += notes_shape_problems(kind, self.ideas, self.claims)
-        if (source_ids := context.get(SOURCE_IDS_KEY)) is not None:
-            problems += citation_problems(self.ideas, source_ids)
-        if problems:
+        if (kind := (info.context or {}).get(KIND_KEY)) and (
+            problems := notes_shape_problems(kind, self.ideas, self.claims)
+        ):
             raise ValueError("; ".join(problems))
         return self
 
