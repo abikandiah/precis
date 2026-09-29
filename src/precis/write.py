@@ -26,8 +26,6 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_va
 from precis import llm
 from precis.research import ProgressCallback, Research
 from precis.schema import (
-    IDEA_LIMITS,
-    KEY_CLAIM_LIMITS,
     Book,
     Idea,
     KeyClaim,
@@ -43,11 +41,12 @@ from precis.search import author_names
 # Output runs to several thousand tokens on top of up to ~60k tokens of research,
 # well past the default per-call timeout. Fewer HTTP-level retries than the
 # default, so a stalled provider costs minutes, not half an hour of
-# timeouts. The token cap is far above a full set of notes, so a reply is
-# never cut off mid-JSON.
+# timeouts. The token cap is far above a full set of notes — a book that
+# lists 48 laws gets 48 ideas and claims — so a reply is never cut off
+# mid-JSON.
 WRITE_TIMEOUT_SECONDS = 300
 WRITE_MAX_RETRIES = 2
-WRITE_MAX_TOKENS = 16_000
+WRITE_MAX_TOKENS = 24_000
 
 # What a model writes in a field when it means null ("N/A.", "None").
 _PLACEHOLDERS = frozenset({"", "n/a", "na", "none", "null"})
@@ -236,6 +235,18 @@ SPOILER_RULE = (
     "but never blur the setup to be safe."
 )
 
+# How many ideas, and how long: whatever the book's content needs. Ranges
+# made the model pad to the top of them (every first-library non-fiction
+# book got 11-12 ideas, restating a few points several times). Shared with
+# the review.
+IDEA_COUNT_RULE = (
+    "As many ideas as the book makes, no more and no fewer: one for each distinct point, whether that's three "
+    "or thirty, covering the whole book, not just its opening. Where the book numbers or names its own ideas "
+    "(laws, rules, habits, principles), follow its list, one idea each. Never pad to look thorough, and never "
+    "merge distinct ideas to look concise. Each idea is as long as it needs to be: a sentence for a simple "
+    "rule, a few for an argument with steps."
+)
+
 _COMMON_RULES = (
     "- Name the book's actual terms, arguments, examples, characters and situations. No generic statements "
     "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
@@ -252,21 +263,18 @@ _COMMON_RULES = (
 
 
 def _nonfiction_instructions(known_file: KnownFile) -> str:
-    low, high = IDEA_LIMITS["non-fiction"]
-    claims_low, claims_high = KEY_CLAIM_LIMITS
     return (
         "Write this book's notes.\n\n"
         "- one_line_takeaway: one sentence — the book's central message.\n"
         "- synopsis: 3-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
         "its argument builds, and where it lands.\n"
-        f"- ideas: {low}-{high} key ideas, covering the whole book, not just its opening — more for a book that "
-        "argues many distinct things, fewer for one built around a single framework. Each has a title (the "
-        "book's own name for the idea where it has one), a 2-4 sentence summary stating the idea itself, and "
-        "its evidence: the specific study, story, example or figure the author uses to make it.\n"
-        f"- key_claims_for_review: {claims_low}-{claims_high} recall questions (prompt) with 1-3 sentence "
-        "answers, covering the ideas a reader most needs to remember. Each answer is correct and makes sense "
-        "on its own; don't just restate an idea's title as a question (\"What is X?\") — ask for what the reader "
-        "needs to recall about it: how it works, the evidence for it, or when it applies.\n"
+        "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), a "
+        "summary stating the idea itself, and its evidence: the specific study, story, example or figure the "
+        f"author uses to make it. {IDEA_COUNT_RULE}\n"
+        "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a reader "
+        "needs to remember. Each answer is correct and makes sense on its own; don't just restate an idea's "
+        "title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how it works, "
+        "the evidence for it, or when it applies.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n" + _COMMON_RULES + _reader_notes(known_file) + "\nCall the tool with the result."
@@ -274,14 +282,14 @@ def _nonfiction_instructions(known_file: KnownFile) -> str:
 
 
 def _fiction_instructions(known_file: KnownFile) -> str:
-    low, high = IDEA_LIMITS["fiction"]
     return (
         "Write this novel's notes. They are spoiler-safe: other people browse them before reading the book.\n\n"
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
         "- synopsis: 3-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
         "the story explores.\n"
-        f"- ideas: {low}-{high} themes. Each has a title (the theme), a 2-4 sentence summary of the theme as the "
-        "setup raises it, and its evidence: the characters, situations or images from the setup that carry it.\n"
+        "- ideas: the novel's themes — as many as it develops, often few; never pad. Each has a title (the "
+        "theme), a summary of the theme as the setup raises it, in as few sentences as it needs, and its "
+        "evidence: the characters, situations or images from the setup that carry it.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"

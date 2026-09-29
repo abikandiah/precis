@@ -139,12 +139,6 @@ class TagVocabulary(BaseModel):
     fiction_tags: tuple[str, ...] = tags_for_kind("fiction")
 
 
-# How many ideas a book's notes carry: key ideas for non-fiction, themes for
-# fiction. The count scales with how much a book argues, within these.
-IDEA_LIMITS: dict[str, tuple[int, int]] = {"non-fiction": (5, 12), "fiction": (3, 6)}
-# Non-fiction's review deck; fiction has none.
-KEY_CLAIM_LIMITS = (5, 15)
-
 SOURCE_ID = re.compile(r"S[1-9][0-9]*")
 
 
@@ -152,10 +146,13 @@ class Idea(BaseModel):
     """A key idea (non-fiction) or theme (fiction)."""
 
     title: str = Field(description="The idea or theme, named as the book names it where it has a name.")
-    summary: str = Field(description="2-4 sentences stating the idea itself (or the theme as the setup raises it).")
+    summary: str = Field(
+        description="The idea itself (or the theme as the setup raises it), in as few sentences as it needs: one "
+        "for a simple rule, more for an argument with steps."
+    )
     evidence: str = Field(
-        description="The study, story, example or figure the author uses (non-fiction), or the characters and "
-        "situations that carry the theme (fiction)."
+        description="Briefly, the study, story, example or figure the author uses (non-fiction), or the "
+        "characters and situations that carry the theme (fiction)."
     )
     sources: list[str] = Field(
         default_factory=list,
@@ -177,9 +174,8 @@ def notes_shape_problems(
     """What makes a book's notes unusable: no ideas, a non-fiction book
     with no review deck, or fiction with one. Shared by `Book` and the
     write and review calls' response models, so it's a retryable validation
-    failure at the call and the final book can't disagree with it. Counts
-    outside IDEA_LIMITS or KEY_CLAIM_LIMITS aren't problems, only warnings
-    (notes_count_warnings).
+    failure at the call and the final book can't disagree with it. There's
+    no count to meet: a book has as many ideas as it makes.
     """
     problems = []
     if not ideas:
@@ -190,24 +186,6 @@ def notes_shape_problems(
     elif not key_claims:
         problems.append("non-fiction needs key_claims_for_review")
     return problems
-
-
-def notes_count_warnings(
-    kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
-) -> list[str]:
-    """Counts outside the limits the prompts ask for. The limits guide the
-    model; missing them isn't worth a retry, so the reader is told instead.
-    """
-    warnings = []
-    low, high = IDEA_LIMITS[kind]
-    if not low <= len(ideas) <= high:
-        noun = "themes" if kind == "fiction" else "key ideas"
-        warnings.append(f"{len(ideas)} {noun}, outside the {low}-{high} asked for")
-    if kind == "non-fiction":
-        low, high = KEY_CLAIM_LIMITS
-        if not low <= len(key_claims or []) <= high:
-            warnings.append(f"{len(key_claims or [])} key claims, outside the {low}-{high} asked for")
-    return warnings
 
 
 def without_unknown_sources(idea: Idea, source_ids: set[str]) -> tuple[Idea, list[str]]:

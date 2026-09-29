@@ -210,14 +210,14 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
     assert kwargs["tool_models"] == write.shared_tools("non-fiction")
     assert kwargs["response_model"] is review.Review
     assert "- idea 2: a finding" in user["content"] and '"title": "Idea 5"' in user["content"]
-    assert "5-12 ideas" in user["content"] and "5-15 key claims" in user["content"]
+    assert write.IDEA_COUNT_RULE in user["content"]
     assert kwargs["validation_context"] == {review.BOOK_KEY: book, write.SOURCE_IDS_KEY: {"S1"}}
 
 
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(_book("fiction", ideas=4), [])
     assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION)
-    assert "3-6 ideas" in text and "key claims" not in text and "key_claims_for_review" not in text
+    assert "as many themes as the novel develops" in text and "key claims" not in text and "key_claims_for_review" not in text
 
 
 def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():

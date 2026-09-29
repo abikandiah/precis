@@ -48,8 +48,6 @@ from precis import llm
 from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words
 from precis.research import ProgressCallback, Research
 from precis.schema import (
-    IDEA_LIMITS,
-    KEY_CLAIM_LIMITS,
     Book,
     Idea,
     KeyClaim,
@@ -60,6 +58,7 @@ from precis.schema import (
 from precis.search import normalize_text, overlap
 from precis.write import (
     FAITHFUL_RULE,
+    IDEA_COUNT_RULE,
     SOURCE_IDS_KEY,
     SPOILER_RULE,
     WRITE_MAX_RETRIES,
@@ -347,10 +346,11 @@ def _instructions(book: Book, issues: list[str]) -> str:
         include={"one_line_takeaway", "synopsis", "ideas", "key_claims_for_review"}, exclude_none=True
     )
     found = "\n".join(f"- {issue}" for issue in issues) if issues else "- none"
-    low, high = IDEA_LIMITS[book.kind]
-    counts = f"Aim for {low}-{high} ideas in the end"
-    if book.kind == "non-fiction":
-        counts += f", and {KEY_CLAIM_LIMITS[0]}-{KEY_CLAIM_LIMITS[1]} key claims"
+    counts = (
+        f"Count: {IDEA_COUNT_RULE}"
+        if book.kind == "non-fiction"
+        else "Count: as many themes as the novel develops, often few; never pad."
+    )
     claims = (
         "- key_claims_for_review: if a claim is wrong or only restates an idea's title as a question (\"What is "
         "X?\"), or whenever you drop an idea — then the whole corrected "
@@ -379,9 +379,11 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "First, same_point: compare the ideas with each other. Two ideas make the same point when a reader "
         "would recall them as one: the same claim from different angles (a novel's \"ethics of scientific "
         "ambition\" and \"corruption of knowledge and power\"), or a framework and one of its own parts given "
-        "as separate ideas (\"three core conditions\" and one of those conditions). Ideas that share a subject "
-        "but make different claims aren't the same point. For each pair, name the idea to keep — the fuller "
-        "one — and the one to drop, and revise the kept one to take in anything the dropped one adds.\n\n"
+        "as separate ideas (\"three core conditions\" and one of those conditions). Two ideas are distinct only "
+        "when a reader would need to remember both separately — the separate laws or rules a book lists are, "
+        "however related; one point restated with a different emphasis isn't. For each pair, name the idea to "
+        "keep — the fuller one — and the one to drop, and revise the kept one to take in anything the dropped "
+        "one adds.\n\n"
         "For each idea, in order, give its title as given and a verdict:\n"
         "- keep: accurate to the book, citations included — its cited sources support it, or it cites none "
         "and you're confident it's accurate to this book.\n"
@@ -401,7 +403,7 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "text.\n"
         + claims
         + spoilers
-        + f"\n{counts}. Most notes need few changes: don't rewrite what's already right. Call the tool with the "
+        + f"\n{counts} Most notes need few changes: don't rewrite what's already right. Call the tool with the "
         "result."
     )
 

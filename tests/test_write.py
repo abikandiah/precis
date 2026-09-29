@@ -110,7 +110,7 @@ def test_fiction_instructions_are_spoiler_safe_and_ask_for_themes_not_claims():
 
 def test_nonfiction_instructions_ask_for_claims_and_pass_reader_notes_on():
     text = write._nonfiction_instructions(NONFICTION)
-    assert "key_claims_for_review: 5-15" in text and "ideas: 5-12" in text
+    assert "key_claims_for_review: recall questions" in text and write.IDEA_COUNT_RULE in text
     assert "<reader_notes>\nI care most about the decision-making parts.\n</reader_notes>" in text
     assert "<reader_notes>" not in write._fiction_instructions(FICTION)
 

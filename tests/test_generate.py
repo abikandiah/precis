@@ -19,7 +19,6 @@ async def test_generate_researches_writes_checks_then_reviews():
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)) as research,
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)) as write,
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])) as check,
-        patch.object(generate_module, "notes_count_warnings", new=MagicMock(return_value=[])),
         patch.object(
             generate_module, "review_notes", new=AsyncMock(return_value=(reviewed, ['dropped "X": generic']))
         ) as review,
@@ -54,7 +53,6 @@ async def test_a_failed_review_keeps_the_written_notes_with_a_warning():
         patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])),
-        patch.object(generate_module, "notes_count_warnings", new=MagicMock(return_value=[])),
         patch.object(generate_module, "review_notes", new=AsyncMock(side_effect=StructuredOutputError("bad"))),
     ):
         result = await generate_module.generate(BOOK, slug="t", on_progress=messages.append)
@@ -70,21 +68,6 @@ def _nonfiction(ideas: int) -> Book:
         "ideas": [{"title": f"Idea {n}", "summary": "s", "evidence": "e"} for n in range(ideas)],
         "key_claims_for_review": [{"prompt": "Q?", "answer": "A."}] * 5, "tags": ["business", "economics"],
     })  # fmt: skip
-
-
-async def test_counts_outside_the_limits_become_warnings_whether_or_not_the_review_ran():
-    found = Research(sources=[], warnings=[])
-    written = _nonfiction(13)
-    for review in (AsyncMock(return_value=(written, [])), AsyncMock(side_effect=StructuredOutputError("bad"))):
-        with (
-            patch.object(generate_module.llm, "build_client"),
-            patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
-            patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
-            patch.object(generate_module, "review_notes", new=review),
-        ):
-            result = await generate_module.generate(BOOK, slug="t")
-        assert result.book.warnings[-1] == "13 key ideas, outside the 5-12 asked for"
-
 
 
 async def test_a_failed_review_still_names_the_uncited_ideas():

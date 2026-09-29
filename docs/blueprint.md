@@ -61,9 +61,10 @@ title, author, year, isbn, page_count, kind    from the known-file
 one_line_takeaway      one sentence
 synopsis               3-5 paragraphs
 ideas                  [{ title, summary, evidence, sources }]
-                         non-fiction: 5-12 key ideas asked for
-                         fiction: 3-6 themes asked for
-key_claims_for_review  [{ prompt, answer }], non-fiction only, 5-15 asked for
+                         non-fiction: key ideas; fiction: themes
+                         as many as the book makes, each as long as it needs
+key_claims_for_review  [{ prompt, answer }], non-fiction only, one per idea
+                         a reader needs to remember
 tags                   2-4 from the closed vocabulary for the kind
 reader_notes           the known-file's notes, when given
 warnings               anything the reader should check
@@ -76,9 +77,13 @@ warnings               anything the reader should check
 - **`evidence`** is the study, story, example or figure the author uses
   (non-fiction), or the characters and situations that carry a theme
   (fiction). It makes the notes memorable and the grounding checkable.
-- **Counts guide the model; they don't fail a run.** A count outside what
-  was asked for is a warning. Only notes with no ideas, or non-fiction
-  without a review deck, are rejected.
+- **No count to meet** (`IDEA_COUNT_RULE`, shared with the review): one
+  idea per distinct point the book makes, whether three or thirty, and a
+  book that numbers its own ideas (48 laws, 7 habits) gets its list, one
+  idea each. Each idea is as long as it needs to be. The first library's
+  5-12 range made the model pad to 11-12, restating a few points several
+  times. Only notes with no ideas, or non-fiction without a review deck,
+  are rejected.
 - **`sources`** lists the research sources (`S1`, `S2`, …) behind an idea;
   empty means it rests on the model's own knowledge of the book.
 - Fields with no value are absent, not null.
@@ -153,8 +158,7 @@ messages: that's what should let the review read the research from the
 cache. Not yet confirmed through OpenRouter — the baseline eval run checks
 the review call's `cached_tokens` (docs/v2-plan.md).
 
-- Ideas cover the whole book, and their count scales with how much it
-  argues. They name the book's own terms and never describe the text ("the
+- Ideas cover the whole book, as many as it makes. They name the book's own terms and never describe the text ("the
   author discusses…").
 - Key claims ask what a reader needs to recall about an idea, never just
   "What is <the idea's title>?"; the review fixes any that do.
@@ -178,8 +182,7 @@ the review call's `cached_tokens` (docs/v2-plan.md).
 The response is validated as it arrives — at least one idea, a review deck
 for non-fiction and none for fiction, 2-4 tags from the closed vocabulary —
 and a retry after a failure shows the model its rejected call and the
-error. Retries are for output that can't be used, not for a count outside
-the asked-for range. What can be left out instead is, since a failed retry
+error. Retries are for output that can't be used. What can be left out instead is, since a failed retry
 loses the whole run: tags outside the vocabulary, repeated, or past the
 fourth (only fewer than two usable ones are sent back), and citations of
 sources the research doesn't have.
@@ -216,7 +219,7 @@ Accuracy is the review's job, and the evals' judge measures it.
 ### Review (`review.py`)
 
 One structured call over the same cached prefix, given the notes, the check
-findings and the count limits, returns only what needs changing: a verdict
+findings and the count rule, returns only what needs changing: a verdict
 per idea (titled, so a skipped one can't shift the rest), new ideas, and the
 whole corrected takeaway, synopsis or claims list where one needs fixing.
 Empty or placeholder fields mean "nothing to fix". For fiction it also
