@@ -204,25 +204,36 @@ def shared_tools(kind: Literal["fiction", "non-fiction"]) -> list[type[BaseModel
     return [Draft if kind == "fiction" else DraftWithClaims, Review]
 
 
-# What the notes report: the book, not its critics. The research holds
-# reviews and critiques, and a model checking notes against it otherwise
-# "corrects" the author (the first baseline's review dropped a Sapiens idea
-# because critics dispute Harari on religion). Shared with the review.
+# What the notes report: the book, not its critics or the author's other
+# books. The research holds reviews and critiques, and a model checking notes
+# against it otherwise "corrects" the author (the first baseline's review
+# dropped a Sapiens idea because critics dispute Harari on religion). It can
+# also hold pages on the author's other books: The Integrity of the
+# Personality's notes took Solitude's thesis from Solitude's publisher page.
+# Shared with the review.
 FAITHFUL_RULE = (
     "The notes report what the book says, as its author argues it — including claims that critics dispute or "
     "that you think are wrong. The research includes reviews and critiques: use them to understand the book, "
-    "never to correct it, and keep critics' views out of the notes."
+    "never to correct it, and keep critics' views out of the notes. It can also include pages about the "
+    "author's other books (another title's publisher page, an author profile, a list of their works): only "
+    "what a page says about this book counts. Never give this book an argument, example or theme from "
+    "another of the author's books, from the research or from your own memory."
 )
 
 # Where fiction's setup ends and spoilers begin. Shared with the review,
 # which otherwise blurred plain setup (1984's Ministry of Truth job) to be
-# safe.
+# safe. Themes get their own line: stating how a theme plays out gave away
+# The Island of Dr. Moreau's second half (Moreau's death, the Beast Folk
+# reverting) under rules that already named deaths and the ending.
 SPOILER_RULE = (
     "Premise and setup only — nothing past roughly the first act. Setup is safe and should be specific: the "
     "world and how it works, the main characters, their situations, work and relationships, and the conflicts "
     "the opening establishes. A spoiler is what a reader only learns later: twists, reveals, betrayals, deaths, "
     "how relationships turn out, the climax and the ending. The research contains spoilers: leave them out. "
-    "Leave out a later detail when unsure whether it spoils, but never blur the setup to be safe."
+    "A theme is stated as the setup raises it — the question the book poses — never as the story resolves "
+    "it: not what later becomes of the characters or their world (a collapse, a death, a regression, a return "
+    "home, what the narrator concludes at the end). Leave out a later detail when unsure whether it spoils, "
+    "but never blur the setup to be safe."
 )
 
 _COMMON_RULES = (
@@ -268,8 +279,8 @@ def _fiction_instructions(known_file: KnownFile) -> str:
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
         "- synopsis: 3-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
         "the story explores.\n"
-        f"- ideas: {low}-{high} themes. Each has a title (the theme), a 2-4 sentence summary of how the book "
-        "develops it, and its evidence: the characters, situations or images that carry it.\n"
+        f"- ideas: {low}-{high} themes. Each has a title (the theme), a 2-4 sentence summary of the theme as the "
+        "setup raises it, and its evidence: the characters, situations or images from the setup that carry it.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"

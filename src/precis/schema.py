@@ -152,7 +152,7 @@ class Idea(BaseModel):
     """A key idea (non-fiction) or theme (fiction)."""
 
     title: str = Field(description="The idea or theme, named as the book names it where it has a name.")
-    summary: str = Field(description="2-4 sentences stating the idea itself (or how the book develops the theme).")
+    summary: str = Field(description="2-4 sentences stating the idea itself (or the theme as the setup raises it).")
     evidence: str = Field(
         description="The study, story, example or figure the author uses (non-fiction), or the characters and "
         "situations that carry the theme (fiction)."

@@ -320,8 +320,9 @@ def _instructions(book: Book, issues: list[str]) -> str:
         else ""
     )
     spoilers = (
-        f"- Spoilers: these notes must be spoiler-safe. {SPOILER_RULE} Check every field, above all new ideas "
-        "and anything you make more specific, and fix any that gives something away.\n"
+        f"- Spoilers: these notes must be spoiler-safe. {SPOILER_RULE} Check every field, above all each theme's "
+        "summary and evidence (for how the story resolves it), new ideas and anything you make more specific, "
+        "and fix any that gives something away.\n"
         if book.kind == "fiction"
         else ""
     )

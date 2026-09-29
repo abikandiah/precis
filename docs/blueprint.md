@@ -160,14 +160,20 @@ the review call's `cached_tokens` (docs/v2-plan.md).
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
   describe a detail more generally when unsure of it.
-- **The notes report the book, not its critics** (`FAITHFUL_RULE`, shared
-  with the review): claims critics dispute stay as the author argues them,
-  and critics' views stay out. The research holds reviews and critiques.
+- **The notes report the book, not its critics or the author's other
+  books** (`FAITHFUL_RULE`, shared with the review): claims critics dispute
+  stay as the author argues them, and critics' views stay out. The research
+  holds reviews and critiques, and pages about the author's other books (a
+  publisher's page for another title, an author profile): only what a page
+  says about this book counts. *The Integrity of the Personality*'s first
+  notes took *Solitude*'s thesis from *Solitude*'s publisher page.
 - **Fiction's spoiler line** (`SPOILER_RULE`, shared with the review):
   setup — the world, the main characters' situations, work and
   relationships, the conflicts the opening establishes — is safe and should
   be specific; spoilers are what a reader only learns later. Unsure about a
-  later detail means leaving it out, never blurring the setup.
+  later detail means leaving it out, never blurring the setup. A theme is
+  stated as the setup raises it, never as the story resolves it: stating how
+  themes play out gave away *The Island of Dr. Moreau*'s second half.
 
 The response is validated as it arrives — at least one idea, a review deck
 for non-fiction and none for fiction, 2-4 tags from the closed vocabulary —
