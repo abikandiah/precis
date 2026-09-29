@@ -188,6 +188,19 @@ def notes_shape_problems(
     return problems
 
 
+def deck_coverage_warnings(
+    kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
+) -> list[str]:
+    """A review deck covering under half the ideas. There's no count to
+    meet, but key claims are one per idea a reader needs to remember, so a
+    deck this thin (2 claims for 25 ideas) means most of the notes can't be
+    reviewed. A warning, not a retry.
+    """
+    if kind != "non-fiction" or len(key_claims or []) * 2 >= len(ideas):
+        return []
+    return [f"{len(key_claims or [])} key claims for {len(ideas)} ideas — the review deck covers under half the notes"]
+
+
 def without_unknown_sources(idea: Idea, source_ids: set[str]) -> tuple[Idea, list[str]]:
     """The idea without citations of sources the research doesn't have, and
     those it dropped. Shared by the write and review calls' response models,

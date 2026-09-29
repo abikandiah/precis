@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from precis.schema import Book, KnownFile
+from precis.schema import Book, Idea, KeyClaim, KnownFile, deck_coverage_warnings
 
 PLACEHOLDER = "TODO: fill in by hand"
 
@@ -45,7 +45,17 @@ def test_book_shape_is_validated_per_kind(data, message):
 def test_any_number_of_ideas_and_claims_is_valid():
     # A book has as many ideas as it makes: 48 Laws of Power has 48.
     for ideas, claims in ((1, 1), (48, 48)):
-        assert Book.model_validate(_book(ideas=ideas, claims=claims)).warnings == []
+        assert len(Book.model_validate(_book(ideas=ideas, claims=claims)).ideas) == ideas
+
+
+def test_a_deck_covering_under_half_the_ideas_is_a_warning():
+    ideas = [Idea(title=f"Idea {n}", summary="s", evidence="e") for n in range(25)]
+    claims = [KeyClaim(prompt="Q?", answer="A.")]
+    assert deck_coverage_warnings("non-fiction", ideas, claims * 2) == [
+        "2 key claims for 25 ideas — the review deck covers under half the notes"
+    ]
+    assert deck_coverage_warnings("non-fiction", ideas[:4], claims * 2) == []
+    assert deck_coverage_warnings("fiction", ideas, None) == []
 
 
 def test_known_file_title_and_author_placeholders_dont_count():

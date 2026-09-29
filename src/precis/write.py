@@ -43,8 +43,9 @@ from precis.search import author_names
 # default, so a stalled provider costs minutes, not half an hour of
 # timeouts. The token cap is far above a full set of notes — a book that
 # lists 48 laws gets 48 ideas and claims — so a reply is never cut off
-# mid-JSON.
-WRITE_TIMEOUT_SECONDS = 300
+# mid-JSON, and the timeout leaves time to write that much: ~20k tokens at
+# a slower model's ~60 tokens a second is over five minutes.
+WRITE_TIMEOUT_SECONDS = 600
 WRITE_MAX_RETRIES = 2
 WRITE_MAX_TOKENS = 24_000
 
@@ -237,8 +238,9 @@ SPOILER_RULE = (
 
 # How many ideas, and how long: whatever the book's content needs. Ranges
 # made the model pad to the top of them (every first-library non-fiction
-# book got 11-12 ideas, restating a few points several times). Shared with
-# the review.
+# book got 11-12 ideas, restating a few points several times). The review
+# gets its own count line (review.py), since it merges and adds rather than
+# writes; fiction's rule is shared with it.
 IDEA_COUNT_RULE = (
     "As many ideas as the book makes, no more and no fewer: one for each distinct point, whether that's three "
     "or thirty, covering the whole book, not just its opening. Where the book numbers or names its own ideas "
@@ -246,6 +248,7 @@ IDEA_COUNT_RULE = (
     "merge distinct ideas to look concise. Each idea is as long as it needs to be: a sentence for a simple "
     "rule, a few for an argument with steps."
 )
+FICTION_COUNT_RULE = "As many themes as the novel develops, often few; never pad."
 
 _COMMON_RULES = (
     "- Name the book's actual terms, arguments, examples, characters and situations. No generic statements "
@@ -287,9 +290,9 @@ def _fiction_instructions(known_file: KnownFile) -> str:
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
         "- synopsis: 3-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
         "the story explores.\n"
-        "- ideas: the novel's themes — as many as it develops, often few; never pad. Each has a title (the "
-        "theme), a summary of the theme as the setup raises it, in as few sentences as it needs, and its "
-        "evidence: the characters, situations or images from the setup that carry it.\n"
+        "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
+        "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
+        f"setup that carry it. {FICTION_COUNT_RULE}\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"

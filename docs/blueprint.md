@@ -158,8 +158,8 @@ messages: that's what should let the review read the research from the
 cache. Not yet confirmed through OpenRouter — the baseline eval run checks
 the review call's `cached_tokens` (docs/v2-plan.md).
 
-- Ideas cover the whole book, as many as it makes. They name the book's own terms and never describe the text ("the
-  author discusses…").
+- Ideas cover the whole book, as many as it makes. They name the book's
+  own terms and never describe the text ("the author discusses…").
 - Key claims ask what a reader needs to recall about an idea, never just
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
@@ -182,10 +182,11 @@ the review call's `cached_tokens` (docs/v2-plan.md).
 The response is validated as it arrives — at least one idea, a review deck
 for non-fiction and none for fiction, 2-4 tags from the closed vocabulary —
 and a retry after a failure shows the model its rejected call and the
-error. Retries are for output that can't be used. What can be left out instead is, since a failed retry
-loses the whole run: tags outside the vocabulary, repeated, or past the
-fourth (only fewer than two usable ones are sent back), and citations of
-sources the research doesn't have.
+error. Retries are for output that can't be used, and what can be left
+out is left out instead, since a failed retry loses the whole run: tags
+outside the vocabulary, repeated, or past the fourth (only fewer than two
+usable ones are sent back), and citations of sources the research doesn't
+have.
 
 **Identity backstop:** a real but wrong author named next to the book on
 some page (a comparison, a reading list) passes research's code checks, so
@@ -267,7 +268,11 @@ near-duplicate check) or citing nothing, a `same_point` pair that isn't two
 of the ideas (or would drop both), a citation of a source the
 research doesn't have, a half-returned synopsis (the original stays), and
 fiction's key claims. A drop with the key claims left as they were keeps
-them, with a warning to check none rests on the dropped idea. An idea with
+them, with a warning to check none rests on the dropped idea; an added
+idea with the claims left as they were is warned about too, since it has
+no claim. After the review, a deck covering under half the ideas is a
+warning: there's no count to meet, but most of the notes couldn't be
+reviewed. An idea with
 no verdict is kept as written. If it still can't fix it, or the
 call fails outright, the run keeps the written notes (already paid for),
 with a warning that they're unreviewed and the check findings as warnings.
@@ -346,9 +351,10 @@ carries only the command's output.
   not instructions, and a page can't close or open a source tag.
 - **Timeouts:** each LLM call has a ~2 minute timeout
   (`PRECIS_LLM_CALL_TIMEOUT_SECONDS`), a circuit breaker for a hung call;
-  the write call sets 5 minutes and fewer HTTP retries, since it's long.
-  There's no whole-run limit. A stalled provider costs about 15 minutes a
-  call (three 5-minute tries); through every retry layer (2 attempts × 4
+  the write and review calls set 10 minutes and fewer HTTP retries, since
+  a book with dozens of ideas is ~20k tokens of output. There's no
+  whole-run limit. A stalled provider costs about 30 minutes a call (three
+  10-minute tries); through every retry layer (2 attempts × 4
   requests for provider errors × 3 HTTP tries) the bound is hours.
 - **Cost:** every run reports the gateway-reported cost of its calls.
   Target: under $0.50 a book on average, measured on the eval set.

@@ -21,7 +21,7 @@ from precis import llm
 from precis.checks import check_notes
 from precis.research import ProgressCallback, Research, research
 from precis.review import review_notes, uncited_warnings
-from precis.schema import Book, KnownFile
+from precis.schema import Book, KnownFile, deck_coverage_warnings
 from precis.write import write_notes
 
 
@@ -82,6 +82,8 @@ async def _write_and_review(
             progress(f"review: {change}")
         if not changes:
             progress("review: no changes")
+    if coverage := deck_coverage_warnings(book.kind, book.ideas, book.key_claims_for_review):
+        book = book.model_copy(update={"warnings": [*book.warnings, *coverage]})
     # Research already printed its own warnings.
     for warning in book.warnings:
         if warning not in found.warnings:

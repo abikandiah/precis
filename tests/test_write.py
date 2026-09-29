@@ -103,7 +103,7 @@ def test_context_messages_cache_the_book_and_research_in_the_system_message():
 
 def test_fiction_instructions_are_spoiler_safe_and_ask_for_themes_not_claims():
     text = write._fiction_instructions(FICTION)
-    assert "No spoilers" in text and "themes" in text
+    assert "No spoilers" in text and write.FICTION_COUNT_RULE in text
     assert "key_claims_for_review" not in text
     assert "dystopian" in text and "psychology" not in text
 

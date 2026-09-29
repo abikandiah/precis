@@ -70,6 +70,20 @@ def _nonfiction(ideas: int) -> Book:
     })  # fmt: skip
 
 
+async def test_a_thin_review_deck_is_a_warning_whether_or_not_the_review_ran():
+    found = Research(sources=[], warnings=[])
+    written = _nonfiction(13)  # 5 claims
+    for review in (AsyncMock(return_value=(written, [])), AsyncMock(side_effect=StructuredOutputError("bad"))):
+        with (
+            patch.object(generate_module.llm, "build_client"),
+            patch.object(generate_module, "research", new=AsyncMock(return_value=found)),
+            patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)),
+            patch.object(generate_module, "review_notes", new=review),
+        ):
+            result = await generate_module.generate(BOOK, slug="t")
+        assert result.book.warnings[-1] == "5 key claims for 13 ideas — the review deck covers under half the notes"
+
+
 async def test_a_failed_review_still_names_the_uncited_ideas():
     written = _nonfiction(6)
     with (

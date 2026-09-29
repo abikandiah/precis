@@ -21,11 +21,10 @@ The review is validated by building the book it would produce, by the
 book's own rules: one that can't be applied (no ideas left, a verdict
 naming no idea) is sent back with the reason, and the run fails only if it
 still can't fix it. What can be left out instead — an uncited new idea, an
-unknown source, a half-returned synopsis — is left out (see _merge). An idea the review gives
-no verdict is kept as written, and an idea count outside the limits is a
-warning (generate.py), not a reason to send it back. After the review, the
-checks run again, and whatever they still find is a warning for the
-reader.
+unknown source, a half-returned synopsis — is left out (see _merge). An
+idea the review gives no verdict is kept as written, and there's no idea
+count to meet. After the review, the checks run again, and whatever they
+still find is a warning for the reader.
 """
 
 from __future__ import annotations
@@ -58,7 +57,7 @@ from precis.schema import (
 from precis.search import normalize_text, overlap
 from precis.write import (
     FAITHFUL_RULE,
-    IDEA_COUNT_RULE,
+    FICTION_COUNT_RULE,
     SOURCE_IDS_KEY,
     SPOILER_RULE,
     WRITE_MAX_RETRIES,
@@ -333,11 +332,17 @@ def _merge(
     elif review.key_claims_for_review is not None:
         claims = review.key_claims_for_review
         changes.append("revised key_claims_for_review")
-    elif dropped:
-        warnings.append(
-            f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests on "
-            f"{'them' if len(dropped) > 1 else 'it'}"
-        )
+    else:
+        if added:
+            warnings.append(
+                f"the review added {'; '.join(i.title for i in added)} but left the key claims as written — "
+                f"{'they have' if len(added) > 1 else 'it has'} no claim in the review deck"
+            )
+        if dropped:
+            warnings.append(
+                f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests "
+                f"on {'them' if len(dropped) > 1 else 'it'}"
+            )
     return ideas, claims, changes, warnings
 
 
@@ -347,14 +352,17 @@ def _instructions(book: Book, issues: list[str]) -> str:
     )
     found = "\n".join(f"- {issue}" for issue in issues) if issues else "- none"
     counts = (
-        f"Count: {IDEA_COUNT_RULE}"
+        "Count: the notes should have one idea per distinct point the book makes, however many that is. Don't "
+        "pad: merge ideas that make the same point (same_point) and drop ones that don't earn their place. Add a "
+        "new idea only for a major point the notes miss, or a missing entry in a list the book numbers itself "
+        "(its laws, rules or habits)."
         if book.kind == "non-fiction"
-        else "Count: as many themes as the novel develops, often few; never pad."
+        else f"Count: {FICTION_COUNT_RULE}"
     )
     claims = (
         "- key_claims_for_review: if a claim is wrong or only restates an idea's title as a question (\"What is "
-        "X?\"), or whenever you drop an idea — then the whole corrected "
-        "list, without claims that rest on a dropped idea.\n"
+        "X?\"), or whenever you drop or add an idea — then the whole corrected list: without claims that rest "
+        "on a dropped idea, and with a claim for each added idea a reader needs to remember.\n"
         if book.kind == "non-fiction"
         else ""
     )

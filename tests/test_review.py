@@ -94,6 +94,11 @@ def test_uncited_new_ideas_and_unknown_sources_are_left_out_not_sent_back():
     assert "removed unknown sources ['S9'] from \"Idea 12\"" in changes
 
 
+def test_added_ideas_without_new_claims_are_warned_about():
+    reviewed, _ = _apply({"ideas": _verdicts(), "new_ideas": [_idea(11)]})
+    assert any("added Idea 11" in w and w.endswith("it has no claim in the review deck") for w in reviewed.warnings)
+
+
 def test_a_drop_without_new_claims_keeps_them_with_a_warning():
     reviewed, _ = _apply({"ideas": _verdicts(i0={"verdict": "drop", "reason": "contradicted"})})
     assert reviewed.key_claims_for_review == _book().key_claims_for_review
@@ -210,14 +215,14 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
     assert kwargs["tool_models"] == write.shared_tools("non-fiction")
     assert kwargs["response_model"] is review.Review
     assert "- idea 2: a finding" in user["content"] and '"title": "Idea 5"' in user["content"]
-    assert write.IDEA_COUNT_RULE in user["content"]
+    assert "one idea per distinct point" in user["content"] and "drop or add an idea" in user["content"]
     assert kwargs["validation_context"] == {review.BOOK_KEY: book, write.SOURCE_IDS_KEY: {"S1"}}
 
 
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(_book("fiction", ideas=4), [])
     assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION)
-    assert "as many themes as the novel develops" in text and "key claims" not in text and "key_claims_for_review" not in text
+    assert write.FICTION_COUNT_RULE in text and "key claims" not in text and "key_claims_for_review" not in text
 
 
 def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():

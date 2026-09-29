@@ -21,10 +21,11 @@ invocation is in the top-level README.
 
 - `books/<slug>.json` — the known-file, checked by hand.
 - `references/<slug>.json` — a reference summary written by Claude
-  in-session, in the output's field names: takeaway, synopsis, `ideas`
-  (5–12 key ideas for non-fiction, 3–6 themes for fiction) and, for
-  non-fiction only, `key_claims_for_review`. The judge uses it as a guide to
-  what good notes cover, not as the only truth. Fiction references are
+  in-session, in the output's field names: takeaway, synopsis, `ideas` and,
+  for non-fiction only, `key_claims_for_review`. They were written when the
+  pipeline asked for 5–12 key ideas (3–6 themes); it now asks for one per
+  distinct point, so a reference's idea count isn't a target. The judge uses
+  it as a guide to what good notes cover, not as the only truth. Fiction references are
   spoiler-safe — premise and setup only — like the pipeline's own output.
 - `runs/<label>/` — one directory per run: each book's JSON, its
   `.metrics.json`, and any `judge-vs-<baseline>.json`. Label runs after
