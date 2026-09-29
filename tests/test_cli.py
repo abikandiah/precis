@@ -73,6 +73,22 @@ def test_generate_refuses_an_unusable_output_before_any_work(known_file_path, tm
     assert message in capsys.readouterr().err
 
 
+def test_generate_wont_write_the_book_over_its_known_file(known_file_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli_module, "generate", AsyncMock(side_effect=AssertionError("started")))
+    assert _run(["generate", str(known_file_path), "--output", str(known_file_path)]) == 1
+    assert "it's the known-file" in capsys.readouterr().err
+
+
+def test_ctrl_c_is_a_clean_exit_not_a_traceback(capsys):
+    def interrupted(args):
+        raise KeyboardInterrupt
+
+    args = build_parser().parse_args(["tags"])
+    args.func = interrupted
+    assert cli_module._dispatch(args) == 130
+    assert "interrupted" in capsys.readouterr().err
+
+
 def test_generate_prints_the_book_when_the_final_write_fails(known_file_path, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli_module, "generate", AsyncMock(return_value=_GENERATED))
     real_write = cli_module._write_output

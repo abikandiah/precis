@@ -135,7 +135,7 @@ def author_names(author: str | None) -> list[list[str]]:
     pieces = [p.strip() for p in re.split(r",|;|&|\band\b|\bwith\b", author) if p.strip()]
     # "Spector, Tim" is one person written last-name-first, not two authors
     # "Spector" and "Tim" — the only comma form with a one-word first piece.
-    # (Open Library's multi-author join is "Full Name, Full Name".)
+    # (known_file.py joins Open Library's authors with "; ".)
     if "," in author and len(pieces) == 2 and len(pieces[0].split()) == 1 and not re.search(r";|&|\band\b|\bwith\b", author):
         pieces = [f"{pieces[1]} {pieces[0]}"]
     names = []
@@ -149,7 +149,14 @@ def author_names(author: str | None) -> list[list[str]]:
 
 
 def author_surnames(author: str | None) -> list[str]:
-    return [words[-1] for words in author_names(author) if len(words[-1]) >= 2]
+    """Each credited person's surname — or whole name when the surname is a
+    single letter ("Malcolm X"), too common a word to match on alone.
+    """
+    return [
+        words[-1] if len(words[-1]) >= 2 else " ".join(words)
+        for words in author_names(author)
+        if len(words[-1]) >= 2 or len(words) > 1
+    ]
 
 
 def _result_text(result: SearchResult) -> str:

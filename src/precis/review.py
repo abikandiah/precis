@@ -19,8 +19,9 @@ What happens to an idea the research can't validate:
 
 The review is validated by building the book it would produce, by the
 book's own rules: one that can't be applied (no ideas left, a verdict
-naming no idea, a half-returned synopsis) is sent back with the reason,
-and the run fails only if it still can't fix it. An idea the review gives
+naming no idea) is sent back with the reason, and the run fails only if it
+still can't fix it. What can be left out instead — an uncited new idea, an
+unknown source, a half-returned synopsis — is left out (see _merge). An idea the review gives
 no verdict is kept as written, and an idea count outside the limits is a
 warning (generate.py), not a reason to send it back. After the review, the
 checks run again, and whatever they still find is a warning for the
@@ -53,7 +54,6 @@ from precis.schema import (
     Idea,
     KeyClaim,
     KnownFile,
-    citation_problems,
     notes_shape_problems,
 )
 from precis.search import normalize_text, overlap
@@ -123,6 +123,7 @@ class Review(BaseModel):
 
     _reviewed: Book | None = PrivateAttr(default=None)
     _changes: list[str] = PrivateAttr(default_factory=list)
+    _warnings: list[str] = PrivateAttr(default_factory=list)
 
     @field_validator("new_ideas", mode="before")
     @classmethod
@@ -154,34 +155,26 @@ class Review(BaseModel):
         if problems := _verdict_problems(book, self):
             raise ValueError("; ".join(problems))
 
-        ideas, claims, changes = _merge(book, self)
-        problems = notes_shape_problems(book.kind, ideas, claims)
-        if (source_ids := context.get(SOURCE_IDS_KEY)) is not None:
-            problems += citation_problems(ideas, source_ids)
-        problems += [
-            f"new idea {i.title!r} must cite the research sources that support it" for i in self.new_ideas if not i.sources
-        ]
-        dropped = [r.title for r in self.ideas if r.verdict == "drop"]
-        if dropped and book.kind == "non-fiction" and self.key_claims_for_review is None:
-            problems.append(
-                f"you dropped {dropped!r}: return key_claims_for_review — the whole list, without any claim that "
-                "rests on a dropped idea"
-            )
-        if self.synopsis is not None and len(self.synopsis) < len(book.synopsis) / 2:
-            problems.append("return the whole corrected synopsis, every paragraph, not just the part you changed")
-        if problems:
+        ideas, claims, changes, warnings = _merge(book, self, context.get(SOURCE_IDS_KEY))
+        if problems := notes_shape_problems(book.kind, ideas, claims):
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
         for field in ("one_line_takeaway", "synopsis"):
-            if (value := getattr(self, field)) is not None:
-                updates[field] = value
-                changes.append(f"revised {field}")
+            if (value := getattr(self, field)) is None:
+                continue
+            if field == "synopsis" and len(value) < len(book.synopsis) / 2:
+                # Most likely only the part it changed: the rest would be lost.
+                changes.append("left the synopsis as written: the review returned only part of it")
+                continue
+            updates[field] = value
+            changes.append(f"revised {field}")
         try:
             self._reviewed = Book.model_validate(book.model_copy(update=updates).model_dump())
         except ValidationError as exc:
             raise ValueError(f"the reviewed notes aren't valid: {exc}") from exc
         self._changes = changes
+        self._warnings = warnings
         return self
 
 
@@ -241,10 +234,26 @@ def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea
     return added, repeats
 
 
-def _merge(book: Book, review: Review) -> tuple[list[Idea], list[KeyClaim] | None, list[str]]:
-    """The ideas and claims the review leaves, and what it changed."""
+def _cited(idea: Idea, source_ids: set[str] | None, changes: list[str]) -> Idea:
+    """The idea without citations of sources the research doesn't have."""
+    if source_ids is None or not (unknown := [s for s in idea.sources if s not in source_ids]):
+        return idea
+    changes.append(f'removed unknown sources {unknown!r} from "{idea.title}"')
+    return idea.model_copy(update={"sources": [s for s in idea.sources if s in source_ids]})
+
+
+def _merge(
+    book: Book, review: Review, source_ids: set[str] | None
+) -> tuple[list[Idea], list[KeyClaim] | None, list[str], list[str]]:
+    """The ideas and claims the review leaves, what it changed, and warnings
+    for the reader. What would break a rule but can be left out — a new idea
+    citing nothing, a citation of a source that doesn't exist, fiction's
+    claims — is left out, not sent back: a retry that repeats it would lose
+    the whole review, its drops of wrong ideas included.
+    """
     ideas: list[Idea] = []
     changes: list[str] = []
+    warnings: list[str] = []
     for original, verdict in zip(book.ideas, _matched_verdicts(book, review)[0], strict=True):
         if verdict is None:
             # Keep is the verdict that changes nothing, so a missing one is
@@ -258,19 +267,32 @@ def _merge(book: Book, review: Review) -> tuple[list[Idea], list[KeyClaim] | Non
             # Sources left out means unchanged, not "cites nothing".
             if "sources" not in revised.model_fields_set:
                 revised = revised.model_copy(update={"sources": original.sources})
-            ideas.append(revised)
+            ideas.append(_cited(revised, source_ids, changes))
             changes.append(f'revised "{original.title}": {verdict.reason}')
         else:
             ideas.append(original)
-    added, repeats = _without_repeats(ideas, review.new_ideas)
+    new_ideas = []
+    for idea in review.new_ideas:
+        idea = _cited(idea, source_ids, changes)
+        if idea.sources:
+            new_ideas.append(idea)
+        else:
+            changes.append(f'left out new idea "{idea.title}": it cites no research source')
+    added, repeats = _without_repeats(ideas, new_ideas)
     ideas += added
     changes += [f'added "{i.title}"' for i in added]
     changes += [f'left out new idea "{i.title}": it repeats an idea the notes have' for i in repeats]
     claims = book.key_claims_for_review
-    if review.key_claims_for_review is not None:
+    if book.kind == "fiction":
+        pass  # the Review tool offers claims to both kinds; fiction has none
+    elif review.key_claims_for_review is not None:
         claims = review.key_claims_for_review
         changes.append("revised key_claims_for_review")
-    return ideas, claims, changes
+    elif dropped := [r.title for r in review.ideas if r.verdict == "drop"]:
+        warnings.append(
+            f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests on it"
+        )
+    return ideas, claims, changes, warnings
 
 
 def _instructions(book: Book, issues: list[str]) -> str:
@@ -352,7 +374,7 @@ def apply_review(book: Book, review: Review) -> tuple[Book, list[str]]:
         raise ValueError("apply_review needs a review validated against its book")
     reviewed = review._reviewed
     unresolved = [f"after review, {issue}" for issue in check_notes(reviewed)]
-    warnings = [*book.warnings, *uncited_warnings(reviewed.ideas), *unresolved]
+    warnings = [*book.warnings, *review._warnings, *uncited_warnings(reviewed.ideas), *unresolved]
     return reviewed.model_copy(update={"warnings": warnings}), list(review._changes)
 
 

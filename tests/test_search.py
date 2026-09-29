@@ -39,6 +39,8 @@ def test_short_title_drops_subtitle_and_placeholder():
         ("edited by Jane Doe", ["doe"]),
         ("Spector, Tim", ["spector"]),
         ("Amy Wu", ["wu"]),
+        ("Malcolm X", ["malcolm x"]),  # a one-letter surname matches as the whole name
+        ("Homer; Robert Fagles", ["homer", "fagles"]),
         (None, []),
         (PLACEHOLDER, []),
     ],

@@ -5,9 +5,10 @@ they're unreviewed. A plain async
 function — the research cache (research.py) is the only persisted state, so
 an interrupted run just starts again without searching again.
 
-There's no whole-run time limit: every call has its own timeout, which
-bounds a run (the worst case, a stalled provider on both the write and the
-review call through every retry, is about an hour).
+There's no whole-run time limit: every request has its own timeout. A
+stalled provider costs about 15 minutes a call (three 5-minute tries), but
+the bound through every retry layer is hours: 2 attempts × 4 requests (for
+provider errors) × 3 HTTP tries × 5 minutes, for the write and the review.
 """
 
 from __future__ import annotations

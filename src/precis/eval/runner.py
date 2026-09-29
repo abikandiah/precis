@@ -20,7 +20,7 @@ from typing import Any
 
 from precis import usage
 from precis.config import settings
-from precis.eval.data import EvalBook, book_path, metrics_path, read_json, write_json
+from precis.eval.data import EvalBook, book_path, metrics_path, read_metrics, write_json
 from precis.eval.metrics import book_metrics
 from precis.generate import generate
 
@@ -66,8 +66,15 @@ async def run_book(
     progress(book_usage.summary())
     if output is not None:
         metrics.update(book_metrics(output))
-        write_json(book_path(evals_dir, label, book.slug), output)
-    write_json(metrics_path(evals_dir, label, book.slug), metrics)
+        try:
+            write_json(book_path(evals_dir, label, book.slug), output)
+        except OSError as exc:
+            metrics["error"] = f"couldn't save the book: {exc}"
+            progress(f"failed: {metrics['error']}")
+    try:
+        write_json(metrics_path(evals_dir, label, book.slug), metrics)
+    except OSError as exc:
+        progress(f"couldn't save the metrics: {exc}")
     return metrics
 
 
@@ -85,7 +92,7 @@ async def run_eval(
     for book in books:
         if book_path(evals_dir, label, book.slug).exists():
             on_progress(f"[{book.slug}] already generated in run {label!r}, skipping")
-            results.append(read_json(metrics_path(evals_dir, label, book.slug)) or {"slug": book.slug})
+            results.append(read_metrics(metrics_path(evals_dir, label, book.slug)) or {"slug": book.slug})
             continue
         results.append(
             await run_book(evals_dir, label, book, trust_known=trust_known, fresh=fresh, on_progress=on_progress)

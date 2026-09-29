@@ -175,6 +175,38 @@ async def test_a_failing_book_is_recorded_and_the_run_continues(tmp_path, monkey
     assert results[1]["error"] is None
 
 
+async def test_a_book_that_cant_be_saved_is_recorded_and_the_run_continues(tmp_path, monkeypatch):
+    _write_eval_set(tmp_path)
+    monkeypatch.setattr(runner, "generate", AsyncMock(return_value=_generated()))
+    real_write = runner.write_json
+
+    def failing_write(path, value):
+        if path == data.book_path(tmp_path, "r", "alpha"):
+            raise OSError(28, "No space left on device")
+        real_write(path, value)
+
+    monkeypatch.setattr(runner, "write_json", failing_write)
+    results = await runner.run_eval(tmp_path, "r", data.load_books(tmp_path), trust_known=False, on_progress=print)
+    assert "couldn't save the book" in results[0]["error"]
+    assert results[1]["error"] is None and data.book_path(tmp_path, "r", "beta").exists()
+
+
+def test_a_failed_write_json_leaves_the_old_file_and_no_partial_one(tmp_path):
+    path = data.book_path(tmp_path, "r", "alpha")
+    data.write_json(path, {"ok": True})
+    with pytest.raises(TypeError):
+        data.write_json(path, {"bad": object()})
+    assert data.read_json(path) == {"ok": True}
+    assert [p.name for p in path.parent.iterdir()] == [path.name]
+
+
+def test_read_metrics_degrades_on_a_corrupt_file(tmp_path):
+    path = data.metrics_path(tmp_path, "r", "alpha")
+    path.parent.mkdir(parents=True)
+    path.write_text("{partly")
+    assert data.read_metrics(path) is None
+
+
 # --- judge ---------------------------------------------------------------------
 
 
@@ -302,6 +334,22 @@ async def test_judge_runs_writes_the_judgement(tmp_path):
     assert judgement["ties"] == 1
     assert judge.judgement_path(tmp_path, "new", "old").exists()
     assert "score 0.50" in judge.format_judgement(judgement)
+
+
+async def test_a_book_a_run_never_got_to_isnt_judged_but_a_failed_one_loses(tmp_path):
+    _write_eval_set(tmp_path)
+    for slug in ("alpha", "beta"):
+        data.write_json(data.book_path(tmp_path, "old", slug), _book([_idea("old idea")]))
+    # new failed on alpha (metrics, no output) and never ran beta.
+    data.write_json(data.metrics_path(tmp_path, "new", "alpha"), {"slug": "alpha", "error": "boom"})
+
+    with patch.object(judge.llm, "build_client", new=_fake_client), patch.object(judge.llm, "complete", new=AsyncMock()):
+        judgement = await judge.judge_runs(
+            tmp_path, "new", "old", data.load_books(tmp_path), model="m", concurrency=2, on_progress=print
+        )
+    assert judgement["books"]["alpha"]["winner"] == "baseline"
+    assert judgement["not_run"] == ["beta"] and "beta" not in judgement["books"]
+    assert "a run never got to: beta" in judge.format_judgement(judgement)
 
 
 async def test_one_book_failing_to_judge_keeps_the_others_judgement(tmp_path):

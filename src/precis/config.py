@@ -5,11 +5,11 @@ app settings UI) can supply its own without touching this module's code.
 Every field uses `default_factory`, not a bare default expression: a bare
 `field: str = os.environ.get(...)` is evaluated exactly once, at class
 *definition* time (import time), and that single frozen value would then be
-reused for every `Settings()` instance for the rest of the process — env
-vars set after the first import of this module (e.g. by an embedding
-application configuring its own environment before calling into precis)
-would be silently ignored. `default_factory` re-reads the environment on
-every instantiation instead.
+reused for every `Settings()` instance for the rest of the process.
+`default_factory` reads the environment on every instantiation instead, so
+a fresh `Settings()` (as the tests build) sees the environment as it is
+then. The module-level `settings` every module uses is still built once, at
+first import: env vars set after that don't reach it.
 
 Numbers are kept as the environment's text and parsed when read, not at
 import: `settings` is built when this module is first imported, so a

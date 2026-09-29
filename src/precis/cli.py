@@ -95,6 +95,12 @@ def _unwritable(path: str) -> str | None:
     return None if os.access(parent, os.W_OK) else f"directory {parent!r} isn't writable"
 
 
+def _is_input(output: str, known_file: str) -> str | None:
+    """The known-file is edited by hand, so the book never replaces it."""
+    same = os.path.exists(output) and os.path.samefile(output, known_file)
+    return "it's the known-file — give another path" if same else None
+
+
 def _run_paid[T](coro: Coroutine[Any, Any, T], failure: str) -> T | None:
     """Runs a command's paid work in a usage scope, printing its cost even
     when it fails (the money is spent either way). None after printing a
@@ -187,7 +193,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     if known_file is None:
         return 1
     # Before any paid work, so a finished book is never lost to a bad path.
-    if args.output and (problem := _unwritable(args.output)):
+    if args.output and (problem := _unwritable(args.output) or _is_input(args.output, args.known_file)):
         print(f"can't write --output {args.output!r}: {problem}", file=sys.stderr)
         return 1
 
@@ -288,7 +294,7 @@ def _cmd_eval_judge(args: argparse.Namespace) -> int:
         return 1
     for label in (args.candidate, args.baseline):
         run_metrics = [
-            m for book in books if (m := eval_data.read_json(eval_data.metrics_path(args.evals_dir, label, book.slug)))
+            m for book in books if (m := eval_data.read_metrics(eval_data.metrics_path(args.evals_dir, label, book.slug)))
         ]
         _print_progress(eval_metrics.format_summary(label, eval_metrics.summarize(run_metrics)))
     _print_progress(eval_judge.format_judgement(judgement))
@@ -361,13 +367,17 @@ def main() -> None:
 def _dispatch(args: argparse.Namespace) -> int:
     """Runs the command. A bad setting surfaces only once a command reads
     it (config.py), and not every command reports its own errors, so it's
-    caught here too: a clean stderr message, never a traceback.
+    caught here too: a clean stderr message, never a traceback. So is
+    Ctrl-C.
     """
     try:
         return int(args.func(args))
     except ConfigError as exc:
         print(f"precis: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("precis: interrupted", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

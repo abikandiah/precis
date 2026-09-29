@@ -315,6 +315,21 @@ async def test_a_book_the_first_searches_miss_is_found_by_the_follow_ups(tmp_pat
     assert [s.url for s in found.sources] == ["https://a.org"]
 
 
+async def test_follow_ups_that_find_the_book_after_empty_first_searches_are_cached(tmp_path):
+    client = AsyncMock()
+    client.search.side_effect = [[], [], [], [_page("https://a.org", _prose("a"))], [], []]
+    await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    again = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path)
+    assert client.search.await_count == 6 and [s.url for s in again.sources] == ["https://a.org"]
+
+
+def test_save_cache_leaves_no_temp_file(tmp_path):
+    path = research.cache_path("tfas", tmp_path)
+    research.save_cache(path, BOOK, [[]])
+    research.save_cache(path, BOOK, [[]])
+    assert [p.name for p in path.parent.iterdir()] == [path.name]
+
+
 async def test_title_only_hits_get_follow_ups_that_can_find_the_author(tmp_path):
     title_only = _page("https://play.org", _prose("p"), content="Thinking, Fast and Slow, a play")
     client = AsyncMock()

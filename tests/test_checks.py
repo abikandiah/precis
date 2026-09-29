@@ -47,7 +47,7 @@ def test_evidence_and_the_authors_surname_as_subject_are_checked_too():
             _idea(
                 "Hedgehog",
                 summary="Collins argues that great firms focus on one thing.",
-                evidence="Collins describes how Walgreens bet everything on convenient drugstores.",
+                evidence="The author describes how Walgreens bet everything on convenient drugstores.",
             ),
         ]
     )

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from precis import write
 from precis.research import Research, Source
 from precis.schema import KeyClaim, KnownFile
+from precis.search import author_names
 
 NONFICTION = KnownFile(
     isbn="9780374533557",
@@ -192,13 +193,42 @@ async def test_write_notes_caps_retries_tokens_and_time_for_the_long_call():
     assert call.await_args.kwargs["max_tokens"] == write.WRITE_MAX_TOKENS
 
 
+@pytest.mark.parametrize(
+    ("claimed", "reported", "same"),
+    [
+        ("Ursula K. Le Guin", "Le Guin", True),
+        ("Gabriel García Márquez", "García Márquez", True),
+        ("Kingsley Amis", "Martin Amis", False),
+    ],
+)
+def test_same_person_accepts_a_multi_word_surname_alone(claimed, reported, same):
+    assert write._same_person(author_names(reported)[0], author_names(claimed)[0]) is same
+
+
+def test_author_differs_false_overrides_any_name():
+    for phrasing in ("No mismatch", "Same author", "not applicable"):
+        data = _draft(author_differs=False, author_mismatch=phrasing)
+        assert _validate(write.DraftWithClaims, data).author_mismatch is None
+    data = _draft(author_differs=True, author_mismatch="Richard Thaler")
+    assert _validate(write.DraftWithClaims, data).author_mismatch == "Richard Thaler"
+
+
+async def test_author_differs_without_a_name_still_fails():
+    draft = _validate(write.DraftWithClaims, _draft(author_differs=True, author_mismatch="N/A"))
+    with (
+        patch.object(write.llm, "complete_structured", new=AsyncMock(return_value=draft)),
+        pytest.raises(write.IdentityError, match="an unnamed author"),
+    ):
+        await write.write_notes(NONFICTION, RESEARCH, client=MagicMock())
+
+
 def test_a_placeholder_author_mismatch_reads_as_none():
     assert _validate(write.DraftWithClaims, _draft(author_mismatch=" N/A ")).author_mismatch is None
     assert _validate(write.DraftWithClaims, _draft(author_mismatch=" Eric Blair ")).author_mismatch == "Eric Blair"
 
 
-def test_the_author_mismatch_description_covers_pen_names():
-    description = write.Draft.model_fields["author_mismatch"].description or ""
+def test_the_author_differs_description_covers_pen_names():
+    description = write.Draft.model_fields["author_differs"].description or ""
     assert "pen name" in description
 
 

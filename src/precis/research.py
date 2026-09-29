@@ -29,6 +29,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import unicodedata
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -374,9 +375,16 @@ def save_cache(
     path.parent.mkdir(parents=True, exist_ok=True)
     # Written whole or not at all: a half-written cache would be read back
     # as a corrupt one and silently refetched.
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False) + "\n")
-    os.replace(tmp, path)
+    # A temp file of its own, so two runs caching one book at once don't
+    # replace each other's.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 async def fetch(queries: list[str], client: SearchClient) -> tuple[list[list[SearchResult]], list[str]]:
@@ -415,7 +423,7 @@ async def _search(
     results, errors = await fetch(research_queries(known_file), client)
     for error in errors:
         progress(f"research: {error}")
-    progress(f"research: {len(results)} searches, {sum(map(len, results))} results")
+    progress(f"research: {len(results) - len(errors)} searches, {sum(map(len, results))} results")
     follow_ups = None
     if _needs_follow_up(known_file, results):
         progress("research: thin, running follow-up searches")
@@ -427,9 +435,10 @@ async def _search(
         else:
             for error in follow_up_errors:
                 progress(f"research: {error}")
-            progress(f"research: {len(follow_ups)} follow-up searches, {sum(map(len, follow_ups))} results")
+            ran = len(follow_ups) - len(follow_up_errors)
+            progress(f"research: {ran} follow-up searches, {sum(map(len, follow_ups))} results")
         errors += follow_up_errors
-    if not errors and any(results):
+    if not errors and (any(results) or any(follow_ups or [])):
         save_cache(path, known_file, results, follow_ups)
     elif errors:
         progress("research: not cached, since a search failed — the next run searches again")

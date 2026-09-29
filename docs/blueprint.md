@@ -237,12 +237,15 @@ vaguer because the research didn't mention them.
   observation about the book or its reception.
 
 The review is validated by building the book it would produce, by the
-book's own rules: no ideas left, a verdict naming no idea or a second
-verdict for one, a dropped idea whose claims weren't dealt with, or a
-half-returned synopsis is sent back with the reason. A new idea repeating
-one the notes keep (the near-duplicate check) is left out rather than sent
-back, since a retry that repeats it again would lose the whole review. An idea with no
-verdict is kept as written. If it still can't fix it, or the
+book's own rules: no ideas left, or a verdict naming no idea or a second
+verdict for one, is sent back with the reason. What can be left out
+instead is, since a retry that repeats it would lose the whole review, its
+drops of wrong ideas included: a new idea repeating one the notes keep (the
+near-duplicate check) or citing nothing, a citation of a source the
+research doesn't have, a half-returned synopsis (the original stays), and
+fiction's key claims. A drop with the key claims left as they were keeps
+them, with a warning to check none rests on the dropped idea. An idea with
+no verdict is kept as written. If it still can't fix it, or the
 call fails outright, the run keeps the written notes (already paid for),
 with a warning that they're unreviewed and the check findings as warnings.
 A revised idea that leaves out its sources keeps the
@@ -321,9 +324,9 @@ carries only the command's output.
 - **Timeouts:** each LLM call has a ~2 minute timeout
   (`PRECIS_LLM_CALL_TIMEOUT_SECONDS`), a circuit breaker for a hung call;
   the write call sets 5 minutes and fewer HTTP retries, since it's long.
-  There's no whole-run limit: the per-call timeouts bound a run, at about
-  an hour in the worst case (a stalled provider on both the write and the
-  review call, through every retry).
+  There's no whole-run limit. A stalled provider costs about 15 minutes a
+  call (three 5-minute tries); through every retry layer (2 attempts × 4
+  requests for provider errors × 3 HTTP tries) the bound is hours.
 - **Cost:** every run reports the gateway-reported cost of its calls.
   Target: under $0.50 a book on average, measured on the eval set.
   Searches aren't priced: they run on Tavily's free tier (1,000 credits a

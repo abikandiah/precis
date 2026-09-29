@@ -46,6 +46,12 @@ def test_preflight_requires_title_and_author(field, value):
     ]
 
 
+def test_preflight_requires_a_name_in_the_author():
+    assert preflight_check(_known_file(author="Editor")) == [
+        "author 'Editor' has no name in it, only role words — give the author's name"
+    ]
+
+
 def test_slugify_title():
     assert slugify_title("Guns, Germs, and Steel") == "guns-germs-and-steel"
     assert slugify_title(None) == ""
@@ -60,10 +66,12 @@ def test_create_known_file_fills_fields_from_the_lookup():
     with patch(_URLOPEN, side_effect=[_response(search_body), _response(edition_body)]):
         known_file, notes = create_known_file("9780000000000", kind="non-fiction")
     assert (known_file.title, known_file.author, known_file.year, known_file.page_count) == (
-        "The Book", "Jane Author, Joe Author", 2003, 320
+        "The Book", "Jane Author; Joe Author", 2003, 320
     )
     assert known_file.kind == "non-fiction"
-    assert notes == []
+    assert notes == [
+        "Open Library lists more than one author — keep only the book's authors, not its translators or editors."
+    ]
 
 
 def test_year_and_page_count_come_from_the_edition_not_the_work():

@@ -58,11 +58,6 @@ def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
         ({"ideas": [*_verdicts(), {"title": "Idea 2", "verdict": "drop"}]}, "'Idea 2' has more than one verdict"),
         ({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r"})}, "revise but has no revised idea"),
         ({"ideas": _verdicts(**{f"i{n}": {"verdict": "drop", "reason": "r"} for n in range(6)})}, "at least one idea"),
-        ({"ideas": _verdicts(), "new_ideas": [_idea(9, ["S4"])]}, r"cites \['S4'\]"),
-        ({"ideas": _verdicts(), "new_ideas": [_idea(9, [])]}, "new idea 'Idea 9' must cite"),
-        # Claims resting on a dropped idea must be dealt with.
-        ({"ideas": _verdicts(i0={"verdict": "drop", "reason": "contradicted"})}, "return key_claims_for_review"),
-        ({"ideas": _verdicts(), "synopsis": "Paragraph two, fixed."}, "the whole corrected synopsis"),
     ],
 )
 def test_the_review_is_validated_against_the_book_it_would_produce(data, message):
@@ -81,10 +76,34 @@ def test_a_review_can_drop_below_the_minimum():
     assert [i.title for i in reviewed.ideas] == ["Idea 5"]
 
 
-def test_fiction_rejects_a_review_deck():
-    fiction = _book("fiction", ideas=4)
-    with pytest.raises(ValidationError, match="fiction has no"):
-        _validate({"ideas": _verdicts(4), "key_claims_for_review": _CLAIMS}, fiction)
+def test_fiction_ignores_a_review_deck():
+    reviewed, _ = _apply({"ideas": _verdicts(4), "key_claims_for_review": _CLAIMS}, _book("fiction", ideas=4))
+    assert reviewed.key_claims_for_review is None
+
+
+def test_uncited_new_ideas_and_unknown_sources_are_left_out_not_sent_back():
+    verdicts = _verdicts(i0={"verdict": "revise", "reason": "r", "revised": _idea(10, ["S1", "S7"])})
+    new_ideas = [_idea(11, []), _idea(12, ["S9"]), _idea(13, ["S1", "S4"])]
+    reviewed, changes = _apply({"ideas": verdicts, "new_ideas": new_ideas})
+    assert [(i.title, i.sources) for i in reviewed.ideas if i.title in {"Idea 10", "Idea 13"}] == [
+        ("Idea 10", ["S1"]),
+        ("Idea 13", ["S1"]),
+    ]
+    assert not {"Idea 11", "Idea 12"} & {i.title for i in reviewed.ideas}
+    assert 'left out new idea "Idea 11": it cites no research source' in changes
+    assert "removed unknown sources ['S9'] from \"Idea 12\"" in changes
+
+
+def test_a_drop_without_new_claims_keeps_them_with_a_warning():
+    reviewed, _ = _apply({"ideas": _verdicts(i0={"verdict": "drop", "reason": "contradicted"})})
+    assert reviewed.key_claims_for_review == _book().key_claims_for_review
+    assert any("dropped Idea 0" in w and "key claims" in w for w in reviewed.warnings)
+
+
+def test_a_partial_synopsis_is_left_out():
+    reviewed, changes = _apply({"ideas": _verdicts(), "synopsis": "Paragraph two, fixed."})
+    assert reviewed.synopsis == SYNOPSIS
+    assert any("synopsis as written" in c for c in changes)
 
 
 def test_empty_or_placeholder_fields_mean_nothing_to_fix():

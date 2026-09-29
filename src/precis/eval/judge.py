@@ -29,6 +29,7 @@ from precis.eval.data import (
     book_path,
     metrics_path,
     read_json,
+    read_metrics,
     run_dir,
     write_json,
 )
@@ -177,7 +178,9 @@ def _combine(first: Pick, swapped: Pick) -> Outcome:
 async def judge_book(
     client: AsyncOpenAI, model: str, book: EvalBook, candidate: dict[str, Any] | None, baseline: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """A side with no output (its run failed on this book) loses outright."""
+    """A side with no output (its run failed on this book) loses outright.
+    One whose run never got to the book isn't judged (judge_runs).
+    """
     if candidate is None or baseline is None:
         missing = "candidate" if candidate is None else "baseline"
         winner: Outcome = "baseline" if candidate is None else "candidate"
@@ -240,6 +243,7 @@ async def judge_runs(
             raise ValueError(f"no run named {label!r} in {run_dir(evals_dir, label).parent}")
     semaphore = asyncio.Semaphore(concurrency)
     failed: dict[str, str] = {}
+    not_run: list[str] = []
 
     async def one(client: AsyncOpenAI, book: EvalBook) -> tuple[str, dict[str, Any] | None]:
         try:
@@ -247,6 +251,16 @@ async def judge_runs(
             baseline_book = read_json(book_path(evals_dir, baseline, book.slug))
             if candidate_book is None and baseline_book is None:
                 on_progress(f"[{book.slug}] neither run has output, not judged")
+                return book.slug, None
+            # No output and no metrics: the run never got to this book, which
+            # isn't a loss — only a book it failed on is.
+            if missing := [
+                label
+                for label, output in ((candidate, candidate_book), (baseline, baseline_book))
+                if output is None and not metrics_path(evals_dir, label, book.slug).exists()
+            ]:
+                not_run.append(book.slug)
+                on_progress(f"[{book.slug}] not run in {', '.join(missing)}, not judged")
                 return book.slug, None
             async with semaphore:
                 result = await judge_book(client, model, book, candidate_book, baseline_book)
@@ -270,6 +284,7 @@ async def judge_runs(
         "research_differs": research_differs(evals_dir, candidate, baseline, sorted(results)),
         "judge_usage": judge_usage.to_dict(),
         "failed": failed,
+        "not_run": sorted(not_run),
         "books": results,
     }
     write_json(judgement_path(evals_dir, candidate, baseline), judgement)
@@ -277,7 +292,7 @@ async def judge_runs(
 
 
 def _research_fingerprint(evals_dir: str | Path, label: str, slug: str) -> str | None:
-    metrics = read_json(metrics_path(evals_dir, label, slug)) or {}
+    metrics = read_metrics(metrics_path(evals_dir, label, slug)) or {}
     return (metrics.get("research") or {}).get("fingerprint")
 
 
@@ -311,6 +326,9 @@ def format_judgement(judgement: dict[str, Any]) -> str:
             f"\nwarning: judging failed for {', '.join(failed)} — they aren't in the score"
             if (failed := judgement.get("failed"))
             else ""
+        )
+        + (
+            f"\nnot judged, a run never got to: {', '.join(not_run)}" if (not_run := judgement.get("not_run")) else ""
         )
         + (
             f"\nwarning: the runs wrote from different research for {', '.join(differs)} — "

@@ -36,16 +36,18 @@ _META = re.compile(
     r"|\bthe author (argues|explains|shows) (that )?this\b",
     re.IGNORECASE,
 )
+# In evidence, the author describing something is the example itself.
+_META_EVIDENCE = re.compile(rf"\b(the|this) (book|chapter|text|novel|work) {_DESCRIBING}\b", re.IGNORECASE)
 
 
-def _describes_text(text: str, surnames: list[str] = []) -> bool:  # noqa: B006 — never mutated
+def _describes_text(text: str, surnames: list[str] = [], *, evidence: bool = False) -> bool:  # noqa: B006 — never mutated
     """Whether `text` describes the book rather than stating its idea — with
     the author's surname as a subject too when `surnames` are given
-    ("Storr traces…", but not "Storr argues…"). Evidence is checked without
-    them: there "Krakauer describes his 1977 climb of Devils Thumb" is the
-    example itself.
+    ("Storr traces…", but not "Storr argues…"). Evidence is checked with
+    neither the author nor surnames as a subject: there "the author (or
+    Krakauer) describes his 1977 climb of Devils Thumb" is the example itself.
     """
-    if _META.search(text):
+    if (_META_EVIDENCE if evidence else _META).search(text):
         return True
     return any(re.search(rf"\b{re.escape(name)}\s+{_DESCRIBING}\b", text, re.IGNORECASE) for name in surnames)
 
@@ -67,7 +69,7 @@ def check_notes(book: Book) -> list[str]:
     for n, idea in enumerate(ideas, 1):
         if _describes_text(f"{idea.title}. {idea.summary}", surnames):
             issues.append(f'idea {n} "{idea.title}": describes the text instead of stating the idea')
-        if _describes_text(idea.evidence):
+        if _describes_text(idea.evidence, evidence=True):
             issues.append(
                 f'idea {n} "{idea.title}": its evidence describes the text instead of giving the book\'s example'
             )

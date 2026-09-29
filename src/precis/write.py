@@ -87,12 +87,15 @@ class Draft(BaseModel):
     the model writes in: the identity question first, before any notes.
     """
 
+    author_differs: bool | None = Field(
+        default=None,
+        description="True only if pages about this exact book clearly credit a different person than the author "
+        "given. False otherwise — including for another form of the same name, a pen name and the author's real "
+        "name (Robert Galbraith is J.K. Rowling), or an added co-author, editor or translator.",
+    )
     author_mismatch: str | None = Field(
         default=None,
-        description="Only if pages about this exact book clearly credit a different person than the author "
-        "given: the author they name. Null otherwise — including for another form of the same name, a pen name "
-        "and the author's real name (Robert Galbraith is J.K. Rowling), or an added co-author, editor or "
-        "translator.",
+        description="Only when author_differs is true: the author those pages name. Null otherwise.",
     )
     one_line_takeaway: str
     synopsis: str = Field(description="3-5 paragraphs separated by blank lines.")
@@ -104,6 +107,16 @@ class Draft(BaseModel):
     def _null_placeholders(cls, author: str | None) -> str | None:
         """"N/A" or "unknown" means no mismatch, not an author called that."""
         return None if author is None or is_placeholder(author, _NO_AUTHOR) else author.strip()
+
+    @model_validator(mode="after")
+    def _no_mismatch_unless_it_differs(self) -> Draft:
+        """A name only counts with author_differs true, so no phrasing of
+        "no mismatch" in the name field ("Same author") can fail the run.
+        Left out, the name alone decides, as a backstop.
+        """
+        if self.author_differs is False:
+            self.author_mismatch = None
+        return self
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -237,7 +250,7 @@ def _nonfiction_instructions(known_file: KnownFile) -> str:
         "on its own; don't just restate an idea's title as a question (\"What is X?\") — ask for what the reader "
         "needs to recall about it: how it works, the evidence for it, or when it applies.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
-        "- author_mismatch: see its description; almost always null.\n\n"
+        "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n" + _COMMON_RULES + _reader_notes(known_file) + "\nCall the tool with the result."
     )
 
@@ -252,7 +265,7 @@ def _fiction_instructions(known_file: KnownFile) -> str:
         f"- ideas: {low}-{high} themes. Each has a title (the theme), a 2-4 sentence summary of how the book "
         "develops it, and its evidence: the characters, situations or images that carry it.\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
-        "- author_mismatch: see its description; almost always null.\n\n"
+        "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         f"- No spoilers anywhere. {SPOILER_RULE}\n"
         + _COMMON_RULES
@@ -273,12 +286,14 @@ def _reader_notes(known_file: KnownFile) -> str:
 def _same_person(a: list[str], b: list[str]) -> bool:
     """Two names (author_names words) for one person: the same surname, and
     first given names that agree or where one is an initial or short form of
-    the other ("D." / "Daniel", "Tim" / "Timothy") — or one has none.
+    the other ("D." / "Daniel", "Tim" / "Timothy") — or one is the end of
+    the other (a surname alone, "Le Guin" / "Ursula K. Le Guin").
     Kingsley and Martin Amis are two people.
     """
     if a[-1] != b[-1]:
         return False
-    if len(a) == 1 or len(b) == 1:
+    shorter, longer = sorted((a, b), key=len)
+    if longer[len(longer) - len(shorter) :] == shorter:
         return True
     x, y = a[0], b[0]
     return x.startswith(y) or y.startswith(x)
@@ -286,14 +301,19 @@ def _same_person(a: list[str], b: list[str]) -> bool:
 
 def _check_identity(known_file: KnownFile, draft: Draft, *, trust_known: bool) -> list[str]:
     """Fails (or, with `trust_known`, warns) when the model reports a
-    different author. A reported name that is a form of any of the
-    known-file's authors — or credits one of them alongside others — isn't.
+    different author, named or not. A reported name that is a form of any
+    of the known-file's authors — or credits one of them alongside others —
+    isn't.
     """
     claimed = author_names(known_file.author)
     reported = author_names(draft.author_mismatch)
-    if not claimed or not reported or any(_same_person(r, c) for r in reported for c in claimed):
+    if not claimed or any(_same_person(r, c) for r in reported for c in claimed):
         return []
-    problem = f"the research credits this book to {draft.author_mismatch!r}, not {known_file.author!r}"
+    # A mismatch reported without a usable name is still a mismatch.
+    if not reported and not draft.author_differs:
+        return []
+    credited = repr(draft.author_mismatch) if reported else "an unnamed author"
+    problem = f"the research credits this book to {credited}, not {known_file.author!r}"
     if not trust_known:
         raise IdentityError(f"{problem} — fix the author in the known-file, or rerun with --trust-known if it's right.")
     return [f"{problem}; continuing with --trust-known."]

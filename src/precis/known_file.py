@@ -14,6 +14,7 @@ import urllib.request
 from typing import Literal
 
 from precis.schema import PLACEHOLDER, KnownFile
+from precis.search import author_names
 
 OPEN_LIBRARY_BASE_URL = "https://openlibrary.org"
 OPEN_LIBRARY_SEARCH_URL = f"{OPEN_LIBRARY_BASE_URL}/search.json"
@@ -33,6 +34,10 @@ def create_known_file(isbn: str, kind: Literal["fiction", "non-fiction"]) -> tup
         for field in ("title", "author")
         if field not in data
     ]
+    if ";" in data.get("author", ""):
+        # Open Library credits translators and editors as authors, and
+        # research searches for every name given.
+        notes.append("Open Library lists more than one author — keep only the book's authors, not its translators or editors.")
     known_file = KnownFile(
         isbn=isbn,
         title=data.get("title", PLACEHOLDER),
@@ -95,7 +100,9 @@ def _lookup_open_library(isbn: str) -> dict:
             result["title"] = title
         authors = record.get("author_name")
         if isinstance(authors, list) and (names := [a for a in authors if isinstance(a, str)]):
-            result["author"] = ", ".join(names)
+            # "; ", not ", ": "Homer, Robert Fagles" reads as one person
+            # written last-name-first (search.author_names).
+            result["author"] = "; ".join(names)
 
     edition_body = _fetch_json(f"{OPEN_LIBRARY_EDITION_URL}/{isbn}.json")
     if edition_body:
@@ -135,4 +142,6 @@ def preflight_check(known_file: KnownFile) -> list[str]:
         problems.append("title is required (still missing or a placeholder)")
     if not known_file.has_author:
         problems.append("author is required (still missing or a placeholder)")
+    elif not author_names(known_file.author):
+        problems.append(f"author {known_file.author!r} has no name in it, only role words — give the author's name")
     return problems
