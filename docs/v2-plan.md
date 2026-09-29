@@ -66,7 +66,10 @@ the blueprint.
   field "Field required") and the retry succeeded, roughly doubling those
   calls' cost. Haiku and the free model never did it. Worth finding the
   cause before Sonnet is used for more than a few books.
-- [ ] **book-keeper on schema v2** — book-keeper's `schema.ts` is still v1
-  (`chapters`, `parts`, no `ideas`), so it can't show v2's notes. Needed
-  before generating the library.
+- [x] **book-keeper on schema v2** — `schema.ts` takes only v2
+  (`schema_version: "2"`), the book page shows ideas in place of chapters,
+  `fix-chapter` is gone, and the 24 v1 books became v2 known-files to
+  regenerate from.
+- [ ] **Generate the library** — the 24 known-files in book-keeper's
+  `known/`, with Haiku 4.5; Sonnet 5 for any that warn of thin research.
 - [ ] **Exemplars** — only if evals show a gap.
