@@ -260,3 +260,41 @@ def test_a_new_idea_repeating_one_the_notes_keep_is_left_out_not_sent_back():
     verdicts = _verdicts(i2={"verdict": "drop", "reason": "r"})
     reviewed, _ = _apply({"ideas": verdicts, "new_ideas": [repeat], "key_claims_for_review": _CLAIMS})
     assert reviewed.ideas[-1].title == "Idea 2 again"
+
+
+# --- same_point: ideas making one point in different words ----------------------------
+
+
+def test_same_point_drops_the_repeat_even_when_its_verdict_keeps_it():
+    reviewed, changes = _apply({"same_point": [{"keep": "Idea 0", "drop": "Idea 3"}], "ideas": _verdicts()})
+    assert [i.title for i in reviewed.ideas] == ["Idea 0", "Idea 1", "Idea 2", "Idea 4", "Idea 5"]
+    assert 'dropped "Idea 3": makes the same point as "Idea 0"' in changes
+    assert any("dropped Idea 3" in w for w in reviewed.warnings)
+
+
+def test_same_point_keeps_the_kept_ideas_revision():
+    revised = {"title": "Idea 0", "summary": "Merged.", "evidence": "e", "sources": ["S1"]}
+    data = {
+        "same_point": [{"keep": "Idea 0", "drop": "Idea 1"}],
+        "ideas": _verdicts(i0={"verdict": "revise", "reason": "merged", "revised": revised}),
+    }
+    reviewed, _ = _apply(data)
+    assert reviewed.ideas[0].summary == "Merged."
+    assert "Idea 1" not in {i.title for i in reviewed.ideas}
+
+
+def test_same_point_pairs_that_arent_two_ideas_or_would_drop_both_are_ignored():
+    pairs = [
+        {"keep": "Idea 0", "drop": "Idea 9"},
+        {"keep": "Idea 1", "drop": "Idea 1"},
+        {"keep": "Idea 2", "drop": "Idea 3"},
+        {"keep": "Idea 3", "drop": "Idea 2"},
+    ]
+    reviewed, changes = _apply({"same_point": pairs, "ideas": _verdicts()})
+    assert [i.title for i in reviewed.ideas] == ["Idea 0", "Idea 1", "Idea 2", "Idea 4", "Idea 5"]
+    assert sum(c.startswith("ignored same_point") for c in changes) == 3
+
+
+def test_no_same_point_means_none():
+    reviewed, _ = _apply({"same_point": None, "ideas": _verdicts()})
+    assert len(reviewed.ideas) == 6

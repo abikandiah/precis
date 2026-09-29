@@ -245,7 +245,8 @@ _COMMON_RULES = (
     "it more generally or leave it out.\n"
     "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
     "idea rests on your own knowledge of the book rather than the research.\n"
-    "- Ideas mustn't repeat each other.\n"
+    "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "
+    "framework plus one of its own parts as a separate idea.\n"
     f"- {FAITHFUL_RULE}\n"
 )
 

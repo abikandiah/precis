@@ -106,7 +106,21 @@ class IdeaReview(BaseModel):
         return data
 
 
+class SamePoint(BaseModel):
+    keep: str = Field(description="The title, exactly as given, of the idea to keep.")
+    drop: str = Field(description="The title, exactly as given, of the idea that makes the same point.")
+
+
 class Review(BaseModel):
+    # First, so the model compares the ideas before it judges each one: the
+    # word-overlap check (checks.py) can't see two ideas making one point in
+    # different words — Moreau's "ethics of scientific ambition" and
+    # "corruption of knowledge and power" share 17% of their words, less than
+    # some distinct ideas do.
+    same_point: list[SamePoint] = Field(
+        default_factory=list,
+        description="Pairs of ideas a reader would recall as one point; empty when there are none.",
+    )
     ideas: list[IdeaReview] = Field(description="One verdict per idea, in the order given.")
     new_ideas: list[Idea] = Field(
         default_factory=list,
@@ -126,9 +140,9 @@ class Review(BaseModel):
     _changes: list[str] = PrivateAttr(default_factory=list)
     _warnings: list[str] = PrivateAttr(default_factory=list)
 
-    @field_validator("new_ideas", mode="before")
+    @field_validator("same_point", "new_ideas", mode="before")
     @classmethod
-    def _none_is_no_new_ideas(cls, value: Any) -> Any:
+    def _none_is_empty(cls, value: Any) -> Any:
         return [] if value is None else value
 
     @field_validator("one_line_takeaway", "synopsis")
@@ -239,6 +253,23 @@ def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea
     return added, repeats
 
 
+def _repeated(book: Book, review: Review, changes: list[str]) -> dict[str, str]:
+    """The ideas same_point drops, by normalized title, each with the title
+    of the idea it repeats. A pair naming an idea that doesn't exist, the
+    same idea twice, or a kept idea another pair already drops is skipped,
+    not sent back — so two pairs can't drop both ideas of one point.
+    """
+    titles = {normalize_text(i.title): i.title for i in book.ideas}
+    dropped: dict[str, str] = {}
+    for pair in review.same_point:
+        keep, drop = normalize_text(pair.keep), normalize_text(pair.drop)
+        if keep not in titles or drop not in titles or keep == drop or keep in dropped:
+            changes.append(f'ignored same_point "{pair.keep}" / "{pair.drop}": not two of the ideas')
+            continue
+        dropped.setdefault(drop, titles[keep])
+    return dropped
+
+
 def _cited(idea: Idea, source_ids: set[str] | None, changes: list[str]) -> Idea:
     """The idea without citations of sources the research doesn't have."""
     if source_ids is None:
@@ -261,13 +292,21 @@ def _merge(
     ideas: list[Idea] = []
     changes: list[str] = []
     warnings: list[str] = []
+    dropped: list[str] = []
+    repeated = _repeated(book, review, changes)
     for original, verdict in zip(book.ideas, _matched_verdicts(book, review)[0], strict=True):
-        if verdict is None:
+        if (kept := repeated.get(normalize_text(original.title))) and (verdict is None or verdict.verdict != "drop"):
+            # The pair decides, whatever the verdict says: a kept verdict
+            # here is the review not following through on its own pair.
+            dropped.append(original.title)
+            changes.append(f'dropped "{original.title}": makes the same point as "{kept}"')
+        elif verdict is None:
             # Keep is the verdict that changes nothing, so a missing one is
             # safe to assume rather than worth failing the review over.
             ideas.append(original)
             changes.append(f'no verdict for "{original.title}", kept as written')
         elif verdict.verdict == "drop":
+            dropped.append(original.title)
             changes.append(f'dropped "{original.title}": {verdict.reason}')
         elif verdict.verdict == "revise" and verdict.revised:
             revised = verdict.revised
@@ -295,7 +334,7 @@ def _merge(
     elif review.key_claims_for_review is not None:
         claims = review.key_claims_for_review
         changes.append("revised key_claims_for_review")
-    elif dropped := [r.title for r in review.ideas if r.verdict == "drop"]:
+    elif dropped:
         warnings.append(
             f"the review dropped {'; '.join(dropped)} but left the key claims as written — check none rests on "
             f"{'them' if len(dropped) > 1 else 'it'}"
@@ -337,6 +376,12 @@ def _instructions(book: Book, issues: list[str]) -> str:
         f"<notes>\n{json.dumps(notes, indent=2, ensure_ascii=False)}\n</notes>\n\n"
         f"Automated checks flagged:\n{found}\n"
         "These are leads, not verdicts.\n\n"
+        "First, same_point: compare the ideas with each other. Two ideas make the same point when a reader "
+        "would recall them as one: the same claim from different angles (a novel's \"ethics of scientific "
+        "ambition\" and \"corruption of knowledge and power\"), or a framework and one of its own parts given "
+        "as separate ideas (\"three core conditions\" and one of those conditions). Ideas that share a subject "
+        "but make different claims aren't the same point. For each pair, name the idea to keep — the fuller "
+        "one — and the one to drop, and revise the kept one to take in anything the dropped one adds.\n\n"
         "For each idea, in order, give its title as given and a verdict:\n"
         "- keep: accurate to the book, citations included — its cited sources support it, or it cites none "
         "and you're confident it's accurate to this book.\n"

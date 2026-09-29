@@ -195,7 +195,8 @@ name and the real name, or an added co-author isn't a mismatch.
 Code checks on the written notes, each a specific lead for the review:
 ideas, evidence or answers that describe the text ("the book examines…",
 "Storr traces…") instead of stating the idea or giving the book's example,
-and near-duplicate ideas (half their vocabulary shared). A general
+and near-duplicate ideas (half their vocabulary shared — the same point in
+other words is the review's `same_point`). A general
 statement of what the book argues is a fine fallback when research is
 thin; a description of the text isn't. The author's surname counts as a
 subject in summaries and answers, not in evidence, where "Krakauer
@@ -241,6 +242,14 @@ vaguer because the research didn't mention them.
 - **drop** — the book doesn't make this argument, it isn't specific to this
   book, or it repeats another idea. A wrong idea is worse than a missing
   one; claims resting on it go too.
+- **same point** — first, before any verdict: pairs of ideas a reader
+  would recall as one — the same claim from different angles, or a
+  framework and one of its own parts given separately — each naming the
+  idea to keep (revised to take in what the other adds) and the one to
+  drop. The pair decides, whatever the dropped idea's verdict says. This is
+  the model's job because the word-overlap check can't do it: the pairs in
+  the first library books shared 3-17% of their words, while distinct ideas
+  in the same books shared up to 17.5%.
 - **new ideas** — major ideas the book makes that the notes miss, or
   replacements for dropped ones; they must cite the research. An idea is
   something the book argues (or a theme a novel develops), not an
@@ -251,7 +260,8 @@ book's own rules: no ideas left, or a verdict naming no idea or a second
 verdict for one, is sent back with the reason. What can be left out
 instead is, since a retry that repeats it would lose the whole review, its
 drops of wrong ideas included: a new idea repeating one the notes keep (the
-near-duplicate check) or citing nothing, a citation of a source the
+near-duplicate check) or citing nothing, a `same_point` pair that isn't two
+of the ideas (or would drop both), a citation of a source the
 research doesn't have, a half-returned synopsis (the original stays), and
 fiction's key claims. A drop with the key claims left as they were keeps
 them, with a warning to check none rests on the dropped idea. An idea with
