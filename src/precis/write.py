@@ -98,7 +98,7 @@ class Draft(BaseModel):
         description="Only when author_differs is true: the author those pages name. Null otherwise.",
     )
     one_line_takeaway: str
-    synopsis: str = Field(description="3-5 paragraphs separated by blank lines.")
+    synopsis: str = Field(description="2-5 paragraphs separated by blank lines; fewer when there's less to say.")
     ideas: list[Idea]
     tags: Tags
 
@@ -255,12 +255,15 @@ _COMMON_RULES = (
     "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
     'discusses...", "this chapter examines...") — state the ideas.\n'
     "- Accuracy comes first. Use the research, and your own knowledge of the book where you're confident of "
-    "it. Never invent a study, figure, quote, name or event: if you aren't sure of a specific detail, describe "
-    "it more generally or leave it out.\n"
+    "it. Never invent a study, figure, quote, name or event, and never make up an illustrative example the book "
+    "doesn't use: if you aren't sure of a specific detail, describe it more generally or leave it out.\n"
     "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
     "idea rests on your own knowledge of the book rather than the research.\n"
     "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "
     "framework plus one of its own parts as a separate idea.\n"
+    "- Never pad. Thin research means fewer ideas and shorter fields, not vaguer ones: an idea's evidence stays "
+    "empty when you have no specific example for it, and an idea you could only state in general terms is "
+    "left out. Every sentence should tell a reader something specific about this book.\n"
     f"- {FAITHFUL_RULE}\n"
 )
 
@@ -269,11 +272,11 @@ def _nonfiction_instructions(known_file: KnownFile) -> str:
     return (
         "Write this book's notes.\n\n"
         "- one_line_takeaway: one sentence — the book's central message.\n"
-        "- synopsis: 3-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
-        "its argument builds, and where it lands.\n"
+        "- synopsis: 2-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
+        "its argument builds, and where it lands. Fewer paragraphs when there's less to say.\n"
         "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), a "
         "summary stating the idea itself, and its evidence: the specific study, story, example or figure the "
-        f"author uses to make it. {IDEA_COUNT_RULE}\n"
+        f"author uses to make it, or empty when there's none to give. {IDEA_COUNT_RULE}\n"
         "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a reader "
         "needs to remember. Each answer is correct and makes sense on its own; don't just restate an idea's "
         "title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how it works, "
@@ -288,11 +291,11 @@ def _fiction_instructions(known_file: KnownFile) -> str:
     return (
         "Write this novel's notes. They are spoiler-safe: other people browse them before reading the book.\n\n"
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
-        "- synopsis: 3-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
-        "the story explores.\n"
+        "- synopsis: 2-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
+        "the story explores. Fewer paragraphs when there's less to say.\n"
         "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
         "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
-        f"setup that carry it. {FICTION_COUNT_RULE}\n"
+        f"setup that carry it, or empty when there's none to give. {FICTION_COUNT_RULE}\n"
         f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"

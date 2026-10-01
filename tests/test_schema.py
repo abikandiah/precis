@@ -68,3 +68,9 @@ def test_known_file_title_and_author_placeholders_dont_count():
 def test_an_unknown_known_file_field_is_an_error():
     with pytest.raises(ValidationError, match="note"):
         KnownFile(isbn="1", kind="fiction", note="typo for notes")  # type: ignore[call-arg]
+
+
+def test_an_idea_needs_no_evidence():
+    from precis.schema import Idea
+
+    assert Idea(title="t", summary="s").evidence == ""

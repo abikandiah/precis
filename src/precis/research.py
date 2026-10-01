@@ -98,11 +98,48 @@ class ResearchError(ValueError):
 
 
 @dataclass(frozen=True)
+class Part:
+    """One chunk of a page digest.py read whole, as its call noted it."""
+
+    kind: str  # "book" (the book's own text), "about" (writing about it) or "other"
+    section: str  # the heading the chunk sits under, "" when none shows
+    notes: str
+    quotes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Source:
     id: str  # "S1", "S2", … — what the notes cite
     title: str
     url: str
+    # What the model is shown: the page's excerpt, or digest.py's notes on
+    # all of it.
     text: str
+    # The whole page, every line kept, whenever `text` lacks some of it —
+    # cut by the excerpt, or short lines dropped by cleaning, which in an
+    # OCR'd book are the ends of sentences ("erects the play-pen.") — for
+    # digest.py to read and checks.py to find quotes in; None when `text`
+    # is all of it.
+    full_text: str | None = None
+    # Whether the excerpt cut the page short, rather than only cleaning it.
+    cut: bool = False
+    # digest.py's notes on the page, chunk by chunk, in page order; empty
+    # for a page shown as its excerpt.
+    parts: tuple[Part, ...] = ()
+
+    @property
+    def page_text(self) -> str:
+        """All of the page there is: the whole page when `text` lacks some of it."""
+        return self.full_text or self.text
+
+    @property
+    def is_book_text(self) -> bool:
+        """Whether digest.py found the page to be mostly the book itself —
+        a copy of the book in the search results — rather than writing
+        about it.
+        """
+        content = [p for p in self.parts if p.kind != "other"]
+        return bool(content) and sum(p.kind == "book" for p in content) * 2 >= len(content)
 
 
 @dataclass(frozen=True)
@@ -200,6 +237,13 @@ def _clean(text: str) -> str:
     return "\n".join(lines)
 
 
+def _whole(text: str) -> str:
+    """A page with only its whitespace tidied: runs of spaces collapsed and
+    blank lines dropped, every word kept.
+    """
+    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())
+
+
 def _fold_char(c: str) -> str:
     """One character, lowercased and without its accent — always exactly
     one character, so offsets in a folded text are offsets in the original.
@@ -223,12 +267,11 @@ def _first_mention(text: str, title: str | None) -> int:
 
 
 def excerpt(text: str, title: str | None, limit: int) -> str:
-    """At most `limit` characters of a cleaned page. A long page is cut
-    from a little before it first names the book, so a page about many
-    books (a reading list, a review roundup) keeps the part about this one
-    — but never so late that the cut comes up short of `limit`.
+    """At most `limit` characters of a page already _clean()ed. A long
+    page is cut from a little before it first names the book, so a page
+    about many books (a reading list, a review roundup) keeps the part
+    about this one — but never so late that the cut comes up short of `limit`.
     """
-    text = _clean(text)
     if len(text) <= limit:
         return text
     start = min(max(0, _first_mention(text, title) - limit // 10), len(text) - limit)
@@ -287,12 +330,26 @@ def build_research(
         if (key := _url_key(page.url)) in seen_urls:
             continue
         seen_urls.add(key)
-        text = excerpt(page.raw_content or page.content, known_file.title, min(PAGE_CHARS, remaining))
+        raw = page.raw_content or page.content
+        cleaned = _clean(raw)
+        text = excerpt(cleaned, known_file.title, min(PAGE_CHARS, remaining))
         words = frozenset(re.findall(r"\w+", text.lower()))
         if not text or any(overlap(words, seen) >= _MIRROR_OVERLAP for seen in seen_words):
             continue
         seen_words.append(words)
-        sources.append(Source(id=f"S{len(sources) + 1}", title=page.title, url=page.url, text=text))
+        # The raw page, not the cleaned one: cleaning drops short lines, which
+        # in an OCR'd book are the ends of sentences ("erects the play-pen.").
+        whole = _whole(raw)
+        sources.append(
+            Source(
+                id=f"S{len(sources) + 1}",
+                title=page.title,
+                url=page.url,
+                text=text,
+                full_text=whole if whole != text else None,
+                cut=text != cleaned,
+            )
+        )
         remaining -= len(text)
         if remaining < MIN_PAGE_CHARS:
             break

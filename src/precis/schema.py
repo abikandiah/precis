@@ -151,8 +151,10 @@ class Idea(BaseModel):
         "for a simple rule, more for an argument with steps."
     )
     evidence: str = Field(
+        default="",
         description="Briefly, the study, story, example or figure the author uses (non-fiction), or the "
-        "characters and situations that carry the theme (fiction)."
+        "characters and situations that carry the theme (fiction). Empty when you have no specific one — never "
+        "a general statement in its place.",
     )
     sources: list[str] = Field(
         default_factory=list,

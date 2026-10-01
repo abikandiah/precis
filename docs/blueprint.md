@@ -59,7 +59,7 @@ names the output after it too.
 schema_version         "2"
 title, author, year, isbn, page_count, kind    from the known-file
 one_line_takeaway      one sentence
-synopsis               3-5 paragraphs
+synopsis               2-5 paragraphs, fewer when there's less to say
 ideas                  [{ title, summary, evidence, sources }]
                          non-fiction: key ideas; fiction: themes
                          as many as the book makes, each as long as it needs
@@ -77,6 +77,12 @@ warnings               anything the reader should check
 - **`evidence`** is the study, story, example or figure the author uses
   (non-fiction), or the characters and situations that carry a theme
   (fiction). It makes the notes memorable and the grounding checkable.
+  It's empty when there's no specific example to give: a required field
+  got filled with general statements ("Storr examines…") whenever research
+  was thin.
+- **Never pad**: thin research means fewer ideas and shorter fields, not
+  vaguer ones, and an idea that can only be stated in general terms is
+  left out (write.py's rules).
 - **No count to meet** (`IDEA_COUNT_RULE`, shared with the review): one
   idea per distinct point the book makes, whether three or thirty, and a
   book that numbers its own ideas (48 laws, 7 habits) gets its list, one
@@ -91,13 +97,14 @@ warnings               anything the reader should check
 ## Pipeline
 
 ```
-known-file ─► research ─► write ─► checks ─► review ─► validate ─► book JSON
-               (cached)                (code)   (one call)
+known-file ─► research ─► digest ─► write ─► checks ─► review ─► validate ─► book JSON
+               (cached)   (cached,             (code)   (one call)
+                          non-fiction)
 ```
 
-A plain async function (`generate.py`). The research cache is the only
-persisted state, so an interrupted run just starts again without searching
-again.
+A plain async function (`generate.py`). The research and digest caches are
+the only persisted state, so an interrupted run just starts again without
+searching, or digesting, again.
 
 ### Research (`research.py`)
 
@@ -128,7 +135,11 @@ Of the results:
   tokens, cut from just before it first names the book; the total is capped
   at ~60k tokens. A lesser-known book's few pages are often its only
   detailed ones, so each gets room. Sources are numbered `S1`, `S2`, … in
-  rank order, interleaved across the searches.
+  rank order, interleaved across the searches. A page whose excerpt lacks
+  any of it keeps its whole raw text too (`full_text`, every line kept:
+  cleaning drops short lines, which in an OCR'd book are the ends of
+  sentences — so even an uncut page can need it), for the quote check to
+  search and, when the excerpt cut it (`cut`), the digest to read.
 
 The raw results, follow-ups included, are cached per slug
 (`PRECIS_CACHE_DIR/research/`) and reused until `--fresh` or the
@@ -146,6 +157,45 @@ names its author. `--trust-known` turns both into warnings. Research that ends t
 than two sources or under ~20k tokens — warns that the notes lean on the
 model's own knowledge and will be general: the fallback when the web has
 little on a book is general but true notes, flagged as such.
+
+### Digest (`digest.py`)
+
+The excerpt cut every long page to its opening: *A Way of Being*'s research
+held the whole book (670k characters) and the notes saw 4% of it, filling
+the rest from summary sites — misattributions and missing chapters
+included. Long pages are common and the most detailed ones a book has: a
+copy of the book, chapter-by-chapter summaries, interview transcripts.
+
+A non-fiction page the excerpt would cut by more than half (over ~12k
+tokens) is read whole instead: split into ~15k-token chunks at line
+breaks, and one structured call per chunk notes its kind (the book's own
+text, writing about the book, or other — front and back matter,
+navigation), the section it sits under, what it says in its own terms with
+its examples, names and figures, and up to five of the author's sentences
+copied exactly. Those notes, in page order, replace the excerpt as the
+source's text; the source keeps them as `parts`. A page
+that's mostly book text is the book's own text (`is_book_text`). Shorter
+cut pages keep their excerpt, which holds most of them verbatim.
+
+Fiction is never digested: a novel's full text holds the ending, and its
+opening excerpt is the spoiler-safe part.
+
+Each chunk's notes are cached per slug (`PRECIS_CACHE_DIR/digests/`),
+keyed by everything its call depends on — the chunk and its place in the
+page, the book's title and author, the model and `DIGEST_VERSION` — so a
+rerun from the same research pays nothing; the cache keeps only the
+research's current chunks. Every chunk settles before anything is decided:
+a page with a failed chunk keeps its excerpt with a warning (it costs
+detail, not the run), its other chunks stay cached so a retry pays only for
+the failed one, and an unexpected error fails the run only after what
+succeeded is saved.
+
+Cost and prompt size are capped: at most 20 chunks of one page (~1.2M
+characters, a long book) and 30 in all, in rank order — a page past either
+cap is noted from its start, and its notes say so. A page's notes are cut
+at 90k characters, room for all 20 parts' notes: a safety net for runaway
+replies. A book's full text costs ~$0.10 per 300k characters
+with Haiku 4.5; the caps hold a book to ~$0.80 of digests at worst.
 
 ### Write (`write.py`)
 
@@ -209,7 +259,27 @@ is flagged only when it opens by describing the text ("The book examines
 ten firms."): partway through, "the book includes the letters Krakauer
 received" is the example too.
 
-No check matches facts against the research. The first baseline run had
+**Quotes** are checked against the research, in code: every quoted span
+of four or more words in the notes must appear in some source's whole page,
+compared as bare letters (so punctuation, quote style and line-break
+hyphens don't matter) and in 20-letter pieces of which 70% must be found
+(so OCR damage, a page header mid-sentence or one changed word don't
+either). Single quotes count — Haiku quotes in them inside its JSON — and
+quote marks only open or close at a word's edge, so an apostrophe
+("man's") or an inch mark never pairs with a real quote. Titles in quote marks (every word but the small ones capitalized)
+aren't quotes. When the research
+holds the whole book's own text — a book-text page of at least 100k
+characters, since a shorter one may be a preview of a few chapters — a
+quote found only in pages about the book is flagged too: *The Undiscovered Self*'s notes
+quoted Jung from another essay that a summary site credited to this book.
+The review keeps a flagged quote only when it's sure of the exact words,
+and paraphrases it otherwise — a paraphrase of a real quote loses nothing.
+
+No coverage check: a test that flagged parts of a digested book no idea drew
+on led the review to add ideas repeating ones the notes had, and the notes
+aim at a book's key ideas, not a chapter-by-chapter account.
+
+No other check matches facts against the research. The first baseline run had
 one — numbers and proper nouns in an idea's evidence that weren't in its
 cited sources — and it caught no inventions across 8 books, while its
 flags (Tolstoy in *Into the Wild*, Wickham in *Pride and Prejudice*, all
@@ -299,7 +369,8 @@ precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh]
 
 precis research <known-file.json> [--trust-known] [--fresh]
     → the research step alone: prints the rendered research to stdout,
-      sources and warnings to stderr.
+      sources and warnings to stderr. Free: long pages show as their
+      excerpts, since digesting them is paid work.
 
 precis tags [--output <path>]
     → the closed tag vocabulary as JSON, for a consumer to sync against.

@@ -106,7 +106,7 @@ def test_a_long_page_is_excerpted_from_just_before_its_first_mention_of_the_book
     before = "\n".join(f"Another book on the list, number {i}, is worth reading." for i in range(400))
     after = "\n".join(f"Yet another book, number {i}, closes out the list." for i in range(400))
     raw = f"{before}\nThinking Fast and Slow by Kahneman is about two systems of thought.\n{after}"
-    text = research.excerpt(raw, BOOK.title, 2_000)
+    text = research.excerpt(research._clean(raw), BOOK.title, 2_000)
     assert text.startswith("…") and text.endswith("…")
     assert "Thinking Fast and Slow by Kahneman" in text
     assert text.index("Thinking Fast and Slow") < 400
@@ -115,7 +115,7 @@ def test_a_long_page_is_excerpted_from_just_before_its_first_mention_of_the_book
 def test_a_book_named_late_in_a_long_page_still_fills_the_excerpt():
     raw = "\n".join(f"Another book on the list, number {i}, is worth reading." for i in range(2_000))
     raw += "\nFinally, Thinking, Fast and Slow by Kahneman."
-    text = research.excerpt(raw, BOOK.title, 12_000)
+    text = research.excerpt(research._clean(raw), BOOK.title, 12_000)
     assert len(text) == 12_001  # the full limit, plus the leading "…"
     assert text.startswith("…") and not text.endswith("…")
     assert text.endswith("Finally, Thinking, Fast and Slow by Kahneman.")
@@ -156,6 +156,24 @@ def test_pages_are_capped_individually_and_in_total():
     assert all(len(s.text) <= research.PAGE_CHARS + 2 for s in found.sources)
     assert found.chars <= research.TOTAL_CHARS + 2 * len(found.sources)
     assert len(found.sources) == research.TOTAL_CHARS // research.PAGE_CHARS
+
+
+def test_a_cut_page_keeps_its_whole_text_for_digest_and_checks():
+    # Short lines too: in an OCR'd book they're the ends of sentences.
+    long_page = "\n".join(f"{_LINE} sentence{j}.\nends  here." for j in range(2_000))
+    found = research.build_research(BOOK, [[_page("https://long.org", long_page), _page("https://short.org", _LINE)]])
+    cut, whole = found.sources
+    assert "ends here." not in cut.text
+    assert len(cut.text) <= research.PAGE_CHARS + 2 and cut.full_text == long_page.replace("  ", " ")
+    assert cut.cut and cut.page_text == cut.full_text
+    assert not whole.cut and whole.full_text is None and whole.page_text == whole.text == _LINE
+
+
+def test_an_uncut_page_keeps_the_short_lines_cleaning_dropped():
+    page = f"{_LINE}\nThe mother who smothers her child with care\nerects the play-pen."
+    (source,) = research.build_research(BOOK, [[_page("https://a.org", page)]]).sources
+    assert "erects the play-pen." not in source.text and not source.cut
+    assert source.page_text == page
 
 
 def test_thin_research_warns_by_pages_or_by_text():

@@ -1,9 +1,11 @@
-"""A whole run: research the book, write its notes, check them in code,
-then review them against the research in one more call. A review that fails
+"""A whole run: research the book, read its long pages whole (digest.py,
+non-fiction only), write its notes, check them in code, then review them
+against the research in one more call. A review that fails
 leaves the written notes, which are already paid for, with a warning that
 they're unreviewed. A plain async
-function — the research cache (research.py) is the only persisted state, so
-an interrupted run just starts again without searching again.
+function — the research and digest caches (research.py, digest.py) are the
+only persisted state, so an interrupted run just starts again without
+searching, or reading long pages, again.
 
 There's no whole-run time limit: every request has its own timeout. A
 stalled provider costs about 15 minutes a call (three 5-minute tries), but
@@ -19,6 +21,7 @@ from openai import AsyncOpenAI
 
 from precis import llm
 from precis.checks import check_notes
+from precis.digest import digest
 from precis.research import ProgressCallback, Research, research
 from precis.review import review_notes, uncited_warnings
 from precis.schema import Book, KnownFile, deck_coverage_warnings
@@ -49,6 +52,7 @@ async def generate(
     progress = on_progress or (lambda _: None)
     found = await research(known_file, slug=slug, trust_known=trust_known, fresh=fresh, on_progress=progress)
     async with llm.build_client() as client:
+        found = await digest(known_file, found, slug=slug, client=client, on_progress=progress)
         return await _write_and_review(known_file, found, client, trust_known=trust_known, progress=progress)
 
 
@@ -64,7 +68,7 @@ async def _write_and_review(
     written = await write_notes(known_file, found, trust_known=trust_known, client=client, on_progress=progress)
     progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
 
-    issues = check_notes(written)
+    issues = check_notes(written, found)
     for issue in issues:
         progress(f"check: {issue}")
     progress("review: checking the notes against the research")

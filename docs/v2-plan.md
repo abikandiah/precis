@@ -14,12 +14,16 @@ the blueprint.
 
 ## Decisions still in force
 
-- **Paid model: Haiku 4.5 by default, Sonnet 5 for lesser-known books**
-  (decided 2026-09-29 from the eval runs below). Run a book whose output
-  carries the thin-research warning with
-  `PRECIS_LLM_MODEL=anthropic/claude-sonnet-5`. Forced `tool_choice` rules
-  out Opus 5.5 / Fable 5.1 (they 400 on it) unless we move to
-  `tool_choice: auto` + strict schemas.
+- **Paid model: Haiku 4.5** (decided 2026-09-29 from the eval runs below;
+  Sonnet 5 for lesser-known books shelved 2026-10-01 — at scale it costs
+  2-3x Haiku, and Claude's review covers the gap for now). Forced
+  `tool_choice` rules out Opus 5.5 / Fable 5.1 (they 400 on it) unless we
+  move to `tool_choice: auto` + strict schemas.
+- **Library books get a Claude review before they're committed**
+  (2026-10-01): precis + Haiku generates, Claude checks each book against
+  its research (full text where the research has it) and fixes it, the
+  reader signs off with `verified`. The goal is a pipeline good enough to
+  drop that step: recurring fixes go back into precis.
 - **Evals before exemplars.** Exemplars only if evals show a gap a worked
   example would close, and exemplar books must never be eval books.
 - **The first full eval run is the baseline**; later runs are judged
@@ -61,7 +65,21 @@ the blueprint.
     sources more than the book, and it made the same *Solitude* confusion.
     A workable zero-cost fallback, not a default: it saves ~$9 per 100
     books.
-- [ ] **Sonnet's empty first attempt** — on 3 of its 4 calls, Sonnet 5's
+- [x] **Read long pages whole** (2026-10-01) — `digest.py`, after
+  reviewing the first five library books by hand. Every page was cut to
+  ~6k tokens, so books whose full text was in the research (three of five)
+  were noted from their first chapters plus summary sites: chapters
+  missing, evidence vague, a quote from another of Jung's essays. Long
+  non-fiction pages are now digested chunk by chunk; a code check flags
+  quotes not in the research (or only in pages about a book whose own text
+  is there); evidence may be empty and the write prompt says never pad.
+  Rerun of the three full-text books from cached research ($0.66 in all,
+  $0.13-0.37 a book): far more specific and complete than before, close to
+  the hand-reviewed versions, with one made-up example left for the
+  Claude review to catch. Kept simple on purpose: the notes are a book's
+  key ideas, not a chapter-by-chapter account, so no coverage check and no
+  per-chapter digests (a coverage check tried here led the review to pad).
+- [ ] **Sonnet's empty first attempt** (low priority while Sonnet is shelved) — on 3 of its 4 calls, Sonnet 5's
   first tool call through OpenRouter came back with no arguments (every
   field "Field required") and the retry succeeded, roughly doubling those
   calls' cost. Haiku and the free model never did it. Worth finding the

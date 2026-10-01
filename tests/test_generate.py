@@ -9,14 +9,16 @@ from precis.schema import Book, KnownFile
 BOOK = KnownFile(isbn="1", title="T", author="A", kind="fiction")
 
 
-async def test_generate_researches_writes_checks_then_reviews():
+async def test_generate_researches_digests_writes_checks_then_reviews():
+    searched = Research(sources=[], warnings=["thin research"])
     found = Research(sources=[], warnings=["thin research"])
     written = SimpleNamespace(ideas=[], key_claims_for_review=None)
     reviewed = SimpleNamespace(kind="fiction", ideas=[], key_claims_for_review=None, warnings=["thin research", "author mismatch"])
     messages: list[str] = []
     with (
         patch.object(generate_module.llm, "build_client") as build_client,
-        patch.object(generate_module, "research", new=AsyncMock(return_value=found)) as research,
+        patch.object(generate_module, "research", new=AsyncMock(return_value=searched)) as research,
+        patch.object(generate_module, "digest", new=AsyncMock(return_value=found)) as digest,
         patch.object(generate_module, "write_notes", new=AsyncMock(return_value=written)) as write,
         patch.object(generate_module, "check_notes", new=MagicMock(return_value=["idea 1: a finding"])) as check,
         patch.object(
@@ -29,13 +31,15 @@ async def test_generate_researches_writes_checks_then_reviews():
     assert (result.book, result.research) == (reviewed, found)
     kwargs = research.await_args.kwargs
     assert (kwargs["slug"], kwargs["trust_known"], kwargs["fresh"]) == ("t", True, True)
+    # Everything after research works from the digested research.
+    assert digest.await_args.args == (BOOK, searched) and digest.await_args.kwargs["slug"] == "t"
     assert write.await_args.args == (BOOK, found)
     assert write.await_args.kwargs["trust_known"] is True
-    check.assert_called_once_with(written)
+    check.assert_called_once_with(written, found)
     assert review.await_args.args == (BOOK, found, written, ["idea 1: a finding"])
-    # One client for both calls, closed at the end of the run.
+    # One client for every call, closed at the end of the run.
     client = build_client.return_value.__aenter__.return_value
-    assert write.await_args.kwargs["client"] is client and review.await_args.kwargs["client"] is client
+    assert all(call.await_args.kwargs["client"] is client for call in (digest, write, review))
     build_client.return_value.__aexit__.assert_awaited_once()
     assert "check: idea 1: a finding" in messages
     assert 'review: dropped "X": generic' in messages
