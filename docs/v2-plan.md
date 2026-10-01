@@ -79,6 +79,10 @@ the blueprint.
   Claude review to catch. Kept simple on purpose: the notes are a book's
   key ideas, not a chapter-by-chapter account, so no coverage check and no
   per-chapter digests (a coverage check tried here led the review to pad).
+- [x] **Your own copy of the book** (2026-10-01) — the known-file's
+  `book_file` (`.epub`, `.pdf`, `.txt`) becomes research source S1 and is
+  read whole by the digest, so a book doesn't depend on search turning up
+  a copy. book-keeper's `generate.sh` mounts it into the container.
 - [ ] **Sonnet's empty first attempt** (low priority while Sonnet is shelved) — on 3 of its 4 calls, Sonnet 5's
   first tool call through OpenRouter came back with no arguments (every
   field "Field required") and the retry succeeded, roughly doubling those

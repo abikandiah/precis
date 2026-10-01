@@ -83,6 +83,10 @@ THIN_CHARS = 80_000
 # else. Only the "<" is replaced.
 _SOURCE_TAG = re.compile(r"<(?=\s*/?\s*source)", re.IGNORECASE)
 
+# The source the reader's own copy of the book becomes (book_file.py).
+BOOK_FILE_TITLE = "The book itself (the reader's own copy)"
+BOOK_FILE_URL = "book-file"
+
 # Two excerpts sharing this much of their vocabulary are copies of one
 # article (syndicated or mirrored under another URL), not two sources.
 _MIRROR_OVERLAP = 0.8
@@ -301,11 +305,16 @@ def _identity_problem(known_file: KnownFile, titled: list[SearchResult], relevan
 
 
 def build_research(
-    known_file: KnownFile, results_per_query: list[list[SearchResult]], *, trust_known: bool = False
+    known_file: KnownFile,
+    results_per_query: list[list[SearchResult]],
+    *,
+    trust_known: bool = False,
+    book_text: str | None = None,
 ) -> Research:
     """Filters, checks and trims the raw search results into numbered
     sources. Raises ResearchError when the checks fail, unless
-    `trust_known`, which keeps going with a warning instead.
+    `trust_known`, which keeps going with a warning instead. `book_text`,
+    the reader's own copy of the book (book_file.py), comes first, as S1.
     """
     results = _interleave(results_per_query)
     if not results:
@@ -326,6 +335,17 @@ def build_research(
     seen_urls: set[str] = set()
     seen_words: list[frozenset[str]] = []
     remaining = TOTAL_CHARS
+    if book_text:
+        # Its opening, like any long page — for fiction the spoiler-safe
+        # part — and all of it for digest.py to read.
+        shown = book_text[:PAGE_CHARS]
+        cut = shown != book_text
+        sources.append(
+            Source(id="S1", title=BOOK_FILE_TITLE, url=BOOK_FILE_URL, text=shown, full_text=book_text if cut else None, cut=cut)
+        )
+        remaining -= len(shown)
+        # A copy of the book in the search results is then a mirror of it.
+        seen_words.append(frozenset(re.findall(r"\w+", shown.lower())))
     for page in pages:
         if (key := _url_key(page.url)) in seen_urls:
             continue
@@ -355,6 +375,8 @@ def build_research(
             break
 
     research = Research(sources=sources, warnings=warnings)
+    if book_text:
+        return research  # the book itself: the notes don't lean on the model's knowledge
     tokens = f"~{research.chars // 4:,} tokens"
     if len(sources) < MIN_SOURCES:
         found = f"only {len(sources)} page(s) about this book ({tokens})"
@@ -506,9 +528,12 @@ async def research(
     client: SearchClient | None = None,
     cache_dir: str | Path | None = None,
     on_progress: ProgressCallback | None = None,
+    book_text: str | None = None,
 ) -> Research:
     """The book's research, from the cache when there is one for this
-    known-file (unless `fresh`), otherwise searched and cached.
+    known-file (unless `fresh`), otherwise searched and cached — with the
+    reader's own copy of the book first when `book_text` is given. The copy
+    isn't cached: it's read from its file every run.
     """
     progress = on_progress or (lambda _: None)
     if problems := preflight_check(known_file):
@@ -526,7 +551,9 @@ async def research(
     else:
         results, follow_ups = await _search(known_file, client or build_search_client(), path, progress)
 
-    found = build_research(known_file, [*results, *(follow_ups or [])], trust_known=trust_known)
+    found = build_research(known_file, [*results, *(follow_ups or [])], trust_known=trust_known, book_text=book_text)
+    if book_text:
+        progress(f"research: your copy of the book, {len(book_text):,} characters, is S1")
     progress(f"research: {found.summary()}")
     for warning in found.warnings:
         progress(f"research warning: {warning}")

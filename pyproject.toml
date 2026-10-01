@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2",
     "openai",
     "tavily-python",
+    "pypdf>=6.19.0",
 ]
 
 [project.scripts]

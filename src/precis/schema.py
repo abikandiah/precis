@@ -112,6 +112,9 @@ class KnownFile(BaseModel):
     # A weighting signal for the notes, never quoted into them; carried
     # verbatim into the book's `reader_notes`.
     notes: str | None = None
+    # The reader's own copy of the book (.epub, .pdf or .txt), relative to
+    # the known-file; read whole as part of the research (book_file.py).
+    book_file: str | None = None
 
     @property
     def has_title(self) -> bool:

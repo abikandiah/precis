@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from precis import llm, usage
 from precis import research as book_research
+from precis.book_file import BookFileError, read_book_file
 from precis.config import ConfigError, settings
 from precis.eval import data as eval_data
 from precis.eval import judge as eval_judge
@@ -55,6 +56,27 @@ def _load_ready_known_file(path: str) -> KnownFile | None:
             print(f"- {problem}", file=sys.stderr)
         return None
     return known_file
+
+
+def _book_text(args: argparse.Namespace, known_file: KnownFile) -> str | None | Literal[False]:
+    """The reader's own copy of the book: `--book-file` as given, or the
+    known-file's `book_file` relative to the known-file (a leading ~ is the
+    home directory). None when there's neither; False after printing why
+    the file can't be read — before any paid work.
+    """
+    if args.book_file:
+        path = Path(args.book_file)
+    elif known_file.book_file:
+        path = Path(known_file.book_file).expanduser()
+        if not path.is_absolute():
+            path = Path(args.known_file).parent / path
+    else:
+        return None
+    try:
+        return read_book_file(path)
+    except BookFileError as exc:
+        print(f"book_file: {exc}", file=sys.stderr)
+        return False
 
 
 def _write_output(model: BaseModel, output_path: str | None, *, exclude_none: bool = False) -> None:
@@ -196,6 +218,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
     if args.output and (problem := _unwritable(args.output) or _is_input(args.output, args.known_file)):
         print(f"can't write --output {args.output!r}: {problem}", file=sys.stderr)
         return 1
+    if (book_text := _book_text(args, known_file)) is False:
+        return 1
 
     generated = _run_paid(
         generate(
@@ -204,6 +228,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             trust_known=args.trust_known,
             fresh=args.fresh,
             on_progress=_print_progress,
+            book_text=book_text,
         ),
         "generation failed",
     )
@@ -225,6 +250,8 @@ def _cmd_research(args: argparse.Namespace) -> int:
     known_file = _load_ready_known_file(args.known_file)
     if known_file is None:
         return 1
+    if (book_text := _book_text(args, known_file)) is False:
+        return 1
     found = _run_paid(
         book_research.research(
             known_file,
@@ -232,6 +259,7 @@ def _cmd_research(args: argparse.Namespace) -> int:
             trust_known=args.trust_known,
             fresh=args.fresh,
             on_progress=_print_progress,
+            book_text=book_text,
         ),
         "research failed",
     )
@@ -318,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_cmd.add_argument("--output")
     generate_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
     generate_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the research cache")
+    generate_cmd.add_argument("--book-file", help="your own copy of the book (.epub, .pdf or .txt), in place of the known-file's book_file")
     generate_cmd.set_defaults(func=_cmd_generate)
 
     research_cmd = subparsers.add_parser(
@@ -326,6 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_cmd.add_argument("known_file")
     research_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
     research_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the cache")
+    research_cmd.add_argument("--book-file", help="your own copy of the book (.epub, .pdf or .txt), in place of the known-file's book_file")
     research_cmd.set_defaults(func=_cmd_research)
 
     tags_cmd = subparsers.add_parser(

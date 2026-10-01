@@ -20,6 +20,10 @@ uv run precis create-known-file 9780374533557 --kind non-fiction --output known-
 Check the title and author it found (a miss leaves `TODO: fill in by hand`)
 and set `kind`. `notes` is optional: what matters to you about the book,
 used to weight the notes and carried into the output, never quoted.
+`book_file` is optional too: your own copy of the book (`.epub`, `.pdf`
+with a text layer, or `.txt`), relative to the known-file. With it, the
+notes are written from the whole book, not only from what's online about
+it — about $0.20-0.25 more for a 400-page non-fiction book, once.
 
 ## Generating
 
@@ -41,8 +45,13 @@ docker run --rm \
   precis generate /input/thinking-fast-and-slow.json --output /output/thinking-fast-and-slow.json
 ```
 
+In Docker, the known-file's `book_file` path doesn't exist inside the
+container: mount the file and pass its container path with `--book-file`
+(e.g. `-v ~/Books/thinking.epub:/book/thinking.epub:ro` and
+`--book-file /book/thinking.epub`).
+
 A run researches the book (three web searches, three more when those
-find little), writes the notes in one
+find little), reads long pages — and your copy of the book — whole, writes the notes in one
 model call, checks them in code, and reviews them against the research in
 a second call. It fails — before the model call where it can — when no
 page online names the book, or pages name it but not its author, or the

@@ -66,6 +66,25 @@ def test_generate_writes_the_book_and_names_the_research_cache_after_the_file(kn
     assert fake.await_args.kwargs["fresh"] is True
 
 
+def test_generate_reads_the_book_file_relative_to_the_known_file(tmp_path, monkeypatch):
+    (tmp_path / "books").mkdir()
+    (tmp_path / "books" / "a-novel.txt").write_text("A long line of the novel itself, in the reader's copy.\n" * 500)
+    path = tmp_path / "the-book.json"
+    path.write_text(_READY.model_copy(update={"book_file": "books/a-novel.txt"}).model_dump_json())
+    fake = AsyncMock(return_value=_GENERATED)
+    monkeypatch.setattr(cli_module, "generate", fake)
+    assert _run(["generate", str(path), "--output", str(tmp_path / "out.json")]) == 0
+    assert fake.await_args.kwargs["book_text"].startswith("A long line of the novel itself")
+
+
+@pytest.mark.parametrize("command", ["generate", "research"])
+def test_an_unreadable_book_file_is_refused_before_any_work(known_file_path, monkeypatch, capsys, command):
+    monkeypatch.setattr(cli_module, "generate", AsyncMock(side_effect=AssertionError("started")))
+    monkeypatch.setattr(cli_module.book_research, "research", AsyncMock(side_effect=AssertionError("started")))
+    assert _run([command, str(known_file_path), "--book-file", "/nonexistent/book.epub"]) == 1
+    assert "book_file: no such file" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(("output", "message"), [("missing/out.json", "doesn't exist"), ("", "directory")])
 def test_generate_refuses_an_unusable_output_before_any_work(known_file_path, tmp_path, monkeypatch, capsys, output, message):
     monkeypatch.setattr(cli_module, "generate", AsyncMock(side_effect=AssertionError("started")))

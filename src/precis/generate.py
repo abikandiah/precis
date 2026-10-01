@@ -44,13 +44,17 @@ async def generate(
     trust_known: bool = False,
     fresh: bool = False,
     on_progress: ProgressCallback | None = None,
+    book_text: str | None = None,
 ) -> Generated:
     """`slug` names the research cache; `fresh` searches again instead of
     using it. `trust_known` turns the book and author checks into warnings.
     Raises research.ResearchError for a known-file that isn't ready.
+    `book_text` is the reader's own copy of the book (book_file.py).
     """
     progress = on_progress or (lambda _: None)
-    found = await research(known_file, slug=slug, trust_known=trust_known, fresh=fresh, on_progress=progress)
+    found = await research(
+        known_file, slug=slug, trust_known=trust_known, fresh=fresh, on_progress=progress, book_text=book_text
+    )
     async with llm.build_client() as client:
         found = await digest(known_file, found, slug=slug, client=client, on_progress=progress)
         return await _write_and_review(known_file, found, client, trust_known=trust_known, progress=progress)

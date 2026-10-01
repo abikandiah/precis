@@ -46,10 +46,24 @@ year        optional
 page_count  optional
 kind        "fiction" | "non-fiction"
 notes       optional — what matters to the reader about this book
+book_file   optional — the reader's own copy of the book: .epub, .pdf (with
+            a text layer) or .txt, relative to the known-file
 ```
 
 `notes` is a weighting signal for the notes, never quoted into them, and is
-carried verbatim into the book's `reader_notes`. The known-file's filename
+carried verbatim into the book's `reader_notes`.
+
+`book_file` makes the book itself part of the research (`book_file.py`):
+EPUB chapters in spine order, a PDF's text layer, or a text file, read
+every run (not cached) and checked before any paid work — a missing file,
+unknown type or a scanned PDF with no text fails the run. It becomes source
+`S1`, ahead of the web pages, shown as its opening and read whole by the
+digest for non-fiction (fiction keeps the spoiler-safe opening); a copy of
+the same book in the search results is dropped as a mirror of it, and the
+research is never thin with it. Without it, a book is read whole only when
+search happens to turn up a copy. `--book-file` overrides the path, for a
+container where the known-file's host path doesn't exist. A 400-page book
+adds ~$0.20-0.25 of digest, once: the digest is cached. The known-file's filename
 stem is the book's slug: it names the research cache, and the consumer
 names the output after it too.
 
@@ -361,13 +375,14 @@ precis create-known-file <isbn>... [--kind fiction|non-fiction] [--output <path>
       known-file (likely hand-edited) is only replaced with --force; a batch
       skips it and writes the rest.
 
-precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh]
+precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh] [--book-file <path>]
     → researches the book and writes its notes. Refuses a known-file that
-      isn't ready, or an --output it can't write, before any paid work. If
+      isn't ready, an --output it can't write, or a book file it can't
+      read, before any paid work. If
       the final write fails anyway, the book goes to stdout rather than
       being lost.
 
-precis research <known-file.json> [--trust-known] [--fresh]
+precis research <known-file.json> [--trust-known] [--fresh] [--book-file <path>]
     → the research step alone: prints the rendered research to stdout,
       sources and warnings to stderr. Free: long pages show as their
       excerpts, since digesting them is paid work.
