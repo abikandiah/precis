@@ -86,13 +86,12 @@ def _epub_text(path: Path) -> str:
 
 def _pdf_text(path: Path) -> str:
     from pypdf import PdfReader  # imported here: only PDFs need it
-    from pypdf.errors import PyPdfError
 
     try:
         reader = PdfReader(path)
         return "\n".join(page.extract_text() or "" for page in reader.pages)
-    except PyPdfError as exc:
-        raise BookFileError(f"couldn't read {path.name}: {exc}") from exc
+    except Exception as exc:  # a malformed PDF raises all kinds, not only PyPdfError
+        raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
 
 
 def read_book_file(path: Path) -> str:
@@ -109,7 +108,7 @@ def read_book_file(path: Path) -> str:
         elif suffix == ".pdf":
             text = _pdf_text(path)
         elif suffix in (".txt", ".md"):
-            text = path.read_text(errors="replace")
+            text = path.read_text(encoding="utf-8", errors="replace")
         else:
             raise BookFileError(f"{path.name}: book files are .epub, .pdf or .txt")
     except BookFileError:

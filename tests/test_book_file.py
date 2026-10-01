@@ -61,6 +61,7 @@ def test_a_pdf_text_layer_is_read(tmp_path, monkeypatch):
         ("book.docx", b"x", "book files are .epub, .pdf or .txt"),
         ("book.epub", b"not a zip", "couldn't read book.epub"),
         ("book.pdf", b"not a pdf", "couldn't read book.pdf"),
+        ("broken.pdf", b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 9 0 R >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n", "couldn't read broken.pdf"),
         ("book.txt", b"Too short to be a book.", "a scanned PDF needs OCR first"),
     ],
 )
