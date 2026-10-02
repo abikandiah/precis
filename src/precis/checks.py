@@ -53,9 +53,12 @@ QUOTED_MAX_CHARS = 2_000
 # inside its JSON. A quote only opens where a word can't end (not the inch
 # mark of `5" scroll`) and only closes where one can't start, so an
 # apostrophe inside a word ("man's", "man’s") neither opens nor closes one;
-# straight quotes don't span lines.
+# straight quotes don't span lines. A straight single quote, the one mark
+# that's also an apostrophe, doesn't open before a digit (the '60s) or span a
+# sentence end, so a leading apostrophe ('em) pairs with a plural possessive
+# (parents') across a phrase at most, not a paragraph.
 _QUOTE = re.compile(
-    r'(?<!\w)“(.+?)”(?!\w)|(?<!\w)"([^"\n]+)"(?!\w)|(?<!\w)‘(.+?)’(?!\w)|(?<!\w)\'([^\n]+?)\'(?!\w)'
+    r'(?<!\w)“(.+?)”(?!\w)|(?<!\w)"([^"\n]+)"(?!\w)|(?<!\w)‘(.+?)’(?!\w)|(?<!\w)\'(?!\d)((?:(?![.!?]\s)[^\n])+?)\'(?!\w)'
 )
 # Words a title leaves lowercase ("Is the Active Self a Limited Resource?").
 _TITLE_SMALL = frozenset(
@@ -156,15 +159,14 @@ def _quoted(book: Book) -> list[tuple[str, str]]:
     return [(where, quote) for where, text in fields for quote in quotes(text)]
 
 
-def _length_issues(book: Book) -> list[str]:
-    found = _quoted(book)
+def _length_issues(quoted: list[tuple[str, str]]) -> list[str]:
     issues = [
         f'{where}: the quote "{_short(quote)}" runs {len(quote):,} characters — quote a sentence or two at most '
         "and paraphrase the rest"
-        for where, quote in found
+        for where, quote in quoted
         if len(quote) > QUOTE_MAX_CHARS
     ]
-    total = sum(len(quote) for _, quote in found)
+    total = sum(map(len, {quote for _, quote in quoted}))  # a line quoted twice is quoted once
     if total > QUOTED_MAX_CHARS:
         issues.append(
             f"the notes quote {total:,} characters of the book in all — keep the quotes whose exact words matter "
@@ -173,11 +175,11 @@ def _length_issues(book: Book) -> list[str]:
     return issues
 
 
-def _quote_issues(book: Book, research: Research) -> list[str]:
+def _quote_issues(quoted: list[tuple[str, str]], research: Research) -> list[str]:
     pages = {s.id: _page_letters(s.page_text) for s in research.sources}
     book_text = [s.id for s in research.sources if s.is_book_text and len(s.page_text) >= WHOLE_BOOK_CHARS]
     issues = []
-    for where, quote in _quoted(book):
+    for where, quote in quoted:
         letters = _letters(quote)
         found = [sid for sid, page in pages.items() if _found(letters, page)]
         short = _short(quote)
@@ -218,7 +220,8 @@ def check_notes(book: Book, research: Research | None = None) -> list[str]:
     for a, b in combinations(range(len(ideas)), 2):
         if overlap(words[a], words[b]) >= DUPLICATE_OVERLAP:
             issues.append(f'ideas {a + 1} and {b + 1} ("{ideas[a].title}", "{ideas[b].title}") say much the same thing')
-    issues += _length_issues(book)
+    quoted = _quoted(book)
+    issues += _length_issues(quoted)
     if research is not None:
-        issues += _quote_issues(book, research)
+        issues += _quote_issues(quoted, research)
     return issues

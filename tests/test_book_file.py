@@ -1,3 +1,4 @@
+import random
 import zipfile
 
 import pytest
@@ -8,7 +9,7 @@ from precis.book_file import BookFileError, read_book_file
 CHAPTER = "Being heard releases a person from loneliness, Rogers writes, again and again. "
 
 
-def _epub(path, chapters: dict[str, str], spine: list[str], extra: dict[str, str] | None = None):
+def _epub(path, chapters: dict[str, str | bytes], spine: list[str], extra: dict[str, str] | None = None):
     with zipfile.ZipFile(path, "w") as epub:
         for name, body in (extra or {}).items():
             epub.writestr(name, body)
@@ -26,7 +27,10 @@ def _epub(path, chapters: dict[str, str], spine: list[str], extra: dict[str, str
             f'<package xmlns="http://www.idpf.org/2007/opf"><manifest>{items}</manifest><spine>{refs}</spine></package>',
         )
         for name, body in chapters.items():
-            epub.writestr(f"OEBPS/text/{name}.xhtml", f"<html><head><style>p {{}}</style></head><body>{body}</body></html>")
+            if isinstance(body, bytes):  # as it is: ciphertext
+                epub.writestr(f"OEBPS/text/{name}.xhtml", body)
+            else:
+                epub.writestr(f"OEBPS/text/{name}.xhtml", f"<html><head><style>p {{}}</style></head><body>{body}</body></html>")
 
 
 def test_an_epub_is_read_in_spine_order_without_markup(tmp_path):
@@ -75,11 +79,11 @@ def test_what_isnt_a_readable_book_is_a_clean_error(tmp_path, name, content, mes
         read_book_file(path)
 
 
-def _encryption(*algorithms: str) -> str:
+def _encryption(*uris: str, algorithm: str = "http://www.w3.org/2001/04/xmlenc#aes128-cbc") -> str:
     data = "".join(
-        f'<enc:EncryptedData><enc:EncryptionMethod Algorithm="{a}"/>'
-        f'<enc:CipherData><enc:CipherReference URI="OEBPS/{n}"/></enc:CipherData></enc:EncryptedData>'
-        for n, a in enumerate(algorithms)
+        f'<enc:EncryptedData><enc:EncryptionMethod Algorithm="{algorithm}"/>'
+        f'<enc:CipherData><enc:CipherReference URI="{uri}"/></enc:CipherData></enc:EncryptedData>'
+        for uri in uris
     )
     return (
         '<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" '
@@ -92,7 +96,7 @@ def _encryption(*algorithms: str) -> str:
     [
         {"META-INF/rights.xml": "<adept:rights/>"},
         {"META-INF/sinf.xml": "<fairplay/>"},
-        {"META-INF/encryption.xml": _encryption("http://www.idpf.org/2008/embedding", "http://www.w3.org/2001/04/xmlenc#aes128-cbc")},
+        {"META-INF/encryption.xml": _encryption("OEBPS/fonts/serif.otf", "OEBPS/text/one.xhtml")},
     ],
 )
 def test_a_drm_locked_epub_is_refused_not_read_as_garbage(tmp_path, extra):
@@ -102,11 +106,19 @@ def test_a_drm_locked_epub_is_refused_not_read_as_garbage(tmp_path, extra):
         read_book_file(path)
 
 
-def test_an_epub_with_only_obfuscated_fonts_is_read(tmp_path):
+@pytest.mark.parametrize("algorithm", ["http://www.idpf.org/2008/embedding", "http://www.w3.org/2001/04/xmlenc#aes128-cbc"])
+def test_an_epub_with_only_its_fonts_encrypted_is_read(tmp_path, algorithm):
     path = tmp_path / "book.epub"
-    fonts = _encryption("http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC")
+    fonts = _encryption("OEBPS/fonts/serif.otf", "OEBPS/fonts/sans.otf", algorithm=algorithm)
     _epub(path, {"one": f"<p>{CHAPTER * 300}</p>"}, spine=["one"], extra={"META-INF/encryption.xml": fonts})
     assert "Being heard" in read_book_file(path)
+
+
+def test_ciphertext_without_a_drm_marker_is_refused_not_read_as_garbage(tmp_path):
+    path = tmp_path / "book.epub"
+    _epub(path, {"one": random.Random(0).randbytes(60_000)}, spine=["one"])
+    with pytest.raises(BookFileError, match=r"book.epub doesn't read as text \(\d+% undecodable bytes\)"):
+        read_book_file(path)
 
 
 def _encrypted_pdf(text: str, user_password: str, algorithm: str = "AES-128") -> bytes:

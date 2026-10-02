@@ -58,10 +58,12 @@ EPUB chapters in spine order, a PDF's text layer, or a text file, read
 every run (not cached) and checked before any paid work — a missing file,
 unknown type, a scanned PDF with no text or a DRM-locked copy fails the run.
 A locked EPUB is one with Adobe's `rights.xml`, Apple's `sinf.xml`, or an
-`encryption.xml` encrypting more than fonts (font obfuscation is common in
-DRM-free EPUBs); its chapters are ciphertext that would otherwise pass the
-length check as garbage. A locked PDF is one pypdf can't open without a key
-or whose encryption handler is a DRM scheme's own; one encrypted only
+`encryption.xml` that names a chapter in the spine (one naming only fonts
+is common in DRM-free EPUBs); its chapters are ciphertext that would
+otherwise pass the length check as garbage. Any scheme those markers miss is
+caught by the text itself: more than 5% undecodable bytes fails the run. A
+locked PDF is one pypdf can't open without a key or whose encryption
+handler it doesn't implement (a DRM scheme's own); one encrypted only
 against editing opens (pypdf's `crypto` extra reads its AES). precis never
 removes DRM. It becomes source
 `S1`, ahead of the web pages, shown as its opening and read whole by the
@@ -287,7 +289,10 @@ hyphens don't matter) and in 20-letter pieces of which 70% must be found
 (so OCR damage, a page header mid-sentence or one changed word don't
 either). Single quotes count — Haiku quotes in them inside its JSON — and
 quote marks only open or close at a word's edge, so an apostrophe
-("man's") or an inch mark never pairs with a real quote. Titles in quote marks (every word but the small ones capitalized)
+("man's") or an inch mark never pairs with a real quote. A straight single
+quote doesn't open before a digit (the '60s) or span a sentence end, so a
+leading apostrophe ('em) can't pair with a later plural possessive across a
+paragraph. Titles in quote marks (every word but the small ones capitalized)
 aren't quotes. When the research
 holds the whole book's own text — a book-text page of at least 100k
 characters, since a shorter one may be a preview of a few chapters — a
@@ -297,7 +302,8 @@ The review keeps a flagged quote only when it's sure of the exact words,
 and paraphrases it otherwise — a paraphrase of a real quote loses nothing.
 
 **Long quotes** are flagged with or without research: one over 300
-characters, or over 2,000 quoted in all. The notes are published, so they
+characters, or over 2,000 of distinct quoted text in all (a line quoted in
+both an idea's summary and evidence counts once). The notes are published, so they
 state a book's ideas in their own words and quote a line only where the
 exact words matter — never enough of the book to stand in for it. The write
 prompt says so; the review cuts a flagged quote to its line or paraphrases

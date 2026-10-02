@@ -11,17 +11,19 @@ fails rather than adding an empty source.
 DRM-free copies only: a DRM-locked EPUB's chapters are ciphertext, which
 would otherwise read as tens of thousands of characters of garbage and pass
 the length check, and a locked PDF has no text to read without its key. Both
-fail with an error saying so; precis never removes DRM.
+fail with an error saying so; precis never removes DRM. Known DRM markers
+give the clearest error, and text that's mostly undecodable bytes catches
+any scheme they miss.
 """
 
 from __future__ import annotations
 
 import posixpath
 import re
-import traceback
 import zipfile
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote
 from xml.etree import ElementTree
 
 # Less text than this isn't a book: a scanned PDF's empty text layer, or a
@@ -29,11 +31,13 @@ from xml.etree import ElementTree
 MIN_BOOK_CHARS = 20_000
 
 # Files a DRM scheme adds to an EPUB: Adobe ADEPT's rights.xml, Apple
-# FairPlay's sinf.xml.
+# FairPlay's sinf.xml. encryption.xml alone isn't one: DRM-free EPUBs use it
+# to protect their fonts, so it marks DRM only when it names a chapter.
 _EPUB_DRM_FILES = ("META-INF/rights.xml", "META-INF/sinf.xml")
-# encryption.xml algorithms that only obfuscate embedded fonts (IDPF and
-# Adobe's), which DRM-free EPUBs use too; anything else encrypts content.
-_FONT_OBFUSCATION = frozenset(["http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC"])
+# Text with more than this share of undecodable bytes (U+FFFD once decoded)
+# is ciphertext or not text at all; a mis-encoded book's accented letters
+# come nowhere near it.
+MAX_UNREADABLE = 0.05
 
 _BLOCKS = frozenset(["p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "blockquote", "section"])
 
@@ -87,11 +91,6 @@ def _epub_text(path: Path) -> str:
         names = set(epub.namelist())
         if any(f in names for f in _EPUB_DRM_FILES):
             raise _locked(path.name)
-        if "META-INF/encryption.xml" in names:
-            encryption = ElementTree.fromstring(epub.read("META-INF/encryption.xml"))
-            methods = {e.get("Algorithm") for e in encryption.iter() if _local(e.tag) == "EncryptionMethod"}
-            if methods - _FONT_OBFUSCATION:
-                raise _locked(path.name)
         container = ElementTree.fromstring(epub.read("META-INF/container.xml"))
         rootfile = next(e.get("full-path") for e in container.iter() if _local(e.tag) == "rootfile")
         if not rootfile:
@@ -100,12 +99,21 @@ def _epub_text(path: Path) -> str:
         base = posixpath.dirname(rootfile)
         manifest = {e.get("id"): e.get("href") for e in package.iter() if _local(e.tag) == "item"}
         spine = [e.get("idref") for e in package.iter() if _local(e.tag) == "itemref"]
-        chapters = []
-        for idref in spine:
-            href = manifest.get(idref)
-            if href:
-                name = posixpath.normpath(posixpath.join(base, href.split("#", 1)[0]))
-                chapters.append(_html_text(epub.read(name).decode("utf-8", errors="replace")))
+        files = [
+            posixpath.normpath(posixpath.join(base, unquote(href.split("#", 1)[0])))
+            for href in (manifest.get(idref) for idref in spine)
+            if href
+        ]
+        if "META-INF/encryption.xml" in names:
+            encryption = ElementTree.fromstring(epub.read("META-INF/encryption.xml"))
+            encrypted = {
+                posixpath.normpath(unquote(e.get("URI") or ""))
+                for e in encryption.iter()
+                if _local(e.tag) == "CipherReference"
+            }
+            if encrypted & set(files):
+                raise _locked(path.name)
+        chapters = [_html_text(epub.read(name).decode("utf-8", errors="replace")) for name in files]
     return "\n".join(chapters)
 
 
@@ -113,20 +121,18 @@ def _pdf_text(path: Path) -> str:
     from pypdf import PdfReader  # imported here: only PDFs need it
     from pypdf.errors import FileNotDecryptedError
 
+    reader = None
     try:
         reader = PdfReader(path)
         # pypdf opens a PDF encrypted only against editing or printing (an
         # empty user password) itself; one that needs a key raises.
         return "\n".join(page.extract_text() or "" for page in reader.pages)
-    except FileNotDecryptedError as exc:
-        raise _locked(path.name) from exc
-    except NotImplementedError as exc:
-        # A DRM scheme's own encryption handler (Adobe's EBX_HANDLER), which
-        # pypdf's encryption module refuses.
-        if traceback.extract_tb(exc.__traceback__)[-1].filename.endswith("_encryption.py"):
-            raise _locked(path.name) from exc
-        raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
     except Exception as exc:  # a malformed PDF raises all kinds, not only PyPdfError
+        # Opening reads only the structure and the encryption dictionary, so
+        # a NotImplementedError there is an encryption handler pypdf lacks: a
+        # DRM scheme's own (Adobe's EBX_HANDLER).
+        if isinstance(exc, FileNotDecryptedError) or (isinstance(exc, NotImplementedError) and reader is None):
+            raise _locked(path.name) from exc
         raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
 
 
@@ -151,6 +157,12 @@ def read_book_file(path: Path) -> str:
         raise
     except (OSError, ValueError, KeyError, StopIteration, zipfile.BadZipFile, ElementTree.ParseError) as exc:
         raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
+    unreadable = text.count("\ufffd") / max(len(text), 1)
+    if unreadable > MAX_UNREADABLE:
+        raise BookFileError(
+            f"{path.name} doesn't read as text ({unreadable:.0%} undecodable bytes) — a DRM-locked copy (precis "
+            "reads DRM-free copies only), or a text file that isn't UTF-8"
+        )
     lines = (re.sub(r"\s+", " ", line).strip() for line in text.splitlines())
     text = "\n".join(line for line in lines if line)
     if len(text) < MIN_BOOK_CHARS:

@@ -159,5 +159,16 @@ def test_many_short_quotes_are_flagged_in_all():
     line = "the habit of each day becomes the person of each year"
     book = _book([_idea(f"Idea {n}", evidence=f'He writes: "{line}, {n}"') for n in range(5)])
     assert not any("quote" in i for i in check_notes(book))
+    # A line quoted in an idea's summary and again in its evidence is quoted once.
+    twice = _book([_idea(f"Idea {n}", *[" ".join(f'"{line}, {n}.{k}"' for k in range(4))] * 2) for n in range(5)])
+    assert not any("quote" in i for i in check_notes(twice))
     many = _book([_idea(f"Idea {n}", evidence=" ".join(f'"{line}, {n}.{k}"' for k in range(8))) for n in range(5)])
     assert any(i.startswith("the notes quote") and "characters of the book in all" in i for i in check_notes(many))
+
+
+def test_a_leading_apostrophe_does_not_open_a_long_quote():
+    filler = "she watched the town change street by street and shop by shop over twenty years, " * 3
+    text = f"Growing up in the '60s, {filler}until her parents' generation lost its hold."
+    assert quotes(text) == []
+    # 'em pairs with parents' across a phrase at most, never past a sentence end.
+    assert quotes(f"She told 'em. {filler}until her parents' generation lost its hold.") == []
