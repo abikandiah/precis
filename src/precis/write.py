@@ -257,6 +257,8 @@ _COMMON_RULES = (
     "- Accuracy comes first. Use the research, and your own knowledge of the book where you're confident of "
     "it. Never invent a study, figure, quote, name or event, and never make up an illustrative example the book "
     "doesn't use: if you aren't sure of a specific detail, describe it more generally or leave it out.\n"
+    "- Write in your own words. Quote only where the author's exact words matter — a line, not a passage — "
+    "and never so much that the notes reproduce the book.\n"
     "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
     "idea rests on your own knowledge of the book rather than the research.\n"
     "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "

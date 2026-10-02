@@ -7,12 +7,18 @@ up in search.
 Text only: EPUB chapters in reading order, a PDF's text layer, or a text
 file as it is. A scanned PDF without a text layer has nothing to read, and
 fails rather than adding an empty source.
+
+DRM-free copies only: a DRM-locked EPUB's chapters are ciphertext, which
+would otherwise read as tens of thousands of characters of garbage and pass
+the length check, and a locked PDF has no text to read without its key. Both
+fail with an error saying so; precis never removes DRM.
 """
 
 from __future__ import annotations
 
 import posixpath
 import re
+import traceback
 import zipfile
 from html.parser import HTMLParser
 from pathlib import Path
@@ -22,11 +28,22 @@ from xml.etree import ElementTree
 # file that isn't the book at all.
 MIN_BOOK_CHARS = 20_000
 
+# Files a DRM scheme adds to an EPUB: Adobe ADEPT's rights.xml, Apple
+# FairPlay's sinf.xml.
+_EPUB_DRM_FILES = ("META-INF/rights.xml", "META-INF/sinf.xml")
+# encryption.xml algorithms that only obfuscate embedded fonts (IDPF and
+# Adobe's), which DRM-free EPUBs use too; anything else encrypts content.
+_FONT_OBFUSCATION = frozenset(["http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC"])
+
 _BLOCKS = frozenset(["p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "blockquote", "section"])
 
 
 class BookFileError(ValueError):
     """The book file can't be read as a book."""
+
+
+def _locked(name: str) -> BookFileError:
+    return BookFileError(f"{name} is DRM-locked or password-protected — precis reads DRM-free copies only")
 
 
 class _Text(HTMLParser):
@@ -67,6 +84,14 @@ def _local(tag: str) -> str:
 def _epub_text(path: Path) -> str:
     """The chapters in the order the book's spine lists them."""
     with zipfile.ZipFile(path) as epub:
+        names = set(epub.namelist())
+        if any(f in names for f in _EPUB_DRM_FILES):
+            raise _locked(path.name)
+        if "META-INF/encryption.xml" in names:
+            encryption = ElementTree.fromstring(epub.read("META-INF/encryption.xml"))
+            methods = {e.get("Algorithm") for e in encryption.iter() if _local(e.tag) == "EncryptionMethod"}
+            if methods - _FONT_OBFUSCATION:
+                raise _locked(path.name)
         container = ElementTree.fromstring(epub.read("META-INF/container.xml"))
         rootfile = next(e.get("full-path") for e in container.iter() if _local(e.tag) == "rootfile")
         if not rootfile:
@@ -86,10 +111,21 @@ def _epub_text(path: Path) -> str:
 
 def _pdf_text(path: Path) -> str:
     from pypdf import PdfReader  # imported here: only PDFs need it
+    from pypdf.errors import FileNotDecryptedError
 
     try:
         reader = PdfReader(path)
+        # pypdf opens a PDF encrypted only against editing or printing (an
+        # empty user password) itself; one that needs a key raises.
         return "\n".join(page.extract_text() or "" for page in reader.pages)
+    except FileNotDecryptedError as exc:
+        raise _locked(path.name) from exc
+    except NotImplementedError as exc:
+        # A DRM scheme's own encryption handler (Adobe's EBX_HANDLER), which
+        # pypdf's encryption module refuses.
+        if traceback.extract_tb(exc.__traceback__)[-1].filename.endswith("_encryption.py"):
+            raise _locked(path.name) from exc
+        raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
     except Exception as exc:  # a malformed PDF raises all kinds, not only PyPdfError
         raise BookFileError(f"couldn't read {path.name}: {type(exc).__name__}: {exc}") from exc
 

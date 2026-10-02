@@ -46,8 +46,8 @@ year        optional
 page_count  optional
 kind        "fiction" | "non-fiction"
 notes       optional — what matters to the reader about this book
-book_file   optional — the reader's own copy of the book: .epub, .pdf (with
-            a text layer) or .txt, relative to the known-file
+book_file   optional — the reader's own DRM-free copy of the book: .epub,
+            .pdf (with a text layer) or .txt, relative to the known-file
 ```
 
 `notes` is a weighting signal for the notes, never quoted into them, and is
@@ -56,7 +56,14 @@ carried verbatim into the book's `reader_notes`.
 `book_file` makes the book itself part of the research (`book_file.py`):
 EPUB chapters in spine order, a PDF's text layer, or a text file, read
 every run (not cached) and checked before any paid work — a missing file,
-unknown type or a scanned PDF with no text fails the run. It becomes source
+unknown type, a scanned PDF with no text or a DRM-locked copy fails the run.
+A locked EPUB is one with Adobe's `rights.xml`, Apple's `sinf.xml`, or an
+`encryption.xml` encrypting more than fonts (font obfuscation is common in
+DRM-free EPUBs); its chapters are ciphertext that would otherwise pass the
+length check as garbage. A locked PDF is one pypdf can't open without a key
+or whose encryption handler is a DRM scheme's own; one encrypted only
+against editing opens (pypdf's `crypto` extra reads its AES). precis never
+removes DRM. It becomes source
 `S1`, ahead of the web pages, shown as its opening and read whole by the
 digest for non-fiction (fiction keeps the spoiler-safe opening); a copy of
 the same book in the search results is dropped as a mirror of it, and the
@@ -288,6 +295,14 @@ quote found only in pages about the book is flagged too: *The Undiscovered Self*
 quoted Jung from another essay that a summary site credited to this book.
 The review keeps a flagged quote only when it's sure of the exact words,
 and paraphrases it otherwise — a paraphrase of a real quote loses nothing.
+
+**Long quotes** are flagged with or without research: one over 300
+characters, or over 2,000 quoted in all. The notes are published, so they
+state a book's ideas in their own words and quote a line only where the
+exact words matter — never enough of the book to stand in for it. The write
+prompt says so; the review cuts a flagged quote to its line or paraphrases
+it. Every library and eval book so far sits well under both (longest quote
+~200 characters, most in one book ~1,200).
 
 No coverage check: a test that flagged parts of a digested book no idea drew
 on led the review to add ideas repeating ones the notes had, and the notes

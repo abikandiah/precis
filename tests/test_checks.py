@@ -146,3 +146,18 @@ def test_single_quotes_are_quotes_too_but_apostrophes_are_not():
 def test_a_single_quoted_quote_in_no_source_is_flagged():
     book = _book([_idea("Change", evidence="Jung: 'change occurs in individuals over centuries through spirit'")])
     assert any("isn't in any source" in i for i in check_notes(book, _research()))
+
+
+def test_a_long_quote_is_flagged_with_or_without_research():
+    passage = "We are what we repeatedly do, and so the habit of each day becomes the person of each year. " * 4
+    book = _book([_idea("Habits", evidence=f'He writes: "{passage.strip()}"')])
+    issues = check_notes(book)
+    assert any(i.startswith('idea 1 "Habits": the quote "We are what') and "a sentence or two at most" in i for i in issues)
+
+
+def test_many_short_quotes_are_flagged_in_all():
+    line = "the habit of each day becomes the person of each year"
+    book = _book([_idea(f"Idea {n}", evidence=f'He writes: "{line}, {n}"') for n in range(5)])
+    assert not any("quote" in i for i in check_notes(book))
+    many = _book([_idea(f"Idea {n}", evidence=" ".join(f'"{line}, {n}.{k}"' for k in range(8))) for n in range(5)])
+    assert any(i.startswith("the notes quote") and "characters of the book in all" in i for i in check_notes(many))

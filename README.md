@@ -20,8 +20,11 @@ uv run precis create-known-file 9780374533557 --kind non-fiction --output known-
 Check the title and author it found (a miss leaves `TODO: fill in by hand`)
 and set `kind`. `notes` is optional: what matters to you about the book,
 used to weight the notes and carried into the output, never quoted.
-`book_file` is optional too: your own copy of the book (`.epub`, `.pdf`
-with a text layer, or `.txt`), relative to the known-file. With it, the
+`book_file` is optional too: your own DRM-free copy of the book (`.epub`,
+`.pdf` with a text layer, or `.txt`), relative to the known-file. Books
+from Kindle, Apple Books, Kobo and library loans are usually DRM-locked;
+precis refuses those rather than reading them as garbage, and never removes
+DRM. With it, the
 notes are written from the whole book, not only from what's online about
 it — about $0.20-0.25 more for a 400-page non-fiction book, once.
 

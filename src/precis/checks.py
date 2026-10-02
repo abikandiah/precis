@@ -14,6 +14,11 @@ defend, so the review spends its attention where problems are likely.
   another essay, which a summary site had attributed to this book. Quotes
   are the one fact checked against the research: a paraphrase of an
   unconfirmed quote loses nothing, while a wrong quote misleads.
+- **Long quotes**: a quote over a couple of sentences, or more quoted text
+  in all than notes need. The notes are published, so they state a book's
+  ideas in their own words and quote only a line where the exact words
+  matter — never enough of the book to stand in for it. Checked with or
+  without research.
 
 Nothing else checks facts against the research: "not in the research's
 excerpts" isn't "invented", and flagging it led the review to strip correct
@@ -40,6 +45,10 @@ QUOTE_MIN_WORDS = 4
 # letters, and a model changes a word ("himself" for "itself").
 QUOTE_PIECE = 20
 QUOTE_FOUND = 0.7
+# Longer than a sentence or two, a quote is a passage of the book; more than
+# this in all is the book's text standing in for the notes.
+QUOTE_MAX_CHARS = 300
+QUOTED_MAX_CHARS = 2_000
 # Double and single, curly and straight: Haiku writes quotes in single ones
 # inside its JSON. A quote only opens where a word can't end (not the inch
 # mark of `5" scroll`) and only closes where one can't start, so an
@@ -134,35 +143,61 @@ def _found(quote: str, page: str) -> bool:
     return bool(pieces) and sum(p in page for p in pieces) >= QUOTE_FOUND * len(pieces)
 
 
-def _quote_issues(book: Book, research: Research) -> list[str]:
-    pages = {s.id: _page_letters(s.page_text) for s in research.sources}
-    book_text = [s.id for s in research.sources if s.is_book_text and len(s.page_text) >= WHOLE_BOOK_CHARS]
+def _short(quote: str) -> str:
+    return quote if len(quote) <= 80 else quote[:77] + "…"
+
+
+def _quoted(book: Book) -> list[tuple[str, str]]:
+    """Each quote in the notes, with the field it's in."""
     fields = [("the takeaway", book.one_line_takeaway), ("the synopsis", book.synopsis)]
     for n, i in enumerate(book.ideas, 1):  # apart, so a quote mark in one can't pair with one in the other
         fields += [(f'idea {n} "{i.title}"', i.summary), (f'idea {n} "{i.title}"', i.evidence)]
     fields += [(f"key claim {n}", c.answer) for n, c in enumerate(book.key_claims_for_review or [], 1)]
+    return [(where, quote) for where, text in fields for quote in quotes(text)]
+
+
+def _length_issues(book: Book) -> list[str]:
+    found = _quoted(book)
+    issues = [
+        f'{where}: the quote "{_short(quote)}" runs {len(quote):,} characters — quote a sentence or two at most '
+        "and paraphrase the rest"
+        for where, quote in found
+        if len(quote) > QUOTE_MAX_CHARS
+    ]
+    total = sum(len(quote) for _, quote in found)
+    if total > QUOTED_MAX_CHARS:
+        issues.append(
+            f"the notes quote {total:,} characters of the book in all — keep the quotes whose exact words matter "
+            "and paraphrase the rest"
+        )
+    return issues
+
+
+def _quote_issues(book: Book, research: Research) -> list[str]:
+    pages = {s.id: _page_letters(s.page_text) for s in research.sources}
+    book_text = [s.id for s in research.sources if s.is_book_text and len(s.page_text) >= WHOLE_BOOK_CHARS]
     issues = []
-    for where, text in fields:
-        for quote in quotes(text):
-            letters = _letters(quote)
-            found = [sid for sid, page in pages.items() if _found(letters, page)]
-            short = quote if len(quote) <= 80 else quote[:77] + "…"
-            if not found:
-                issues.append(
-                    f'{where}: the quote "{short}" isn\'t in any source — check it, or give it as a paraphrase '
-                    "without quote marks"
-                )
-            elif book_text and not set(found) & set(book_text):
-                issues.append(
-                    f'{where}: the quote "{short}" is in {", ".join(found)} but not in the book\'s own text '
-                    f"({', '.join(book_text)}) — it may be from another of the author's works; check it"
-                )
+    for where, quote in _quoted(book):
+        letters = _letters(quote)
+        found = [sid for sid, page in pages.items() if _found(letters, page)]
+        short = _short(quote)
+        if not found:
+            issues.append(
+                f'{where}: the quote "{short}" isn\'t in any source — check it, or give it as a paraphrase '
+                "without quote marks"
+            )
+        elif book_text and not set(found) & set(book_text):
+            issues.append(
+                f'{where}: the quote "{short}" is in {", ".join(found)} but not in the book\'s own text '
+                f"({', '.join(book_text)}) — it may be from another of the author's works; check it"
+            )
     return issues
 
 
 def check_notes(book: Book, research: Research | None = None) -> list[str]:
     """One line per finding, naming the idea (1-based) or field it's about.
-    The quote check needs the research the notes were written from.
+    Checking quotes against the research needs the research the notes were
+    written from; their length is checked either way.
     """
     issues: list[str] = []
     ideas = book.ideas
@@ -183,6 +218,7 @@ def check_notes(book: Book, research: Research | None = None) -> list[str]:
     for a, b in combinations(range(len(ideas)), 2):
         if overlap(words[a], words[b]) >= DUPLICATE_OVERLAP:
             issues.append(f'ideas {a + 1} and {b + 1} ("{ideas[a].title}", "{ideas[b].title}") say much the same thing')
+    issues += _length_issues(book)
     if research is not None:
         issues += _quote_issues(book, research)
     return issues

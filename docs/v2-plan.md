@@ -93,5 +93,5 @@ the blueprint.
   `fix-chapter` is gone, and the 24 v1 books became v2 known-files to
   regenerate from.
 - [ ] **Generate the library** — the 24 known-files in book-keeper's
-  `known/`, with Haiku 4.5; Sonnet 5 for any that warn of thin research.
+  `known/`, with Haiku 4.5; each gets the Claude review before it's committed.
 - [ ] **Exemplars** — only if evals show a gap.
