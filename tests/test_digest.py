@@ -15,7 +15,8 @@ LONG = LINE * (3 * digest.CHUNK_CHARS // len(LINE))
 def _source(sid: str, full_text: str | None, *, cut: bool | None = None) -> Source:
     text = (full_text or LINE)[:100]
     cut = full_text is not None if cut is None else cut
-    return Source(id=sid, title="t", url=f"https://{sid}.org", text=text, full_text=full_text, cut=cut)
+    # A free library's, so a copy of the book is kept; see the screen's tests.
+    return Source(id=sid, title="t", url=f"https://www.gutenberg.org/{sid}", text=text, full_text=full_text, cut=cut)
 
 
 def _research() -> Research:
@@ -194,3 +195,73 @@ async def test_parts_cut_from_the_notes_are_left_out_of_the_source(tmp_path):
     ):
         found = await digest.digest(BOOK, _research(), slug="b", client=AsyncMock(), cache_dir=tmp_path)
     assert len(found.sources[0].parts) == 1 < len(digest.chunks(LONG))
+
+
+def _grey(sid: str, full_text: str) -> Source:
+    return Source(id=sid, title="t", url=f"https://free-pdf-books.example/{sid}", text=full_text[:100], full_text=full_text, cut=True)
+
+
+def _by_part(kinds: dict[int, str]) -> AsyncMock:
+    """Answers each chunk with the kind `kinds` gives its part number ("about" otherwise)."""
+
+    async def call(*_args, **kwargs):
+        n = int(kwargs["messages"][0]["content"].split('part="', 1)[1].split("/", 1)[0])
+        return _passage(kinds.get(n, "about"))
+
+    return AsyncMock(side_effect=call)
+
+
+def test_only_free_libraries_and_the_readers_own_copy_are_freely_hosted():
+    free = ["https://www.gutenberg.org/x", "https://en.wikisource.org/x", "https://standardebooks.org/x", "https://library.oapen.org/x"]
+    assert all(digest.freely_hosted(Source(id="S1", title="t", url=url, text="x")) for url in free)
+    assert digest.freely_hosted(Source(id="S1", title="t", url=digest.BOOK_FILE_URL, text="x"))
+    for url in ["https://archive.org/details/x", "https://notgutenberg.org/x", "https://gutenberg.org.example/x", "https://free-pdf-books.example/x"]:
+        assert not digest.freely_hosted(Source(id="S1", title="t", url=url, text="x"))
+
+
+async def test_a_copy_of_the_book_from_another_site_is_dropped_after_its_first_chunks(tmp_path):
+    research = Research(sources=[_source("S1", None), _grey("S2", LONG)], warnings=[])
+    calls = AsyncMock(return_value=_passage("book"))
+    logged: list[str] = []
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(BOOK, research, slug="b", client=AsyncMock(), cache_dir=tmp_path, on_progress=logged.append)
+    assert calls.await_count == digest.SCREEN_CHUNKS  # not the whole page
+    assert [s.id for s in found.sources] == ["S1"]
+    [warning] = found.warnings
+    assert warning.startswith("dropped S2, a copy of the book") and "example" not in warning  # no site named
+    assert any("free-pdf-books.example" in line for line in logged)
+
+
+async def test_writing_about_the_book_from_another_site_is_read_whole(tmp_path):
+    research = Research(sources=[_grey("S1", LONG)], warnings=[])
+    calls = AsyncMock(return_value=_passage("about"))
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(BOOK, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    # The screen's chunks are cached, so the whole read pays only for the rest.
+    assert calls.await_count == len(digest.chunks(LONG))
+    assert found.sources[0].parts and found.warnings == []
+
+
+async def test_a_copy_past_the_screens_front_matter_is_dropped_once_read(tmp_path):
+    research = Research(sources=[_grey("S1", LONG)], warnings=[])
+    front_matter = {n: "other" for n in range(1, digest.SCREEN_CHUNKS + 1)}
+    with (
+        patch.object(digest, "CHUNK_CHARS", 10_000),
+        patch.object(digest.llm, "complete_structured", _by_part(front_matter | {n: "book" for n in range(3, 99)})),
+    ):
+        found = await digest.digest(BOOK, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert found.sources == [] and found.warnings[0].startswith("dropped S1")
+
+
+async def test_fiction_drops_copies_from_other_sites_but_reads_nothing_whole(tmp_path):
+    fiction = BOOK.model_copy(update={"kind": "fiction"})
+    research = Research(sources=[_grey("S1", LONG), _grey("S2", LONG.replace("Rogers", "A review"))], warnings=[])
+
+    async def call(*_args, **kwargs):
+        return _passage("book" if "/S1" in kwargs["messages"][0]["content"] else "about")
+
+    calls = AsyncMock(side_effect=call)
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(fiction, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert calls.await_count == 2 * digest.SCREEN_CHUNKS
+    assert [s.id for s in found.sources] == ["S2"] and found.sources[0] == research.sources[1]  # its excerpt, as it was

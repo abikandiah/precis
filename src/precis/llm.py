@@ -52,11 +52,15 @@ from precis.config import settings
 
 _TRANSIENT_ERRORS = (RateLimitError, APIConnectionError, InternalServerError)
 
-# OpenRouter's provider-routing preference: only route to providers that
-# support every parameter sent (here, `tools` + a forced `tool_choice`).
-# Without it, a model id served by several providers can land on one
-# that ignores tool_choice and replies in prose. Gateways that don't know the field ignore it.
-_REQUIRE_TOOL_SUPPORT = {"provider": {"require_parameters": True}}
+# OpenRouter's provider-routing preferences. require_parameters: only
+# providers that support every parameter sent (here, `tools` + a forced
+# `tool_choice`) — without it, a model id served by several providers can
+# land on one that ignores tool_choice and replies in prose.
+# data_collection "deny": only providers that neither keep nor train on
+# prompts, which hold the research and, from a book_file, the reader's own
+# copy of the book (it rules out most free models). Gateways that don't
+# know the fields ignore them.
+_PROVIDER_PREFERENCES = {"provider": {"require_parameters": True, "data_collection": "deny"}}
 
 # Asks OpenRouter to report each call's cost in `usage.cost` (see usage.py).
 # Gateways that don't know the field ignore it.
@@ -435,7 +439,7 @@ async def complete_structured[T: BaseModel](
             tools=tools,
             tool_choice=tool_choice,
             timeout=settings.llm_call_timeout_seconds if timeout_seconds is None else timeout_seconds,
-            extra_body=_REQUIRE_TOOL_SUPPORT,
+            extra_body=_PROVIDER_PREFERENCES,
             **({} if max_tokens is None else {"max_tokens": max_tokens}),
         )
 

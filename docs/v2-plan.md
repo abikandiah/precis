@@ -74,9 +74,10 @@ known-file alone — a `book_file` means full notes, none means an overview.
   Haiku; it rules out most free models, which are shelved anyway.
 - **Full texts only from legitimately free sources**: a search page the
   digest finds to be the book itself is kept only from Project Gutenberg,
-  Standard Ebooks, Wikisource, open-access repositories (DOAB, OAPEN) and
-  publishers' own free editions; anything else is dropped, not cut to an
-  excerpt, and logged in the research warnings. archive.org stays off the
+  Standard Ebooks, Wikisource and open-access repositories (DOAB, OAPEN) —
+  a publisher's own free edition can join the list when one turns up;
+  anything else is dropped, not cut to an excerpt, and logged in the
+  research warnings. archive.org stays off the
   list: its scans of in-copyright books are what *Hachette v. Internet
   Archive* ruled against, and its public-domain books are on Gutenberg.
   In full mode this never comes up — there's no search.
@@ -159,8 +160,10 @@ found online) are the reader's to deal with later, as are the library's
   (`schema_version: "2"`), the book page shows ideas in place of chapters,
   `fix-chapter` is gone, and the 24 v1 books became v2 known-files to
   regenerate from.
-- [ ] **Two modes: both-mode guards** — `data_collection: "deny"`, and the
-  allowlist for full texts found by search.
+- [x] **Two modes: both-mode guards** (2026-10-02) — `data_collection:
+  "deny"` on every call, and `digest.py`'s `FREE_HOSTS`: a long page from
+  any other site is screened by its first two chunks and dropped if it's
+  the book's own text, fiction included.
 - [ ] **Two modes: full mode** — no search with a `book_file`, chapter
   pointers, `depth`; fiction read whole, its resolution marked for the
   spoiler toggle.

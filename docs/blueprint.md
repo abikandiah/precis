@@ -203,6 +203,18 @@ cut pages keep their excerpt, which holds most of them verbatim.
 Fiction is never digested: a novel's full text holds the ending, and its
 opening excerpt is the spoiler-safe part.
 
+**Copies of the book only from free libraries.** A copy of the book is kept
+only from the reader's own `book_file` or a site that offers books freely
+(`FREE_HOSTS`: Project Gutenberg, Standard Ebooks, Wikisource, DOAB, OAPEN),
+never from one that may host copies it shouldn't. archive.org isn't on the
+list: its scans of in-copyright books are what *Hachette v. Internet
+Archive* ruled against, and its public-domain books are on Gutenberg. A
+long page from any other site has its first two chunks read first, fiction
+included (the opening is spoiler-safe): if either is the book's own text,
+the page is dropped before the rest is paid for, and a page the full digest
+then finds mostly book text is dropped too. The warning names no site,
+since warnings ship with the book; the progress log gives the URL.
+
 Each chunk's notes are cached per slug (`PRECIS_CACHE_DIR/digests/`),
 keyed by everything its call depends on — the chunk and its place in the
 page, the book's title and author, the model and `DIGEST_VERSION` — so a
@@ -448,6 +460,11 @@ carries only the command's output.
   and model from env vars, with the `openai` package used only as an HTTP
   client. Evals choose the model (Haiku 4.5 vs Sonnet 5). Structured output
   uses a forced `tool_choice`, which rules out models that reject it.
+  Every call asks OpenRouter for providers that support all its
+  parameters and that neither keep nor train on prompts
+  (`data_collection: "deny"`) — the prompts hold the research and, from a
+  `book_file`, the reader's own copy of the book. That rules out most
+  free models.
   `llm.py` retries HTTP-level failures through the SDK, provider errors
   OpenRouter returns inside a 200 itself, and a structured call that
   doesn't call the tool or doesn't validate. Any other HTTP error (a 400

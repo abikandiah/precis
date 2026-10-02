@@ -27,6 +27,16 @@ detail, not the run.
 Cost and prompt size are bounded: at most CHUNKS_PER_PAGE chunks of a page
 and CHUNKS_PER_BOOK in all are read (a page past either is noted from its
 start, and says so), and a page's notes are cut at NOTES_CHARS.
+
+A copy of the book is kept only from the reader's own book_file or a site
+that offers books freely (FREE_HOSTS: public-domain libraries and
+open-access repositories), never from one that may host copies it
+shouldn't (docs/v2-plan.md, Two modes). A long page from any other site has
+its first SCREEN_CHUNKS chunks read first, fiction's too: if one is the
+book's own text the page is dropped before the rest is paid for, and a
+page the full digest then finds to be mostly the book is dropped too. The
+warning names no site — warnings ship with the book — and the progress log
+gives the URL.
 """
 
 from __future__ import annotations
@@ -39,6 +49,7 @@ import re
 from html import escape
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
@@ -46,7 +57,14 @@ from pydantic import BaseModel, Field
 from precis import llm
 from precis.config import settings
 from precis.files import write_atomic
-from precis.research import PAGE_CHARS, Part, ProgressCallback, Research, Source
+from precis.research import (
+    BOOK_FILE_URL,
+    PAGE_CHARS,
+    Part,
+    ProgressCallback,
+    Research,
+    Source,
+)
 from precis.schema import KnownFile
 
 # Bumped when the prompt or the notes' shape changes; older digests are redone.
@@ -70,6 +88,17 @@ CHUNKS_PER_BOOK = 30
 # this fits every part CHUNKS_PER_PAGE allows; it's a safety net for runaway
 # replies, not a budget meant to bind.
 NOTES_CHARS = CHUNKS_PER_PAGE * 4_500
+
+# Sites whose copies of a book are free to read: public-domain libraries
+# (Project Gutenberg's main site — its Canadian and Australian mirrors go by
+# their countries' shorter terms — Standard Ebooks, Wikisource) and
+# open-access repositories (DOAB, OAPEN). Not archive.org: its scans of
+# in-copyright books are what Hachette v. Internet Archive ruled against,
+# and its public-domain books are on Gutenberg.
+FREE_HOSTS = ("gutenberg.org", "standardebooks.org", "wikisource.org", "doabooks.org", "oapen.org")
+# Chunks of a long page from any other site read before the rest: enough to
+# get past a copy's front matter (contents, copyright) to its text.
+SCREEN_CHUNKS = 2
 
 # Any opening or closing passage tag inside page text, however spelled.
 _PASSAGE_TAG = re.compile(r"<(?=\s*/?\s*passage)", re.IGNORECASE)
@@ -141,6 +170,16 @@ def chunks(text: str, size: int | None = None) -> list[str]:
     if text.strip():
         pieces.append(text)
     return pieces
+
+
+def freely_hosted(source: Source) -> bool:
+    """Whether a copy of the book in `source` is fine to read: the reader's
+    own book_file, or a page from one of FREE_HOSTS.
+    """
+    if source.url == BOOK_FILE_URL:
+        return True
+    host = (urlsplit(source.url).hostname or "").lower()
+    return any(host == free or host.endswith(f".{free}") for free in FREE_HOSTS)
 
 
 def needs_digest(source: Source) -> bool:
@@ -269,50 +308,31 @@ def _plan(known_file: KnownFile, pages: list[Source], model: str) -> tuple[list[
     return plans, notes
 
 
-async def digest(
+async def _read(
     known_file: KnownFile,
-    research: Research,
-    *,
-    slug: str,
+    plans: list[_Plan],
+    cached: dict[str, Part],
     client: AsyncOpenAI,
-    cache_dir: str | Path | None = None,
-    on_progress: ProgressCallback | None = None,
-) -> Research:
-    """The research with each long non-fiction page's excerpt replaced by
-    notes on all of it. Fiction, and research with no long page, comes back
-    as it is.
+    model: str,
+) -> dict[str, BaseException]:
+    """Reads the plans' chunks the cache lacks into `cached`, and returns the
+    first error of each page whose chunk failed. Every chunk settles before
+    anything is decided, so none is left running, and each that succeeded
+    is cached even when another failed; an unexpected error is raised once
+    they have.
     """
-    progress = on_progress or (lambda _: None)
-    long_pages = [s for s in research.sources if needs_digest(s)]
-    if known_file.kind == "fiction" or not long_pages:
-        return research
-
-    model = settings.llm_model
-    path = cache_path(slug, cache_dir)
-    cached = _load(path)
-    plans, notes = _plan(known_file, long_pages, model)
-    warnings = [*research.warnings, *notes]
-    for note in notes:
-        progress(f"digest: {note}")
     todo = [
         (plan, n, piece, key)
         for plan in plans
         for n, (piece, key) in enumerate(zip(plan.pieces, plan.keys, strict=True), 1)
         if key not in cached
     ]
-    if todo:
-        progress(f"digest: reading {len(plans)} long page(s) whole, {len(todo)} chunk(s) to read")
-    else:
-        progress(f"digest: using cached notes on {len(plans)} long page(s)")
-
     limit = asyncio.Semaphore(CONCURRENCY)
 
     async def read(plan: _Plan, n: int, piece: str) -> Part:
         async with limit:
             return await _read_chunk(known_file, plan.source, n, plan.total, piece, client, model)
 
-    # Every chunk settles before anything is decided, so none is left
-    # running, and each that succeeded is cached even when another failed.
     outcomes = await asyncio.gather(*(read(plan, n, piece) for plan, n, piece, _ in todo), return_exceptions=True)
     failed: dict[str, BaseException] = {}
     unexpected: BaseException | None = None
@@ -323,12 +343,93 @@ async def digest(
             failed.setdefault(plan.source.id, outcome)
         else:
             unexpected = unexpected or outcome
-    if todo:
-        # This research's chunks only, so ones it no longer has don't pile up.
-        current = {key for plan in plans for key in plan.keys}
-        _save(path, {k: v for k, v in cached.items() if k in current})
     if unexpected is not None:
         raise unexpected
+    return failed
+
+
+def _dropped(source: Source) -> str:
+    return (
+        f"dropped {source.id}, a copy of the book from a site that isn't a free library — full texts come only "
+        "from the reader's own copy (book_file) or free sources like Project Gutenberg"
+    )
+
+
+async def digest(
+    known_file: KnownFile,
+    research: Research,
+    *,
+    slug: str,
+    client: AsyncOpenAI,
+    cache_dir: str | Path | None = None,
+    on_progress: ProgressCallback | None = None,
+) -> Research:
+    """The research with copies of the book from sites that aren't free
+    libraries dropped, and — for non-fiction — each remaining long page's
+    excerpt replaced by notes on all of it. Research with no long page comes
+    back as it is.
+    """
+    progress = on_progress or (lambda _: None)
+    long_pages = [s for s in research.sources if needs_digest(s)]
+    if not long_pages:
+        return research
+
+    model = settings.llm_model
+    path = cache_path(slug, cache_dir)
+    cached = _load(path)
+    warnings = list(research.warnings)
+    used: set[str] = set()  # this research's chunk keys, so ones it no longer has don't pile up
+    dropped: set[str] = set()
+
+    def drop(source: Source) -> None:
+        dropped.add(source.id)
+        progress(f"digest: {_dropped(source)} ({source.url})")
+        warnings.append(_dropped(source))
+
+    def save() -> None:
+        if any(key not in saved for key in used):
+            _save(path, {k: v for k, v in cached.items() if k in used})
+
+    saved = set(cached)
+    screens = []
+    for source in long_pages:
+        if freely_hosted(source):
+            continue
+        assert source.full_text is not None
+        pieces = chunks(source.full_text)[:SCREEN_CHUNKS]
+        total = len(chunks(source.full_text))
+        keys = [_key(known_file, source, n, total, p, model) for n, p in enumerate(pieces, 1)]
+        screens.append(_Plan(source, keys, pieces, total))
+        used.update(keys)
+    if screens:
+        progress(f"digest: checking {len(screens)} long page(s) from other sites for copies of the book")
+        try:
+            failed = await _read(known_file, screens, cached, client, model)
+        finally:
+            save()
+        for plan in screens:
+            if plan.source.id not in failed and any(cached[key].kind == "book" for key in plan.keys):
+                drop(plan.source)
+
+    kept = [s for s in long_pages if s.id not in dropped]
+    if known_file.kind == "fiction" or not kept:
+        save()
+        return Research(sources=[s for s in research.sources if s.id not in dropped], warnings=warnings)
+
+    plans, notes = _plan(known_file, kept, model)
+    warnings += notes
+    for note in notes:
+        progress(f"digest: {note}")
+    used.update(key for plan in plans for key in plan.keys)
+    todo = sum(key not in cached for plan in plans for key in plan.keys)
+    if todo:
+        progress(f"digest: reading {len(plans)} long page(s) whole, {todo} chunk(s) to read")
+    else:
+        progress(f"digest: using cached notes on {len(plans)} long page(s)")
+    try:
+        failed = await _read(known_file, plans, cached, client, model)
+    finally:
+        save()
 
     digested: dict[str, Source] = {}
     for plan in plans:
@@ -342,6 +443,12 @@ async def digest(
         text, shown = render(source, parts, plan.total)
         # Only the parts the notes show: what the write and review calls saw.
         digested[source.id] = dataclasses.replace(source, text=text, parts=tuple(parts[:shown]))
+        if not freely_hosted(source) and digested[source.id].is_book_text:
+            drop(source)  # past the screen's front matter: mostly the book after all
+            continue
         book = sum(p.kind == "book" for p in parts)
         progress(f"digest: {source.id} — {len(parts)} part(s), {book} of them the book's own text")
-    return Research(sources=[digested.get(s.id, s) for s in research.sources], warnings=warnings)
+    return Research(
+        sources=[digested.get(s.id, s) for s in research.sources if s.id not in dropped],
+        warnings=warnings,
+    )
