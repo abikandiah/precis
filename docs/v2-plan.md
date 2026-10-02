@@ -27,11 +27,12 @@ the blueprint.
   its research (full text where the research has it) and fixes it, the
   reader signs off with `verified`. The goal is a pipeline good enough to
   drop that step: recurring fixes go back into precis.
-- **Live generations over evals** (2026-10-02): new work is judged on the
-  library books it generates, through the Claude review, not on new eval
-  runs — those cost generation too, and the review reads every book
-  anyway. The eval harness and its runs stay as they are; a run is for a
-  question the library can't answer.
+- **Live generations, no evals** (2026-10-02): new work is judged on the
+  library books it generates, through the Claude review. The eval harness
+  (`precis eval`, `evals/`) is removed: runs cost generation too, it can't
+  exercise full mode (no book files), and it judged overviews by rules they
+  no longer follow. Its findings are recorded below; git history has the
+  harness and its runs.
 - **Exemplars** only if the reviews show a gap a worked example would
   close, and an exemplar book is never one the notes are judged on.
 - **Paid runs are confirmed first** — every generation spends real money.
@@ -171,8 +172,12 @@ found online) are the reader's to deal with later, as are the library's
   from it, point full non-fiction ideas into the book, and keep a novel's
   ending in `resolution`. book-keeper still takes only v2 until its phase
   lands.
-- [ ] **Two modes: overview mode** — the lighter write contract, no key
-  claims, `--overview`.
+- [x] **Two modes: overview mode** (2026-10-02) — headline ideas
+  (`OVERVIEW_COUNT_RULE`) with no evidence or where — the overview's write
+  and review tools don't offer them — no key claims for any overview
+  (`has_deck`: full non-fiction only), a lighter review count, and
+  `--overview` to force one over a known-file's `book_file`. The eval
+  harness went with it.
 - [ ] **Two modes: book-keeper** — schema v3 (`depth`, `resolution`, and
   ideas' `where`, which precis writes as `""` when empty, like `evidence`),
   the overview note, no banner or index on overviews, the spoiler toggle.
@@ -180,7 +185,3 @@ found online) are the reader's to deal with later, as are the library's
   with Haiku 4.5: full notes where there's a `book_file`, overviews
   elsewhere; each gets the Claude review before it's committed.
 - [ ] **Exemplars** — only if the reviews show a gap.
-- [ ] **Full-mode eval track** (low priority, may skip) — public-domain
-  books (*The Prince*, *Meditations*, *Walden*, *On the Origin of
-  Species*), since full mode needs the text and evals shouldn't depend on
-  purchased copies.

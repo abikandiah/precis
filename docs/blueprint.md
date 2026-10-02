@@ -32,7 +32,7 @@ vocabulary for that), but a different project could use precis unmodified.
 ## Docker boundary
 
 Docker contains AI: anything that calls a model or feeds web content to
-one — `generate`, `research`, `eval`. `create-known-file` (a lookup against
+one — `generate`, `research`. `create-known-file` (a lookup against
 a well-defined public API) and the known-file preflight (local field
 checks) run fine on a host.
 
@@ -91,8 +91,8 @@ ideas                  [{ title, summary, evidence, sources, where }]
                          full non-fiction only
 resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
-key_claims_for_review  [{ prompt, answer }], non-fiction only, one per idea
-                         a reader needs to remember
+key_claims_for_review  [{ prompt, answer }], full non-fiction only, one per
+                         idea a reader needs to remember
 tags                   2-4 from the closed vocabulary for the kind
 reader_notes           the known-file's notes, when given
 warnings               anything the reader should check
@@ -122,8 +122,19 @@ warnings               anything the reader should check
   book that numbers its own ideas (48 laws, 7 habits) gets its list, one
   idea each. Each idea is as long as it needs to be. The first library's
   5-12 range made the model pad to 11-12, restating a few points several
-  times. Only notes with no ideas, or non-fiction without a review deck,
-  are rejected.
+  times. Only notes with no ideas, full non-fiction notes without a
+  review deck, or any others with one, are rejected.
+- **An overview** (no `book_file`) states the book's headline ideas —
+  title and summary, no `evidence` or `where`. Every mode's write and
+  review tools offer only what its notes can have (`stripped_schema`): an
+  overview's leave out those two, and the deck and the ending go wherever
+  they can't apply — so the model is never offered a field it must leave
+  empty, and `Book` clears any that reach it anyway. It has no review deck: its claims would rest on search research
+  that can't back them, and flashcards on shaky claims teach the wrong
+  thing (`has_deck`). Its count rule (`OVERVIEW_COUNT_RULE`) asks for the
+  central points the research states clearly, never padded; the review gets
+  the same rule. book-keeper labels an overview as written from published
+  sources; full notes carry no label.
 - **`sources`** lists the research sources (`S1`, `S2`, …) behind an idea;
   empty means it rests on the model's own knowledge of the book.
 - Fields with no value are absent, not null.
@@ -241,7 +252,9 @@ the page is dropped before the rest is paid for, and a page the full digest
 then finds mostly book text is dropped too. The warning names no site,
 since warnings ship with the book; the progress log gives the URL.
 
-Each chunk's notes are cached per slug (`PRECIS_CACHE_DIR/digests/`),
+Each chunk's notes are cached per slug and depth
+(`PRECIS_CACHE_DIR/digests/<slug>.<depth>.json` — an overview run, which
+keeps only its own chunks, never prunes the full run's reading of the book),
 keyed by everything its call depends on — the chunk and its place in the
 page, the book's title and author, the model and `DIGEST_VERSION` — so a
 rerun from the same research pays nothing; the cache keeps only the
@@ -266,8 +279,7 @@ caching; the task's instructions go in the user message. Both calls send
 the same tool list too (the write's and the review's tools, each call
 forced to its own), since a provider's cache prefix runs tools → system →
 messages: that's what should let the review read the research from the
-cache. Not yet confirmed through OpenRouter — the baseline eval run checks
-the review call's `cached_tokens` (docs/v2-plan.md).
+cache — confirmed through OpenRouter: the review reads the research from it.
 
 - Ideas cover the whole book, as many as it makes. They name the book's
   own terms and never describe the text ("the author discusses…").
@@ -291,7 +303,8 @@ the review call's `cached_tokens` (docs/v2-plan.md).
   themes play out gave away *The Island of Dr. Moreau*'s second half.
 
 The response is validated as it arrives — at least one idea, a review deck
-for non-fiction and none for fiction, 2-4 tags from the closed vocabulary —
+for full non-fiction notes and none otherwise, 2-4 tags from the closed
+vocabulary —
 and a retry after a failure shows the model its rejected call and the
 error. Retries are for output that can't be used, and what can be left
 out is left out instead, since a failed retry loses the whole run: tags
@@ -345,7 +358,7 @@ both an idea's summary and evidence counts once). The notes are published, so th
 state a book's ideas in their own words and quote a line only where the
 exact words matter — never enough of the book to stand in for it. The write
 prompt says so; the review cuts a flagged quote to its line or paraphrases
-it. Every library and eval book so far sits well under both (longest quote
+it. Every library book so far sits well under both (longest quote
 ~200 characters, most in one book ~1,200).
 
 No coverage check: a test that flagged parts of a digested book no idea drew
@@ -358,7 +371,8 @@ cited sources — and it caught no inventions across 8 books, while its
 flags (Tolstoy in *Into the Wild*, Wickham in *Pride and Prejudice*, all
 correct) led the review to strip correct details. Tens of thousands of tokens of excerpts
 can't hold everything, so "not in the research" isn't "invented".
-Accuracy is the review's job, and the evals' judge measures it.
+Accuracy is the review's job, and the Claude review of each library book
+checks it.
 
 ### Review (`review.py`)
 
@@ -434,43 +448,22 @@ precis create-known-file <isbn>... [--kind fiction|non-fiction] [--output <path>
       known-file (likely hand-edited) is only replaced with --force; a batch
       skips it and writes the rest.
 
-precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh] [--book-file <path>]
-    → researches the book and writes its notes. Refuses a known-file that
-      isn't ready, an --output it can't write, or a book file it can't
-      read, before any paid work. If
+precis generate <known-file.json> [--output <path>] [--trust-known] [--fresh] [--book-file <path> | --overview]
+    → researches the book and writes its notes: full notes from a book
+      file, an overview from search otherwise — or with --overview, even
+      when the known-file names a book file. Refuses a known-file that
+      isn't ready, an --output it can't write, a book file it can't read,
+      or a malformed model setting, before any paid work. If
       the final write fails anyway, the book goes to stdout rather than
       being lost.
 
-precis research <known-file.json> [--trust-known] [--fresh] [--book-file <path>]
+precis research <known-file.json> [--trust-known] [--fresh] [--book-file <path> | --overview]
     → the research step alone: prints the rendered research to stdout,
       sources and warnings to stderr. Free: long pages show as their
       excerpts, since digesting them is paid work.
 
 precis tags [--output <path>]
     → the closed tag vocabulary as JSON, for a consumer to sync against.
-
-precis eval run <label> [--book <slug>]... [--trust-known] [--fresh]
-    → generates every eval book (evals/) into evals/runs/<label>/: each
-      book's JSON plus <slug>.metrics.json — measured cost (the gateway's
-      usage.cost), searches and their credits, duration, idea and claim counts,
-      warnings, duplicate-idea rate, citation coverage. A book already
-      there is skipped, so a rerun finishes a partial run without paying
-      twice. Research is cached per book, not per run, so runs comparing
-      models write from the same research; each book's metrics record the
-      research's fingerprint.
-
-precis eval judge <candidate> <baseline> [--judge-model <id>] [--book <slug>]...
-    → pairwise judgement of two runs by PRECIS_JUDGE_MODEL against a rubric
-      (accuracy, specificity, distinctness, coverage vs the reference
-      summary, plus review-deck quality for non-fiction or spoiler safety
-      for fiction). Each book is judged twice with the order swapped; a pick
-      counts only when both orders agree. Writes
-      evals/runs/<candidate>/judge-vs-<baseline>.json; the score is 1 per
-      win, 0.5 per tie, so above 0.5 beats the baseline. Books whose two
-      runs wrote from different research (a failed search isn't cached, and
-      --fresh refetches) are listed with a warning. A book that fails to
-      judge is recorded under `failed` and left out of the score; the rest
-      are still written.
 ```
 
 Errors go to stderr with a non-zero exit, never a traceback. Progress —
@@ -484,7 +477,7 @@ carries only the command's output.
 
 - **LLM access:** an OpenAI-compatible gateway (OpenRouter) — base URL, key
   and model from env vars, with the `openai` package used only as an HTTP
-  client. Evals choose the model (Haiku 4.5 vs Sonnet 5). Structured output
+  client. The model is Haiku 4.5 (docs/v2-plan.md). Structured output
   uses a forced `tool_choice`, which rules out models that reject it.
   Every call asks OpenRouter for providers that support all its
   parameters and that neither keep nor train on prompts
@@ -507,7 +500,7 @@ carries only the command's output.
   10-minute tries); through every retry layer (2 attempts × 4
   requests for provider errors × 3 HTTP tries) the bound is hours.
 - **Cost:** every run reports the gateway-reported cost of its calls.
-  Target: under $0.50 a book on average, measured on the eval set.
+  Target: under $0.50 a book on average, measured on library runs.
   Searches aren't priced: they run on Tavily's free tier (1,000 credits a
   month; a book's 3 advanced searches use 6), and runs report the credits
   used against it.

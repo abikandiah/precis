@@ -33,9 +33,6 @@ RUN useradd --create-home --uid 1000 precis \
     && mkdir -p /data \
     && chown precis:precis /data
 VOLUME /data
-# `precis eval` reads the eval set and writes its runs here — bind-mount
-# the repo's evals/ directory (README.md's Evals section).
-ENV PRECIS_EVALS_DIR=/evals
 USER precis
 
 ENTRYPOINT ["precis"]

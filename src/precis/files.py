@@ -1,4 +1,4 @@
-"""File writing shared by the research cache and eval runs."""
+"""Atomic file writing for the caches."""
 
 from __future__ import annotations
 

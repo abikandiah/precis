@@ -22,7 +22,7 @@ defend, so the review spends its attention where problems are likely.
 
 Nothing else checks facts against the research: "not in the research's
 excerpts" isn't "invented", and flagging it led the review to strip correct
-details. Accuracy is the review's job, and the evals' judge measures it.
+details. Accuracy is the review's job.
 """
 
 from __future__ import annotations

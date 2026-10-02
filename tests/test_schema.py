@@ -12,7 +12,7 @@ def _book(kind: str = "non-fiction", ideas: int = 5, claims: int | None = 5, **o
         "author": "A",
         "isbn": "1",
         "kind": kind,
-        "depth": "overview",
+        "depth": "full" if kind == "non-fiction" else "overview",
         "one_line_takeaway": "take",
         "synopsis": "syn",
         "ideas": [{"title": f"Idea {n}", "summary": "s", "evidence": "e"} for n in range(ideas)],
@@ -31,8 +31,9 @@ def test_a_valid_book_of_each_kind():
     ("data", "message"),
     [
         (_book(ideas=0), "at least one idea"),
-        (_book(claims=None), "non-fiction needs key_claims_for_review"),
-        (_book("fiction", ideas=3), "fiction has no key_claims_for_review"),
+        (_book(claims=None), "full non-fiction notes need key_claims_for_review"),
+        (_book("fiction", ideas=3), "only full non-fiction notes have key_claims_for_review"),
+        (_book(depth="overview"), "only full non-fiction notes have key_claims_for_review"),
         (_book(tags=["psychology"]), "at least 2 items"),
         (_book(tags=["psychology", "psychology"]), "must not repeat"),
         (_book("fiction", ideas=3, claims=None, tags=["psychology", "science"]), "closed fiction vocabulary"),
@@ -52,11 +53,12 @@ def test_any_number_of_ideas_and_claims_is_valid():
 def test_a_deck_covering_under_half_the_ideas_is_a_warning():
     ideas = [Idea(title=f"Idea {n}", summary="s", evidence="e") for n in range(25)]
     claims = [KeyClaim(prompt="Q?", answer="A.")]
-    assert deck_coverage_warnings("non-fiction", ideas, claims * 2) == [
+    assert deck_coverage_warnings("non-fiction", "full", ideas, claims * 2) == [
         "2 key claims for 25 ideas — the review deck covers under half the notes"
     ]
-    assert deck_coverage_warnings("non-fiction", ideas[:4], claims * 2) == []
-    assert deck_coverage_warnings("fiction", ideas, None) == []
+    assert deck_coverage_warnings("non-fiction", "full", ideas[:4], claims * 2) == []
+    assert deck_coverage_warnings("fiction", "full", ideas, None) == []
+    assert deck_coverage_warnings("non-fiction", "overview", ideas, None) == []
 
 
 def test_known_file_title_and_author_placeholders_dont_count():
@@ -88,5 +90,12 @@ def test_only_fiction_read_whole_has_a_resolution():
 def test_only_full_nonfiction_notes_say_where_an_idea_comes_from():
     ideas = [{"title": "Idea", "summary": "s", "where": "Chapter 3, Empathy"}]
     assert Book.model_validate(_book(depth="full", ideas=1) | {"ideas": ideas}).ideas[0].where == "Chapter 3, Empathy"
-    for book in (_book(ideas=1), _book("fiction", claims=None, depth="full", ideas=1)):
+    for book in (_book(ideas=1, depth="overview", claims=None), _book("fiction", claims=None, depth="full", ideas=1)):
         assert Book.model_validate(book | {"ideas": ideas}).ideas[0].where == ""
+
+
+def test_an_overview_has_headline_ideas_without_evidence_and_no_deck():
+    book = Book.model_validate(_book(depth="overview", claims=None))
+    assert book.key_claims_for_review is None and all(i.evidence == "" for i in book.ideas)
+    # Full notes keep their evidence.
+    assert all(i.evidence == "e" for i in Book.model_validate(_book()).ideas)

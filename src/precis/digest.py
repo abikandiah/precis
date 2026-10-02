@@ -68,7 +68,7 @@ from precis.research import (
     Research,
     Source,
 )
-from precis.schema import KnownFile
+from precis.schema import Depth, KnownFile
 
 # Bumped when the prompt or the notes' shape changes; older digests are redone.
 DIGEST_VERSION = 2
@@ -261,8 +261,12 @@ def render(source: Source, parts: list[Part], total: int) -> tuple[str, int]:
     return "\n\n".join(lines), len(parts)
 
 
-def cache_path(slug: str, cache_dir: str | Path | None = None) -> Path:
-    return Path(cache_dir or settings.cache_dir) / "digests" / f"{slug}.json"
+def cache_path(slug: str, depth: Depth, cache_dir: str | Path | None = None) -> Path:
+    """The book's digest cache — one per depth, so an --overview run, which
+    keeps only its own chunks, never prunes the full run's reading of the
+    reader's copy (up to 40 paid chunks), or the other way round.
+    """
+    return Path(cache_dir or settings.cache_dir) / "digests" / f"{slug}.{depth}.json"
 
 
 def _key(known_file: KnownFile, source: Source, n: int, total: int, chunk: str, model: str) -> str:
@@ -345,7 +349,7 @@ def _plan(known_file: KnownFile, pages: list[Source], model: str) -> tuple[list[
             raise IncompleteBookError(
                 f"your copy of the book is {len(source.full_text):,} characters ({len(pieces)} chunks), past the "
                 f"{CHUNKS_PER_BOOK_FILE} chunks (~{CHUNKS_PER_BOOK_FILE * CHUNK_CHARS:,} characters) the digest reads "
-                "— full notes need all of it. Remove the book_file for an overview instead."
+                "— full notes need all of it. Run with --overview for an overview from search instead."
             )
         if take < len(pieces):
             notes.append(
@@ -428,7 +432,7 @@ async def digest(
         return research
 
     model = settings.llm_model
-    path = cache_path(slug, cache_dir)
+    path = cache_path(slug, research.depth, cache_dir)
     cached = _load(path)
     warnings = list(research.warnings)
     used: set[str] = set()  # this research's chunk keys, so ones it no longer has don't pile up

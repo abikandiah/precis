@@ -29,7 +29,6 @@ the book is the research (`book_research`), for full notes
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
 import unicodedata
@@ -79,7 +78,7 @@ FOLLOW_UP_BELOW = 5
 # Less text than this (~20k tokens) is thin however many pages it came
 # from: The Integrity of the Personality's first searches found 18 pages
 # but ~11k tokens of snippets, and the notes came out vague. Every famous
-# eval book's research is 30k+ tokens. Also warns when research ends thin.
+# book's research so far is 30k+ tokens. Also warns when research ends thin.
 THIN_CHARS = 80_000
 
 # Any opening or closing source tag inside page text, however spelled — a
@@ -179,13 +178,6 @@ class Research:
 
     def summary(self) -> str:
         return f"{len(self.sources)} source(s), ~{self.chars // 4:,} tokens"
-
-    @property
-    def fingerprint(self) -> str:
-        """Short hash of exactly what the model is shown — two runs with the
-        same fingerprint wrote from identical research.
-        """
-        return hashlib.sha256(self.render().encode()).hexdigest()[:12]
 
 
 def research_queries(known_file: KnownFile) -> list[str]:

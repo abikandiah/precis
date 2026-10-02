@@ -5,7 +5,6 @@ import pytest
 
 from precis import cli as cli_module
 from precis.cli import _known_file_filename, build_parser
-from precis.generate import Generated
 from precis.research import Research, ResearchError, Source
 from precis.schema import FICTION_TAGS, NONFICTION_TAGS, SCHEMA_VERSION, Book, KnownFile
 
@@ -15,7 +14,7 @@ _BOOK = Book(
     synopsis="synopsis", tags=["fantasy", "adventure"],
     ideas=[{"title": f"Theme {n}", "summary": "s", "evidence": "e"} for n in range(3)],
 )  # fmt: skip
-_GENERATED = Generated(book=_BOOK, research=Research(sources=[], warnings=[]))
+_GENERATED = _BOOK
 
 
 def _run(args: list[str]) -> int:
@@ -75,6 +74,11 @@ def test_generate_reads_the_book_file_relative_to_the_known_file(tmp_path, monke
     monkeypatch.setattr(cli_module, "generate", fake)
     assert _run(["generate", str(path), "--output", str(tmp_path / "out.json")]) == 0
     assert fake.await_args.kwargs["book_text"].startswith("A long line of the novel itself")
+    # --overview writes from search even so — and can't be asked for alongside a book file.
+    assert _run(["generate", str(path), "--overview", "--output", str(tmp_path / "out.json")]) == 0
+    assert fake.await_args.kwargs["book_text"] is None
+    with pytest.raises(SystemExit):
+        _run(["generate", str(path), "--overview", "--book-file", "books/a-novel.txt"])
 
 
 @pytest.mark.parametrize("command", ["generate", "research"])
@@ -133,14 +137,6 @@ def test_a_failed_run_reports_cleanly_and_still_prints_its_cost(known_file_path,
 
 
 # --- research -----------------------------------------------------------------------
-
-
-def test_eval_run_failing_outside_a_book_is_a_clean_error(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(cli_module.eval_data, "load_books", lambda *_: [])
-    monkeypatch.setattr(cli_module.eval_runner, "run_eval", AsyncMock(side_effect=PermissionError("evals/runs")))
-    assert _run(["eval", "run", "x", "--evals-dir", str(tmp_path)]) == 1
-    err = capsys.readouterr().err
-    assert "eval run failed: evals/runs" in err and "Traceback" not in err
 
 
 def test_research_prints_the_rendered_research(known_file_path, monkeypatch, capsys):

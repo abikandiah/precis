@@ -3,8 +3,8 @@ reported cost, and searches with the credits they use.
 
 `track()` opens a scope; every LLM response (llm._create) and search
 (search.TavilySearchClient) inside it is recorded onto that scope's `Usage`.
-Scoped through a ContextVar rather than a module global so an eval can keep a
-book's generation apart from the judge calls that follow it. asyncio tasks
+Scoped through a ContextVar rather than a module global, so a run's usage is
+its own. asyncio tasks
 copy the context they're created in, so research's parallel searches all
 record onto the one `Usage` their run opened.
 

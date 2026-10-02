@@ -20,10 +20,6 @@ from precis import llm, usage
 from precis import research as book_research
 from precis.book_file import BookFileError, read_book_file
 from precis.config import ConfigError, settings
-from precis.eval import data as eval_data
-from precis.eval import judge as eval_judge
-from precis.eval import metrics as eval_metrics
-from precis.eval import runner as eval_runner
 from precis.generate import generate
 from precis.known_file import create_known_file, preflight_check, slugify_title
 from precis.schema import KnownFile, TagVocabulary
@@ -58,12 +54,28 @@ def _load_ready_known_file(path: str) -> KnownFile | None:
     return known_file
 
 
+def _add_source_options(command: argparse.ArgumentParser) -> None:
+    """--book-file and --overview: what the notes are written from (full
+    notes from the reader's own copy, or an overview from search).
+    """
+    source = command.add_mutually_exclusive_group()
+    source.add_argument(
+        "--book-file", help="your own copy of the book (.epub, .pdf or .txt), in place of the known-file's book_file"
+    )
+    source.add_argument(
+        "--overview", action="store_true", help="an overview from search, even when the known-file has a book_file"
+    )
+
+
 def _book_text(args: argparse.Namespace, known_file: KnownFile) -> str | None | Literal[False]:
     """The reader's own copy of the book: `--book-file` as given, or the
     known-file's `book_file` relative to the known-file (a leading ~ is the
-    home directory). None when there's neither; False after printing why
-    the file can't be read — before any paid work.
+    home directory). None when there's neither, or `--overview` asks for an
+    overview anyway; False after printing why the file can't be read —
+    before any paid work.
     """
+    if args.overview:
+        return None
     if args.book_file:
         path = Path(args.book_file)
     elif known_file.book_file:
@@ -220,8 +232,12 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         return 1
     if (book_text := _book_text(args, known_file)) is False:
         return 1
+    # The model client reads these after research, by when an overview's
+    # searches have spent their credits: a bad one fails here instead
+    # (a ConfigError, reported by _dispatch).
+    settings.check_llm()
 
-    generated = _run_paid(
+    book = _run_paid(
         generate(
             known_file,
             slug=_slug_from_path(args.known_file),
@@ -232,9 +248,8 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         ),
         "generation failed",
     )
-    if generated is None:
+    if book is None:
         return 1
-    book = generated.book
     try:
         _write_output(book, args.output, exclude_none=True)
     except OSError as exc:
@@ -275,60 +290,6 @@ def _cmd_tags(args: argparse.Namespace) -> int:
     return 0 if _write_or_report(TagVocabulary(), args.output) else 1
 
 
-def _cmd_eval_run(args: argparse.Namespace) -> int:
-    try:
-        books = eval_data.load_books(args.evals_dir, args.book)
-    except (OSError, ValueError) as exc:
-        print(f"could not load the eval set: {exc}", file=sys.stderr)
-        return 1
-    try:
-        results = asyncio.run(
-            eval_runner.run_eval(
-                args.evals_dir,
-                args.label,
-                books,
-                trust_known=args.trust_known,
-                fresh=args.fresh,
-                on_progress=_print_progress,
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-        print(f"eval run failed: {exc}", file=sys.stderr)
-        return 1
-    _print_progress(eval_metrics.format_summary(args.label, eval_metrics.summarize(results)))
-    return 1 if any(r.get("error") for r in results) else 0
-
-
-def _cmd_eval_judge(args: argparse.Namespace) -> int:
-    model = args.judge_model or settings.judge_model
-    if not model:
-        print("no judge model: set PRECIS_JUDGE_MODEL or pass --judge-model", file=sys.stderr)
-        return 1
-    try:
-        books = eval_data.load_books(args.evals_dir, args.book)
-        judgement = asyncio.run(
-            eval_judge.judge_runs(
-                args.evals_dir,
-                args.candidate,
-                args.baseline,
-                books,
-                model=model,
-                concurrency=settings.concurrency,
-                on_progress=_print_progress,
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 — CLI boundary: any failure is a clean stderr message, not a traceback
-        print(f"judging failed: {exc}", file=sys.stderr)
-        return 1
-    for label in (args.candidate, args.baseline):
-        run_metrics = [
-            m for book in books if (m := eval_data.read_metrics(eval_data.metrics_path(args.evals_dir, label, book.slug)))
-        ]
-        _print_progress(eval_metrics.format_summary(label, eval_metrics.summarize(run_metrics)))
-    _print_progress(eval_judge.format_judgement(judgement))
-    return 1 if judgement["failed"] else 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="precis")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -346,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_cmd.add_argument("--output")
     generate_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
     generate_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the research cache")
-    generate_cmd.add_argument("--book-file", help="your own copy of the book (.epub, .pdf or .txt), in place of the known-file's book_file")
+    _add_source_options(generate_cmd)
     generate_cmd.set_defaults(func=_cmd_generate)
 
     research_cmd = subparsers.add_parser(
@@ -355,7 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_cmd.add_argument("known_file")
     research_cmd.add_argument("--trust-known", action="store_true", help="warn instead of failing the book/author checks")
     research_cmd.add_argument("--fresh", action="store_true", help="search again instead of using the cache")
-    research_cmd.add_argument("--book-file", help="your own copy of the book (.epub, .pdf or .txt), in place of the known-file's book_file")
+    _add_source_options(research_cmd)
     research_cmd.set_defaults(func=_cmd_research)
 
     tags_cmd = subparsers.add_parser(
@@ -363,28 +324,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     tags_cmd.add_argument("--output")
     tags_cmd.set_defaults(func=_cmd_tags)
-
-    eval_cmd = subparsers.add_parser("eval", help="run the eval set and judge runs against each other")
-    eval_subparsers = eval_cmd.add_subparsers(dest="eval_command", required=True)
-
-    eval_run = eval_subparsers.add_parser(
-        "run", help="generate every eval book into runs/<label>/ (books already there are skipped)"
-    )
-    eval_run.add_argument("label", help="names the run, e.g. sonnet-5")
-    eval_run.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
-    eval_run.add_argument("--trust-known", action="store_true")
-    eval_run.add_argument("--fresh", action="store_true", help="search again instead of using each book's research cache")
-    eval_run.add_argument("--evals-dir", default=settings.evals_dir)
-    eval_run.set_defaults(func=_cmd_eval_run)
-
-    eval_judge_cmd = eval_subparsers.add_parser("judge", help="pairwise-judge a candidate run against a baseline run")
-    eval_judge_cmd.add_argument("candidate")
-    eval_judge_cmd.add_argument("baseline")
-    eval_judge_cmd.add_argument("--judge-model", help="defaults to PRECIS_JUDGE_MODEL")
-    eval_judge_cmd.add_argument("--book", action="append", help="only this eval book (slug); repeatable")
-    eval_judge_cmd.add_argument("--evals-dir", default=settings.evals_dir)
-    eval_judge_cmd.set_defaults(func=_cmd_eval_judge)
-
     return parser
 
 
@@ -396,9 +335,9 @@ def main() -> None:
 
 def _dispatch(args: argparse.Namespace) -> int:
     """Runs the command. A bad setting surfaces only once a command reads
-    it (config.py), and not every command reports its own errors, so it's
-    caught here too: a clean stderr message, never a traceback. So is
-    Ctrl-C.
+    it (config.py) — `generate` reads the model's up front, before any paid
+    work — and is reported here: a clean stderr message, never a traceback.
+    So is Ctrl-C.
     """
     try:
         return int(args.func(args))

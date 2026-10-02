@@ -6,7 +6,7 @@ notes). See docs/blueprint.md for the design behind every field here.
 from __future__ import annotations
 
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -182,11 +182,49 @@ class Idea(BaseModel):
         return sources
 
 
+# An overview's ideas have neither: it states the ideas, not the book's own
+# examples, which research from the web can't be trusted for.
+FULL_ONLY_IDEA_FIELDS = ("evidence", "where")
+
+
+def stripped_schema(
+    schema: dict[str, Any], *, fields: tuple[str, ...] = (), idea_fields: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """A tool model's JSON schema without `fields` (top-level) and
+    `idea_fields` (in its Idea definition): what the notes of this kind and
+    depth can't have, so the model is never offered them — rather than
+    offered them and told to leave them empty, which it won't always do,
+    and paying for output that's thrown away. Raises if a field or the Idea
+    definition isn't where pydantic is expected to put it, so a change there
+    can't silently start offering them again.
+    """
+    targets = [(schema, fields)]
+    if idea_fields:
+        if (idea := schema.get("$defs", {}).get("Idea")) is None:
+            raise RuntimeError("the tool schema has no Idea definition to strip fields from")
+        targets.append((idea, idea_fields))
+    for definition, names in targets:
+        for name in names:
+            if definition.get("properties", {}).pop(name, None) is None:
+                raise RuntimeError(f"the tool schema has no {name!r} field to strip")
+            if name in definition.get("required", []):
+                definition["required"].remove(name)
+    return schema
+
+
+def has_deck(kind: Literal["fiction", "non-fiction"], depth: Depth) -> bool:
+    """Only full non-fiction notes have a review deck: fiction isn't read to
+    retain claims, and an overview's would rest on research that can't back
+    them — flashcards on shaky claims teach the wrong thing.
+    """
+    return kind == "non-fiction" and depth == "full"
+
+
 def notes_shape_problems(
-    kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
+    kind: Literal["fiction", "non-fiction"], depth: Depth, ideas: list[Idea], key_claims: list[KeyClaim] | None
 ) -> list[str]:
-    """What makes a book's notes unusable: no ideas, a non-fiction book
-    with no review deck, or fiction with one. Shared by `Book` and the
+    """What makes a book's notes unusable: no ideas, full non-fiction notes
+    with no review deck, or any others with one. Shared by `Book` and the
     write and review calls' response models, so it's a retryable validation
     failure at the call and the final book can't disagree with it. There's
     no count to meet: a book has as many ideas as it makes.
@@ -194,23 +232,23 @@ def notes_shape_problems(
     problems = []
     if not ideas:
         problems.append("the notes need at least one idea")
-    if kind == "fiction":
-        if key_claims:
-            problems.append("fiction has no key_claims_for_review")
-    elif not key_claims:
-        problems.append("non-fiction needs key_claims_for_review")
+    if has_deck(kind, depth):
+        if not key_claims:
+            problems.append("full non-fiction notes need key_claims_for_review")
+    elif key_claims:
+        problems.append("only full non-fiction notes have key_claims_for_review")
     return problems
 
 
 def deck_coverage_warnings(
-    kind: Literal["fiction", "non-fiction"], ideas: list[Idea], key_claims: list[KeyClaim] | None
+    kind: Literal["fiction", "non-fiction"], depth: Depth, ideas: list[Idea], key_claims: list[KeyClaim] | None
 ) -> list[str]:
     """A review deck covering under half the ideas. There's no count to
     meet, but key claims are one per idea a reader needs to remember, so a
     deck this thin (2 claims for 25 ideas) means most of the notes can't be
     reviewed. A warning, not a retry.
     """
-    if kind != "non-fiction" or len(key_claims or []) * 2 >= len(ideas):
+    if not has_deck(kind, depth) or len(key_claims or []) * 2 >= len(ideas):
         return []
     return [f"{len(key_claims or [])} key claims for {len(ideas)} ideas — the review deck covers under half the notes"]
 
@@ -228,9 +266,11 @@ def without_unknown_sources(idea: Idea, source_ids: set[str]) -> tuple[Idea, lis
 
 class Book(BaseModel):
     """precis's output: whole-book notes for recalling a book after
-    reading it. Fiction's are spoiler-safe and carry no review deck; read
-    whole (full depth), a novel's ending is in `resolution`, which the page
-    shows only behind a spoiler warning.
+    reading it — full, from the reader's own copy read whole, or an overview
+    from search: headline ideas without evidence, and no review deck.
+    Fiction's are spoiler-safe and carry no review deck; read whole, a
+    novel's ending is in `resolution`, which the page shows only behind a
+    spoiler warning.
     """
 
     schema_version: str = SCHEMA_VERSION
@@ -259,13 +299,21 @@ class Book(BaseModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> Book:
-        if problems := notes_shape_problems(self.kind, self.ideas, self.key_claims_for_review):
+        if problems := notes_shape_problems(self.kind, self.depth, self.ideas, self.key_claims_for_review):
             raise ValueError("; ".join(problems))
         if self.resolution is not None and (self.kind, self.depth) != ("fiction", "full"):
             raise ValueError("only fiction read whole (full depth) has a resolution")
+        # Cleared rather than sent back, as guesses: `where` outside full
+        # non-fiction notes (a novel's chapters can give its story away), and
+        # an overview's evidence — the book's own examples, which search
+        # research can't be trusted for.
+        cleared = {}
         if (self.kind, self.depth) != ("non-fiction", "full"):
-            # Only full non-fiction notes point into the book (a novel's
-            # chapters can give its story away); a `where` from anything else
-            # is a guess, cleared rather than sent back.
-            self.ideas = [i.model_copy(update={"where": ""}) if i.where else i for i in self.ideas]
+            cleared["where"] = ""
+        if self.depth == "overview":
+            cleared["evidence"] = ""
+        if cleared:
+            self.ideas = [
+                i.model_copy(update=cleared) if any(getattr(i, f) for f in cleared) else i for i in self.ideas
+            ]
         return self

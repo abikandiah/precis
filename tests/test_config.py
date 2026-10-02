@@ -1,7 +1,6 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -12,7 +11,6 @@ from precis.config import ConfigError, Settings
     ("name", "value", "message", "read"),
     [
         ("PRECIS_LLM_CALL_TIMEOUT_SECONDS", "0", "at least 1", lambda s: s.llm_call_timeout_seconds),
-        ("PRECIS_CONCURRENCY", "-1", "at least 1", lambda s: s.concurrency),
         ("PRECIS_LLM_MAX_RETRIES", "abc", "a whole number", lambda s: s.llm_max_retries),
         ("PRECIS_LLM_MAX_RETRIES", "-1", "at least 0", lambda s: s.llm_max_retries),
     ],
@@ -29,7 +27,7 @@ def test_settings_are_read_from_the_environment_at_instantiation(monkeypatch):
     monkeypatch.setenv("PRECIS_CACHE_DIR", "/data/cache")
     settings = Settings()
     assert (settings.llm_call_timeout_seconds, settings.cache_dir) == (60, "/data/cache")
-    assert (settings.concurrency, settings.llm_max_retries) == (3, 5)
+    assert settings.llm_max_retries == 5
 
 
 def _precis(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
@@ -42,11 +40,13 @@ def _precis(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_a_bad_setting_fails_only_the_commands_that_use_it_and_never_with_a_traceback():
-    evals = str(Path(__file__).parents[1] / "evals")
-    bad = {"PRECIS_CONCURRENCY": "0", "PRECIS_JUDGE_MODEL": "judge/model", "PRECIS_EVALS_DIR": evals}
+def test_a_bad_setting_fails_only_the_commands_that_use_it_before_any_paid_work(tmp_path):
+    bad = {"PRECIS_LLM_MAX_RETRIES": "abc", "PRECIS_CACHE_DIR": str(tmp_path / "cache")}
     assert _precis("tags", **bad).returncode == 0
-    judged = _precis("eval", "judge", "a", "b", **bad)
-    assert judged.returncode != 0
-    assert "PRECIS_CONCURRENCY must be at least 1 (got 0)" in judged.stderr
-    assert "Traceback" not in judged.stderr
+    known = tmp_path / "book.json"
+    known.write_text('{"isbn": "1", "title": "A Book", "author": "An Author", "kind": "non-fiction"}')
+    generated = _precis("generate", str(known), **bad)
+    assert generated.returncode == 2
+    assert "precis: PRECIS_LLM_MAX_RETRIES must be a whole number" in generated.stderr
+    assert "Traceback" not in generated.stderr
+    assert not (tmp_path / "cache").exists()  # nothing searched

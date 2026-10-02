@@ -15,8 +15,6 @@ provider errors) × 3 HTTP tries × 5 minutes, for the write and the review.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from openai import AsyncOpenAI
 
 from precis import llm
@@ -28,15 +26,6 @@ from precis.schema import Book, KnownFile, deck_coverage_warnings
 from precis.write import write_notes
 
 
-@dataclass(frozen=True)
-class Generated:
-    book: Book
-    # What the notes were written from — the eval runner records its
-    # fingerprint so a comparison between runs can tell whether both saw
-    # the same research.
-    research: Research
-
-
 async def generate(
     known_file: KnownFile,
     *,
@@ -45,7 +34,7 @@ async def generate(
     fresh: bool = False,
     on_progress: ProgressCallback | None = None,
     book_text: str | None = None,
-) -> Generated:
+) -> Book:
     """`slug` names the research cache; `fresh` searches again instead of
     using it. `trust_known` turns the book and author checks into warnings.
     Raises research.ResearchError for a known-file that isn't ready.
@@ -67,7 +56,7 @@ async def _write_and_review(
     *,
     trust_known: bool,
     progress: ProgressCallback,
-) -> Generated:
+) -> Book:
     progress("write: writing the notes")
     written = await write_notes(known_file, found, trust_known=trust_known, client=client, on_progress=progress)
     progress(f"write: {len(written.ideas)} ideas, {len(written.key_claims_for_review or [])} key claims")
@@ -90,10 +79,10 @@ async def _write_and_review(
             progress(f"review: {change}")
         if not changes:
             progress("review: no changes")
-    if coverage := deck_coverage_warnings(book.kind, book.ideas, book.key_claims_for_review):
+    if coverage := deck_coverage_warnings(book.kind, book.depth, book.ideas, book.key_claims_for_review):
         book = book.model_copy(update={"warnings": [*book.warnings, *coverage]})
     # Research already printed its own warnings.
     for warning in book.warnings:
         if warning not in found.warnings:
             progress(f"warning: {warning}")
-    return Generated(book=book, research=found)
+    return book

@@ -47,11 +47,15 @@ from precis import llm
 from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words
 from precis.research import ProgressCallback, Research
 from precis.schema import (
+    FULL_ONLY_IDEA_FIELDS,
     Book,
+    Depth,
     Idea,
     KeyClaim,
     KnownFile,
+    has_deck,
     notes_shape_problems,
+    stripped_schema,
     without_unknown_sources,
 )
 from precis.search import normalize_text, overlap
@@ -59,6 +63,7 @@ from precis.write import (
     FAITHFUL_RULE,
     FICTION_COUNT_RULE,
     FULL_RULE,
+    OVERVIEW_COUNT_RULE,
     RESOLUTION_RULE,
     SOURCE_IDS_KEY,
     SPOILER_RULE,
@@ -158,9 +163,9 @@ class Review(BaseModel):
     @field_validator("key_claims_for_review")
     @classmethod
     def _empty_is_unchanged(cls, value: list[KeyClaim] | None) -> list[KeyClaim] | None:
-        # A deck can't be emptied (notes_shape_problems rejects non-fiction
-        # without one, and fiction has none), so [] can only mean "nothing
-        # to fix".
+        # A deck can't be emptied (notes_shape_problems rejects full
+        # non-fiction without one, and nothing else has one), so [] can
+        # only mean "nothing to fix".
         return value or None
 
     @model_validator(mode="after")
@@ -176,7 +181,7 @@ class Review(BaseModel):
             raise ValueError("; ".join(problems))
 
         ideas, claims, changes, warnings = _merge(book, self, context.get(SOURCE_IDS_KEY))
-        if problems := notes_shape_problems(book.kind, ideas, claims):
+        if problems := notes_shape_problems(book.kind, book.depth, ideas, claims):
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
@@ -203,6 +208,40 @@ class Review(BaseModel):
         self._changes = changes
         self._warnings = warnings
         return self
+
+
+# Each kind and depth's review tool offers only what its notes can have
+# (schema.stripped_schema): a deck for full non-fiction, an ending for
+# fiction read whole, and evidence and where for neither overview. Review
+# itself, with every field, holds the logic.
+
+
+class FullNonfictionReview(Review):
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return stripped_schema(super().model_json_schema(*args, **kwargs), fields=("resolution",))
+
+
+class FullFictionReview(Review):
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return stripped_schema(super().model_json_schema(*args, **kwargs), fields=("key_claims_for_review",))
+
+
+class OverviewReview(Review):
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return stripped_schema(
+            super().model_json_schema(*args, **kwargs),
+            fields=("key_claims_for_review", "resolution"),
+            idea_fields=FULL_ONLY_IDEA_FIELDS,
+        )
+
+
+def review_model(kind: Literal["fiction", "non-fiction"], depth: Depth) -> type[Review]:
+    if depth == "overview":
+        return OverviewReview
+    return FullNonfictionReview if kind == "non-fiction" else FullFictionReview
 
 
 def _matched_verdicts(book: Book, review: Review) -> tuple[list[IdeaReview | None], list[IdeaReview]]:
@@ -293,8 +332,8 @@ def _merge(
 ) -> tuple[list[Idea], list[KeyClaim] | None, list[str], list[str]]:
     """The ideas and claims the review leaves, what it changed, and warnings
     for the reader. What would break a rule but can be left out — a new idea
-    citing nothing, a citation of a source that doesn't exist, fiction's
-    claims — is left out, not sent back: a retry that repeats it would lose
+    citing nothing, a citation of a source that doesn't exist, claims for
+    notes with no deck — is left out, not sent back: a retry that repeats it would lose
     the whole review, its drops of wrong ideas included.
     """
     ideas: list[Idea] = []
@@ -339,8 +378,8 @@ def _merge(
     changes += [f'added "{i.title}"' for i in added]
     changes += [f'left out new idea "{i.title}": it repeats an idea the notes have' for i in repeats]
     claims = book.key_claims_for_review
-    if book.kind == "fiction":
-        pass  # the Review tool offers claims to both kinds; fiction has none
+    if not has_deck(book.kind, book.depth):
+        pass  # the Review tool offers claims to every book; only full non-fiction notes have them
     elif review.key_claims_for_review is not None:
         claims = review.key_claims_for_review
         changes.append("revised key_claims_for_review")
@@ -364,23 +403,30 @@ def _instructions(book: Book, issues: list[str]) -> str:
         include={"one_line_takeaway", "synopsis", "ideas", "resolution", "key_claims_for_review"},
         exclude_none=True,
     )
-    if not (full and book.kind == "non-fiction"):
-        for idea in notes["ideas"]:
-            idea.pop("where", None)  # always empty: nothing to review
+    # Empty text fields have nothing to review — an overview's evidence and
+    # where are always empty (Book clears them) — and shown, would read as
+    # fields to fill.
+    notes["ideas"] = [{k: v for k, v in idea.items() if v != ""} for idea in notes["ideas"]]
     found = "\n".join(f"- {issue}" for issue in issues) if issues else "- none"
-    counts = (
-        "Count: the notes should have one idea per distinct point the book makes, however many that is. Don't "
-        "pad: merge ideas that make the same point (same_point) and drop ones that don't earn their place. Add a "
-        "new idea only for a major point the notes miss, or a missing entry in a list the book numbers itself "
-        "(its laws, rules or habits)."
-        if book.kind == "non-fiction"
-        else f"Count: {FICTION_COUNT_RULE}"
-    )
+    if book.kind == "fiction":
+        counts = f"Count: {FICTION_COUNT_RULE}"
+    elif full:
+        counts = (
+            "Count: the notes should have one idea per distinct point the book makes, however many that is. Don't "
+            "pad: merge ideas that make the same point (same_point) and drop ones that don't earn their place. Add "
+            "a new idea only for a major point the notes miss, or a missing entry in a list the book numbers itself "
+            "(its laws, rules or habits)."
+        )
+    else:
+        counts = (
+            f"Count: {OVERVIEW_COUNT_RULE} Merge ideas that make the same point (same_point), and add a new idea "
+            "only for a headline point the notes miss."
+        )
     claims = (
         "- key_claims_for_review: if a claim is wrong or only restates an idea's title as a question (\"What is "
         "X?\"), or whenever you drop or add an idea — then the whole corrected list: without claims that rest "
         "on a dropped idea, and with a claim for each added idea a reader needs to remember.\n"
-        if book.kind == "non-fiction"
+        if has_deck(book.kind, book.depth)
         else ""
     )
     spoilers = ""
@@ -388,7 +434,8 @@ def _instructions(book: Book, issues: list[str]) -> str:
         safe = "every field but resolution" if full else "every field"
         spoilers = (
             f"- Spoilers: these notes must be spoiler-safe{' but for resolution' if full else ''}. {SPOILER_RULE} "
-            f"Check {safe}, above all each theme's summary and evidence (for how the story resolves it), new "
+            f"Check {safe}, above all each theme's summary{' and evidence' if full else ''} (for how the story "
+            "resolves it), new "
             "ideas and anything you make more specific, and fix any that gives something away"
             + (" — move it into resolution if it belongs there, returning the whole resolution with it" if full else "")
             + ".\n"
@@ -494,7 +541,7 @@ async def review_notes(
     review = await llm.complete_structured(
         (client or llm.build_client()).with_options(max_retries=WRITE_MAX_RETRIES),
         messages=[*context_messages(known_file, research), {"role": "user", "content": _instructions(book, issues)}],
-        response_model=Review,
+        response_model=review_model(book.kind, book.depth),
         tool_models=shared_tools(book.kind, book.depth),
         validation_context={BOOK_KEY: book, SOURCE_IDS_KEY: {s.id for s in research.sources}},
         timeout_seconds=WRITE_TIMEOUT_SECONDS,

@@ -105,7 +105,7 @@ async def test_a_failed_chunk_keeps_the_excerpt_and_a_retry_pays_only_for_it(tmp
     n = len(digest.chunks(LONG))
     assert calls.await_count == n
     # The chunks that succeeded are cached: the retry reads only the failed one.
-    assert len(digest._load(digest.cache_path("b", tmp_path))) == n - 1
+    assert len(digest._load(digest.cache_path("b", "overview", tmp_path))) == n - 1
     retry = AsyncMock(return_value=_passage())
     with patch.object(digest.llm, "complete_structured", retry):
         found = await digest.digest(BOOK, _research(), slug="b", client=AsyncMock(), cache_dir=tmp_path)
@@ -118,7 +118,7 @@ async def test_an_unexpected_error_fails_the_run_after_caching_what_succeeded(tm
         pytest.raises(KeyError),
     ):
         await digest.digest(BOOK, _research(), slug="b", client=AsyncMock(), cache_dir=tmp_path)
-    assert len(digest._load(digest.cache_path("b", tmp_path))) == len(digest.chunks(LONG)) - 1
+    assert len(digest._load(digest.cache_path("b", "overview", tmp_path))) == len(digest.chunks(LONG)) - 1
 
 
 async def test_another_author_reads_again(tmp_path):
@@ -336,7 +336,7 @@ async def test_a_failure_after_the_screen_keeps_chunks_cached_by_earlier_runs(tm
     # An earlier run read S1 (a free library's) whole.
     with patch.object(digest.llm, "complete_structured", AsyncMock(return_value=_passage("about"))):
         await digest.digest(BOOK, Research(sources=[_source("S1", LONG)], warnings=[]), slug="b", client=AsyncMock(), cache_dir=tmp_path)
-    before = digest._load(digest.cache_path("b", tmp_path))
+    before = digest._load(digest.cache_path("b", "overview", tmp_path))
     # Now a grey page is screened, and the full read fails with a bug.
     research = Research(sources=[_source("S1", LONG), _grey("S2", LONG.replace("Rogers", "Other"))], warnings=[])
 
@@ -347,7 +347,7 @@ async def test_a_failure_after_the_screen_keeps_chunks_cached_by_earlier_runs(tm
 
     with patch.object(digest.llm, "complete_structured", AsyncMock(side_effect=call)), pytest.raises(KeyError):
         await digest.digest(BOOK, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
-    assert before.items() <= digest._load(digest.cache_path("b", tmp_path)).items()
+    assert before.items() <= digest._load(digest.cache_path("b", "overview", tmp_path)).items()
 
 
 async def test_a_page_the_screen_couldnt_check_is_kept_and_logged(tmp_path):
@@ -367,3 +367,12 @@ async def test_notes_on_the_readers_own_copy_too_long_to_show_fail_the_run(tmp_p
         pytest.raises(digest.IncompleteBookError, match="last parts would be left out"),
     ):
         await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+
+
+async def test_an_overview_never_prunes_the_full_runs_reading_of_the_book(tmp_path):
+    with patch.object(digest.llm, "complete_structured", AsyncMock(return_value=_passage())):
+        await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+        full = digest._load(digest.cache_path("b", "full", tmp_path))
+        await digest.digest(BOOK, _research(), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert full and digest._load(digest.cache_path("b", "full", tmp_path)) == full
+    assert digest._load(digest.cache_path("b", "overview", tmp_path))

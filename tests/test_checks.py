@@ -12,7 +12,7 @@ def _book(ideas: list[dict], claims: list[dict] | None = None) -> Book:
     fillers = ["Flywheel momentum", "Stockdale paradox", "Technology accelerators", "Culture discipline", "Council"]
     ideas = ideas + [_idea(title, title.lower()) for title in fillers[: 5 - len(ideas)]]
     return Book(
-        title="Good to Great", author="Jim Collins", isbn="1", kind="non-fiction", depth="overview", one_line_takeaway="t",
+        title="Good to Great", author="Jim Collins", isbn="1", kind="non-fiction", depth="full", one_line_takeaway="t",
         synopsis="s", tags=["business", "economics"], ideas=ideas,
         key_claims_for_review=claims or [{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)],
     )  # fmt: skip

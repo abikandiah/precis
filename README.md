@@ -55,12 +55,15 @@ container: mount the file and pass its container path with `--book-file`
 (e.g. `-v ~/Books/thinking.epub:/book/thinking.epub:ro` and
 `--book-file /book/thinking.epub`).
 
-A run researches the book (three web searches, three more when those
-find little), reads long pages — and your copy of the book — whole, writes the notes in one
-model call, checks them in code, and reviews them against the research in
-a second call. It fails — before the model call where it can — when no
-page online names the book, or pages name it but not its author, or the
-research credits the book to someone else. `--trust-known` turns those into
+A run with your copy of the book reads it whole — no web search — for
+full notes. Without one, it researches the book (three web searches, three
+more when those find little) and reads long pages whole, for an overview:
+headline ideas, no examples, no review deck (`--overview` forces one even
+when the known-file has a `book_file`). Either way it writes the notes in
+one model call, checks them in code, and reviews them against the research
+in a second call. It fails when the research credits the book to someone
+else, and an overview also fails, before any model call, when no page
+online names the book, or pages name it but not its author. `--trust-known` turns those into
 warnings in the output, for a known-file you've checked against the book.
 
 The research is cached on the `precis-data` volume, named after the
@@ -102,30 +105,3 @@ access: the LLM and search APIs need it.
 `precis-data` must be a **named volume**, not a host bind mount: the image's
 non-root user only gets write access to `/data` on a named volume's first
 creation. A bind-mounted directory must be owned by uid 1000.
-
-## Evals
-
-`evals/` holds the eval set — 8 well-known books (`books/`, known-files)
-with a reference summary each (`references/`) — and the runs generated from
-it (`runs/<label>/`). See [evals/README.md](evals/README.md). Both commands
-call paid models, so they run in Docker. `compose.yaml` holds the `.env`,
-the hardening flags above, and the mounts — `evals/` at `/evals` (writable
-by uid 1000) and the `precis-data` cache volume — and builds the image as
-`precis:eval`, so eval builds never replace the `precis` image consumers
-run:
-
-```
-docker compose build
-
-docker compose run --rm precis eval run sonnet-5
-# generates every eval book into evals/runs/sonnet-5/ with PRECIS_LLM_MODEL,
-# skipping books already there; --book <slug> for just one
-
-docker compose run --rm precis eval judge haiku-4-5 sonnet-5
-# judges the first run against the second with PRECIS_JUDGE_MODEL
-```
-
-Rebuild after changing the source; `run` uses the last build.
-
-Research is cached per book, not per run, so runs comparing models write
-from identical research; `eval run --fresh` searches again.

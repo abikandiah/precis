@@ -1,6 +1,7 @@
 """Write: one structured call turns a book's research into its notes —
 takeaway, synopsis, ideas (themes for fiction), key claims for review
-(non-fiction only) and tags (docs/blueprint.md, Pipeline).
+(full non-fiction notes only), a novel's ending (read whole only) and tags
+(docs/blueprint.md, Pipeline).
 
 The research sits in the system message, marked for prompt caching, behind
 a preamble that doesn't depend on the task; the task's instructions come in
@@ -26,13 +27,16 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_va
 from precis import llm
 from precis.research import ProgressCallback, Research
 from precis.schema import (
+    FULL_ONLY_IDEA_FIELDS,
     Book,
     Depth,
     Idea,
     KeyClaim,
     KnownFile,
     Tags,
+    has_deck,
     notes_shape_problems,
+    stripped_schema,
     tags_for_kind,
     validate_tags,
     without_unknown_sources,
@@ -57,6 +61,7 @@ _NO_AUTHOR = frozenset({"unknown", "unknown author", "no"})
 
 # validation_context keys (see llm.complete_structured).
 KIND_KEY = "kind"
+DEPTH_KEY = "depth"
 SOURCE_IDS_KEY = "source_ids"
 
 _PREAMBLE = (
@@ -91,8 +96,9 @@ class IdentityError(ValueError):
 
 
 class Draft(BaseModel):
-    """What the write call returns for fiction. Field order is the order
-    the model writes in: the identity question first, before any notes.
+    """What the write call returns: the notes, which the classes below add
+    to. Field order is the order the model writes in: the identity
+    question first, before any notes.
     """
 
     author_differs: bool | None = Field(
@@ -162,9 +168,15 @@ class Draft(BaseModel):
 
     @model_validator(mode="after")
     def _check_notes(self, info: ValidationInfo) -> Draft:
-        if (kind := (info.context or {}).get(KIND_KEY)) and (
-            problems := notes_shape_problems(kind, self.ideas, self.claims)
-        ):
+        context = info.context or {}
+        if (kind := context.get(KIND_KEY)) is None:
+            return self
+        if (depth := context.get(DEPTH_KEY)) is None:
+            # A programming error, not the model's: without the depth, which
+            # notes need a deck is unknown, and skipping the check would let
+            # a wrong shape through to fail only after the paid call.
+            raise RuntimeError("validating a draft needs its depth (DEPTH_KEY) alongside its kind")
+        if problems := notes_shape_problems(kind, depth, self.ideas, self.claims):
             raise ValueError("; ".join(problems))
         return self
 
@@ -175,6 +187,16 @@ class Draft(BaseModel):
     @property
     def ending(self) -> str | None:
         return None
+
+
+class OverviewDraft(Draft):
+    """An overview: the notes alone, its tool schema without ideas'
+    evidence or where (schema.FULL_ONLY_IDEA_FIELDS).
+    """
+
+    @classmethod
+    def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return stripped_schema(super().model_json_schema(*args, **kwargs), idea_fields=FULL_ONLY_IDEA_FIELDS)
 
 
 class DraftWithResolution(Draft):
@@ -203,7 +225,7 @@ class DraftWithResolution(Draft):
 
 
 class DraftWithClaims(Draft):
-    """Non-fiction: the notes plus a review deck."""
+    """Full non-fiction notes: the notes plus a review deck."""
 
     key_claims_for_review: list[KeyClaim] = Field(
         description="Recall questions (prompt) with 1-3 sentence answers."
@@ -232,12 +254,12 @@ def context_messages(known_file: KnownFile, research: Research) -> list[ChatComp
 
 
 def draft_model(kind: Literal["fiction", "non-fiction"], depth: Depth) -> type[Draft]:
-    """What the write call returns: a review deck for non-fiction, the
-    ending for fiction read whole.
+    """What the write call returns: a review deck for full non-fiction
+    notes, the ending for fiction read whole, an overview's notes alone.
     """
-    if kind == "non-fiction":
-        return DraftWithClaims
-    return DraftWithResolution if depth == "full" else Draft
+    if depth == "overview":
+        return OverviewDraft
+    return DraftWithClaims if has_deck(kind, depth) else DraftWithResolution
 
 
 def shared_tools(kind: Literal["fiction", "non-fiction"], depth: Depth) -> list[type[BaseModel]]:
@@ -246,9 +268,9 @@ def shared_tools(kind: Literal["fiction", "non-fiction"], depth: Depth) -> list[
     runs tools → system → messages, so the review only reuses the write
     call's cached research if both send identical tools.
     """
-    from precis.review import Review  # review.py imports this module
+    from precis.review import review_model  # review.py imports this module
 
-    return [draft_model(kind, depth), Review]
+    return [draft_model(kind, depth), review_model(kind, depth)]
 
 
 # What the notes report: the book, not its critics or the author's other
@@ -296,25 +318,38 @@ IDEA_COUNT_RULE = (
     "rule, a few for an argument with steps."
 )
 FICTION_COUNT_RULE = "As many themes as the novel develops, often few; never pad."
-
-_COMMON_RULES = (
-    "- Name the book's actual terms, arguments, examples, characters and situations. No generic statements "
-    "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
-    'discusses...", "this chapter examines...") — state the ideas.\n'
-    "- Accuracy comes first. Use the research, and your own knowledge of the book where you're confident of "
-    "it. Never invent a study, figure, quote, name or event, and never make up an illustrative example the book "
-    "doesn't use: if you aren't sure of a specific detail, describe it more generally or leave it out.\n"
-    "- Write in your own words. Quote only where the author's exact words matter — a line, not a passage — "
-    "and never so much that the notes reproduce the book.\n"
-    "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
-    "idea rests on your own knowledge of the book rather than the research.\n"
-    "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "
-    "framework plus one of its own parts as a separate idea.\n"
-    "- Never pad. Thin research means fewer ideas and shorter fields, not vaguer ones: an idea's evidence stays "
-    "empty when you have no specific example for it, and an idea you could only state in general terms is "
-    "left out. Every sentence should tell a reader something specific about this book.\n"
-    f"- {FAITHFUL_RULE}\n"
+# An overview's ideas: the ones search research can carry. No numbers, for
+# the same reason as IDEA_COUNT_RULE. Shared with the review.
+OVERVIEW_COUNT_RULE = (
+    "Only the book's headline ideas: the central points its research states clearly, the ones a reader would "
+    "name first. Fewer when the research is thin; never pad, and never stretch one point into several."
 )
+
+def _common_rules(depth: Depth) -> str:
+    """The rules every write follows. An overview's ideas have no evidence,
+    so it isn't asked for the book's examples.
+    """
+    full = depth == "full"
+    examples = "examples, " if full else ""
+    evidence = "an idea's evidence stays empty when you have no specific example for it, and " if full else ""
+    return (
+        f"- Name the book's actual terms, arguments, {examples}characters and situations. No generic statements "
+        "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
+        'discusses...", "this chapter examines...") — state the ideas.\n'
+        "- Accuracy comes first. Use the research, and your own knowledge of the book where you're confident of "
+        "it. Never invent a study, figure, quote, name or event, and never make up an illustrative example the "
+        "book doesn't use: if you aren't sure of a specific detail, describe it more generally or leave it out.\n"
+        "- Write in your own words. Quote only where the author's exact words matter — a line, not a passage — "
+        "and never so much that the notes reproduce the book.\n"
+        "- Each idea's `sources` lists the research sources (S1, S2, …) that support it; leave it empty when the "
+        "idea rests on your own knowledge of the book rather than the research.\n"
+        "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "
+        "framework plus one of its own parts as a separate idea.\n"
+        f"- Never pad. Thin research means fewer ideas and shorter fields, not vaguer ones: {evidence}an idea you "
+        "could only state in general terms is left out. Every sentence should tell a reader something specific "
+        "about this book.\n"
+        f"- {FAITHFUL_RULE}\n"
+    )
 
 
 # Full notes: the book itself is the research. Shared with the review.
@@ -342,29 +377,40 @@ def _depth_rules(depth: Depth, kind: Literal["fiction", "non-fiction"]) -> str:
     otherwise — a novel's chapters can give its story away.
     """
     if depth != "full":
-        return "- Leave each idea's where empty.\n"
+        return ""
     where = WHERE_RULE if kind == "non-fiction" else "Leave each theme's where empty."
     return f"- {FULL_RULE}\n- {where}\n"
 
 
 def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
+    if depth == "full":
+        ideas = (
+            "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), "
+            "a summary stating the idea itself, and its evidence: the specific study, story, example or figure the "
+            f"author uses to make it, or empty when there's none to give. {IDEA_COUNT_RULE}\n"
+            "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a "
+            "reader needs to remember. Each answer is correct and makes sense on its own; don't just restate an "
+            "idea's title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how "
+            "it works, the evidence for it, or when it applies.\n"
+        )
+    else:
+        ideas = (
+            "- ideas: the book's headline ideas. Each has a title (the book's own name for the idea where it has "
+            f"one) and a summary stating the idea itself. {OVERVIEW_COUNT_RULE}\n"
+        )
     return (
-        "Write this book's notes.\n\n"
+        "Write this book's notes"
+        + ("" if depth == "full" else " — an overview, from what's published about it")
+        + ".\n\n"
         "- one_line_takeaway: one sentence — the book's central message.\n"
         "- synopsis: 2-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
         "its argument builds, and where it lands. Fewer paragraphs when there's less to say.\n"
-        "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), a "
-        "summary stating the idea itself, and its evidence: the specific study, story, example or figure the "
-        f"author uses to make it, or empty when there's none to give. {IDEA_COUNT_RULE}\n"
-        "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a reader "
-        "needs to remember. Each answer is correct and makes sense on its own; don't just restate an idea's "
-        "title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how it works, "
-        "the evidence for it, or when it applies.\n"
-        f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
+        + ideas
+        + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         + _depth_rules(depth, known_file.kind)
-        + _COMMON_RULES
+        + _common_rules(depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
     )
@@ -379,16 +425,21 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
         "- synopsis: 2-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
         "the story explores. Fewer paragraphs when there's less to say.\n"
-        "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
-        "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
-        f"setup that carry it, or empty when there's none to give. {FICTION_COUNT_RULE}\n"
-        + (f"- {RESOLUTION_RULE}\n" if full else "")
+        + (
+            "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
+            "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
+            f"setup that carry it, or empty when there's none to give. {FICTION_COUNT_RULE}\n"
+            f"- {RESOLUTION_RULE}\n"
+            if full
+            else "- ideas: the novel's main themes. Each has a title (the theme) and a summary of the theme as the "
+            f"setup raises it, in as few sentences as it needs. {FICTION_COUNT_RULE}\n"
+        )
         + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         f"- No spoilers anywhere{' but resolution' if full else ''}. {SPOILER_RULE}\n"
         + _depth_rules(depth, known_file.kind)
-        + _COMMON_RULES
+        + _common_rules(depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
     )
@@ -462,7 +513,7 @@ async def write_notes(
         messages=[*context_messages(known_file, research), {"role": "user", "content": instructions}],
         response_model=draft_model(kind, depth),
         tool_models=shared_tools(kind, depth),
-        validation_context={KIND_KEY: kind, SOURCE_IDS_KEY: {s.id for s in research.sources}},
+        validation_context={KIND_KEY: kind, DEPTH_KEY: depth, SOURCE_IDS_KEY: {s.id for s in research.sources}},
         timeout_seconds=WRITE_TIMEOUT_SECONDS,
         max_tokens=WRITE_MAX_TOKENS,
         on_retry=lambda reason: progress(f"write: {reason}"),

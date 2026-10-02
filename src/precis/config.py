@@ -13,7 +13,7 @@ first import: env vars set after that don't reach it.
 
 Numbers are kept as the environment's text and parsed when read, not at
 import: `settings` is built when this module is first imported, so a
-malformed PRECIS_CONCURRENCY parsed there would crash every command with a
+malformed PRECIS_LLM_MAX_RETRIES parsed there would crash every command with a
 traceback — `precis tags` included — before the CLI could report it.
 Parsed on read, it fails only the command that uses it, as a ConfigError
 the CLI prints cleanly.
@@ -35,8 +35,8 @@ class ConfigError(ValueError):
 
 def _int(name: str, raw: str, default: int, *, minimum: int) -> int:
     """`raw` as a whole number of at least `minimum`, or `default` when
-    unset. A timeout or concurrency limit of 0 would time every call out at
-    once or hang, so those need at least 1.
+    unset. A timeout of 0 would time every call out at once, so it needs at
+    least 1.
     """
     if not raw.strip():
         return default
@@ -60,12 +60,6 @@ class Settings:
     llm_model: str = field(default_factory=lambda: _env_str("PRECIS_LLM_MODEL", ""))
     llm_max_retries_env: str = field(default_factory=lambda: _env_str("PRECIS_LLM_MAX_RETRIES", ""))
 
-    # `precis eval` only: the model that judges two runs against each other
-    # (a stronger one than the models under test), and where the eval set
-    # and its runs live — see evals/README.md.
-    judge_model: str = field(default_factory=lambda: _env_str("PRECIS_JUDGE_MODEL", ""))
-    evals_dir: str = field(default_factory=lambda: _env_str("PRECIS_EVALS_DIR", "evals"))
-
     # Search: provider-agnostic key name on purpose — swapping the concrete
     # SearchClient implementation (see search.py) shouldn't require
     # renaming this.
@@ -75,9 +69,6 @@ class Settings:
     # doesn't search again (see research.py). In Docker this is on the
     # /data volume; the relative default is for local/dev runs.
     cache_dir: str = field(default_factory=lambda: _env_str("PRECIS_CACHE_DIR", ".precis/cache"))
-
-    # `precis eval judge` only: how many books are judged at once.
-    concurrency_env: str = field(default_factory=lambda: _env_str("PRECIS_CONCURRENCY", ""))
 
     # A circuit breaker for a hung call, not a limit meant to bind — the
     # write call sets its own, longer one (write.py).
@@ -90,12 +81,15 @@ class Settings:
         return _int("PRECIS_LLM_MAX_RETRIES", self.llm_max_retries_env, 5, minimum=0)
 
     @property
-    def concurrency(self) -> int:
-        return _int("PRECIS_CONCURRENCY", self.concurrency_env, 3, minimum=1)
-
-    @property
     def llm_call_timeout_seconds(self) -> int:
         return _int("PRECIS_LLM_CALL_TIMEOUT_SECONDS", self.llm_call_timeout_seconds_env, 120, minimum=1)
+
+    def check_llm(self) -> None:
+        """Raises ConfigError for a malformed model-call setting — for a
+        command to call before any paid work, since the client reads them
+        only once it's built.
+        """
+        _ = self.llm_max_retries, self.llm_call_timeout_seconds
 
 
 settings = Settings()

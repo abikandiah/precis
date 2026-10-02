@@ -1,3 +1,4 @@
+import dataclasses
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,7 +24,9 @@ RESEARCH = Research(
         Source(id="S2", title="Interview", url="https://b.org", text="On loss aversion."),
     ],
     warnings=["research warning"],
+    depth="full",  # non-fiction's deck comes with full notes
 )
+OVERVIEW = dataclasses.replace(RESEARCH, depth="overview")
 
 
 def _idea(n: int, sources: list[str] | None = None) -> dict:
@@ -47,8 +50,10 @@ def _draft(kind: str = "non-fiction", ideas: int = 6, claims: int = 6, **extra) 
     return draft
 
 
-def _validate(model, data: dict, kind: str = "non-fiction", source_ids=("S1", "S2")):
-    return model.model_validate(data, context={write.KIND_KEY: kind, write.SOURCE_IDS_KEY: set(source_ids)})
+def _validate(model, data: dict, kind: str = "non-fiction", source_ids=("S1", "S2"), depth: str | None = None):
+    depth = depth or ("full" if kind == "non-fiction" else "overview")
+    context = {write.KIND_KEY: kind, write.DEPTH_KEY: depth, write.SOURCE_IDS_KEY: set(source_ids)}
+    return model.model_validate(data, context=context)
 
 
 # --- the write call's response model ------------------------------------------------
@@ -63,7 +68,7 @@ def test_a_valid_nonfiction_draft_passes():
     ("data", "kind", "message"),
     [
         (_draft(ideas=0), "non-fiction", "at least one idea"),
-        (_draft(claims=0), "non-fiction", "non-fiction needs key_claims_for_review"),
+        (_draft(claims=0), "non-fiction", "full non-fiction notes need key_claims_for_review"),
         (_draft(tags=["psychology", "made-up"]), "non-fiction", "give 2-4 tags from the closed non-fiction vocabulary"),
     ],
 )
@@ -109,7 +114,7 @@ def test_fiction_instructions_are_spoiler_safe_and_ask_for_themes_not_claims():
 
 
 def test_nonfiction_instructions_ask_for_claims_and_pass_reader_notes_on():
-    text = write._nonfiction_instructions(NONFICTION, "overview")
+    text = write._nonfiction_instructions(NONFICTION, "full")
     assert "key_claims_for_review: recall questions" in text and write.IDEA_COUNT_RULE in text
     assert "<reader_notes>\nI care most about the decision-making parts.\n</reader_notes>" in text
     assert "<reader_notes>" not in write._fiction_instructions(FICTION, "overview")
@@ -125,8 +130,10 @@ async def test_write_notes_makes_one_structured_call_and_assembles_the_notes():
     kwargs = call.await_args.kwargs
     assert kwargs["response_model"] is write.DraftWithClaims
     # The same tools the review call sends, so its cache prefix matches.
-    assert kwargs["tool_models"] == write.shared_tools("non-fiction", "overview")
-    assert kwargs["validation_context"] == {write.KIND_KEY: "non-fiction", write.SOURCE_IDS_KEY: {"S1", "S2"}}
+    assert kwargs["tool_models"] == write.shared_tools("non-fiction", "full")
+    assert kwargs["validation_context"] == {
+        write.KIND_KEY: "non-fiction", write.DEPTH_KEY: "full", write.SOURCE_IDS_KEY: {"S1", "S2"}
+    }
     assert kwargs["timeout_seconds"] == write.WRITE_TIMEOUT_SECONDS
     system, user = kwargs["messages"]
     assert system == write.context_messages(NONFICTION, RESEARCH)[0]
@@ -142,10 +149,10 @@ async def test_write_notes_makes_one_structured_call_and_assembles_the_notes():
 
 
 async def test_write_notes_uses_the_fiction_model_for_fiction():
-    draft = _validate(write.Draft, _draft("fiction", ideas=4), "fiction")
+    draft = _validate(write.OverviewDraft, _draft("fiction", ideas=4), "fiction")
     with patch.object(write.llm, "complete_structured", new=AsyncMock(return_value=draft)) as call:
-        notes = await write.write_notes(FICTION, RESEARCH, client=MagicMock())
-    assert call.await_args.kwargs["response_model"] is write.Draft
+        notes = await write.write_notes(FICTION, OVERVIEW, client=MagicMock())
+    assert call.await_args.kwargs["response_model"] is write.OverviewDraft
     assert notes.key_claims_for_review is None
 
 
@@ -232,7 +239,7 @@ def test_the_author_differs_description_covers_pen_names():
 
 
 def test_key_claims_mustnt_just_restate_an_idea_title():
-    assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION, "overview")
+    assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION, "full")
 
 
 def test_unknown_repeated_or_extra_tags_are_dropped_not_retried():
@@ -247,7 +254,7 @@ def test_unknown_repeated_or_extra_tags_are_dropped_not_retried():
 def test_the_draft_has_a_deck_for_nonfiction_and_an_ending_for_fiction_read_whole():
     assert write.draft_model("non-fiction", "full") is write.DraftWithClaims
     assert write.draft_model("fiction", "full") is write.DraftWithResolution
-    assert write.draft_model("fiction", "overview") is write.Draft
+    assert write.draft_model("fiction", "overview") is write.OverviewDraft
 
 
 def test_full_instructions_write_from_the_book_and_say_where():
@@ -257,7 +264,7 @@ def test_full_instructions_write_from_the_book_and_say_where():
     assert write.FULL_RULE in fiction and write.RESOLUTION_RULE in fiction
     assert "No spoilers anywhere but resolution" in fiction and "Leave each theme's where empty" in fiction
     overview = write._fiction_instructions(FICTION, "overview")
-    assert write.RESOLUTION_RULE not in overview and "Leave each idea's where empty" in overview
+    assert write.RESOLUTION_RULE not in overview and "'s where" not in overview and "evidence" not in overview
     assert write.FULL_RULE not in write._nonfiction_instructions(NONFICTION, "overview")
 
 
@@ -266,7 +273,7 @@ def test_full_notes_come_from_the_book_itself():
     full = write.context_messages(FICTION, book)[0]["content"][0]["text"]
     assert "notes on its full text" in full and "from the reader's own copy of the book" in full
     assert "from the web" not in full
-    assert "from the web" in write.context_messages(FICTION, RESEARCH)[0]["content"][0]["text"]
+    assert "from the web" in write.context_messages(FICTION, OVERVIEW)[0]["content"][0]["text"]
 
 
 async def test_fiction_read_whole_keeps_its_ending_apart():
@@ -283,3 +290,69 @@ def test_an_empty_or_placeholder_ending_is_sent_back():
     for empty in ("", "  ", "N/A."):
         with pytest.raises(ValidationError, match="must say how the story ends"):
             _validate(write.DraftWithResolution, _draft("fiction", ideas=4, resolution=empty), "fiction")
+
+
+# --- overviews ------------------------------------------------------------------------
+
+
+def test_an_overview_has_headline_ideas_and_no_deck():
+    assert write.draft_model("non-fiction", "overview") is write.OverviewDraft
+    text = write._nonfiction_instructions(NONFICTION, "overview")
+    assert write.OVERVIEW_COUNT_RULE in text and "an overview" in text
+    assert "key_claims_for_review" not in text and write.IDEA_COUNT_RULE not in text
+    fiction = write._fiction_instructions(FICTION, "overview")
+    assert "evidence" not in fiction and "examples" not in fiction
+
+
+async def test_a_nonfiction_overview_is_written_without_claims_or_evidence():
+    draft = _validate(write.OverviewDraft, {**_draft(), "key_claims_for_review": None}, depth="overview")
+    with patch.object(write.llm, "complete_structured", new=AsyncMock(return_value=draft)) as call:
+        notes = await write.write_notes(NONFICTION, OVERVIEW, client=MagicMock())
+    assert call.await_args.kwargs["response_model"] is write.OverviewDraft
+    assert call.await_args.kwargs["validation_context"][write.DEPTH_KEY] == "overview"
+    assert notes.depth == "overview" and notes.key_claims_for_review is None
+    assert all(i.evidence == "" for i in notes.ideas)
+
+
+def test_an_overview_draft_with_a_deck_is_sent_back():
+    with pytest.raises(ValidationError, match="only full non-fiction notes have key_claims_for_review"):
+        _validate(write.DraftWithClaims, _draft(), depth="overview")
+
+
+def _fields(model) -> tuple[set[str], set[str]]:
+    """A tool's top-level fields, and its ideas'."""
+    schema = model.model_json_schema()
+    return set(schema["properties"]), set(schema["$defs"]["Idea"]["properties"])
+
+
+def test_each_modes_tools_offer_only_what_its_notes_can_have():
+    from precis import review
+
+    every_idea_field = {"title", "summary", "evidence", "sources", "where"}
+    expected = {
+        ("non-fiction", "full"): (True, False, every_idea_field),
+        ("fiction", "full"): (False, True, every_idea_field),
+        ("non-fiction", "overview"): (False, False, {"title", "summary", "sources"}),
+        ("fiction", "overview"): (False, False, {"title", "summary", "sources"}),
+    }
+    for (kind, depth), (deck, ending, idea_fields) in expected.items():
+        tools = write.shared_tools(kind, depth)
+        # The write and review calls send the same tools, so the review reuses the cached research.
+        assert tools == [write.draft_model(kind, depth), review.review_model(kind, depth)]
+        for tool in tools:
+            fields, ideas = _fields(tool)
+            assert ("key_claims_for_review" in fields, "resolution" in fields, ideas) == (deck, ending, idea_fields)
+
+
+def test_stripping_a_field_the_schema_doesnt_have_fails_loudly():
+    from precis.schema import stripped_schema
+
+    with pytest.raises(RuntimeError, match="no Idea definition"):
+        stripped_schema({"properties": {}}, idea_fields=("evidence",))
+    with pytest.raises(RuntimeError, match="no 'resolution' field"):
+        stripped_schema({"properties": {}}, fields=("resolution",))
+
+
+def test_validating_a_draft_without_its_depth_fails_loudly():
+    with pytest.raises(RuntimeError, match="needs its depth"):
+        write.DraftWithClaims.model_validate(_draft(), context={write.KIND_KEY: "non-fiction"})
