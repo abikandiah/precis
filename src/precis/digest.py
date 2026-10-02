@@ -34,7 +34,7 @@ is all of the research — and a page's notes are cut at NOTES_CHARS.
 A copy of the book is kept only from the reader's own book_file or a site
 that offers books freely (FREE_HOSTS: public-domain libraries and
 open-access repositories), never from one that may host copies it
-shouldn't (docs/v2-plan.md, Two modes). A long page from any other site has
+shouldn't (docs/blueprint.md, Digest). A long page from any other site has
 its first SCREEN_CHUNKS chunks read first, fiction's too: if one is the
 book's own text the page is dropped before the rest is paid for, and a
 page the full digest then finds to be mostly the book is dropped too. The

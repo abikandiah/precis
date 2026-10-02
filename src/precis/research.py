@@ -23,7 +23,7 @@ data, never instructions (see search.py's module docstring).
 
 With the reader's own copy of the book (book_file.py), there's no search:
 the book is the research (`book_research`), for full notes
-(docs/v2-plan.md, Two modes). Search is for overviews.
+(docs/blueprint.md, Two modes). Search is for overviews.
 """
 
 from __future__ import annotations

@@ -3,13 +3,39 @@
 precis turns a book into study notes a reader can use to recall it after
 reading: what it's about, its main ideas (or, for fiction, its themes), and
 what it teaches. It's a standalone module with a JSON-file boundary: a
-known-file in, a book JSON out. Work still in progress is tracked in
-[v2-plan.md](v2-plan.md).
+known-file in, a book JSON out. What's left to do, and the decisions that
+steer it, are in [v2-plan.md](v2-plan.md).
 
 Every book gets the same treatment — no chapter walkthroughs. Chapter-level
 material was the weak spot in grounding (the web describes books as a
 whole: reviews, publisher copy, interviews, summaries) and the source of
 most of the old pipeline's complexity.
+
+## Two modes
+
+The notes' source decides how thorough they can be, and the known-file
+alone decides the source: a `book_file` means **full** notes, none means an
+**overview**.
+
+- **Full notes**, from the reader's own copy read whole, with no search:
+  the book's key ideas, each with its own example and a pointer to where in
+  the book it comes from; for a novel, its ending, kept apart behind a
+  spoiler warning; for non-fiction, a review deck of key claims.
+- **An overview**, from search: takeaway, synopsis and a few headline ideas
+  with no evidence, and no review deck. Search can't carry thorough notes:
+  they're only as good as what it turns up — fine for a famous book, where
+  the model's own knowledge fills in, thin and error-prone for the rest.
+  Its errors come from pages *about* the book: a quote from another of
+  Jung's essays that a summary site credited to *The Undiscovered Self*,
+  ideas from Storr's later *Solitude*. So an overview claims only what
+  search can back. `--overview` forces one over a `book_file`, for a quick
+  one; adding a `book_file` and regenerating turns an overview into full
+  notes.
+
+In both, no provider keeps or trains on the prompts, and a copy of the book
+is kept only from the reader or a free library (Digest, below). A consumer
+should say an overview is written from published sources, not the book;
+full notes need no label.
 
 ## How the module is used
 
@@ -65,7 +91,7 @@ caught by the text itself: more than 5% undecodable bytes fails the run. A
 locked PDF is one pypdf can't open without a key or whose encryption
 handler it doesn't implement (a DRM scheme's own); one encrypted only
 against editing opens (pypdf's `crypto` extra reads its AES). precis never
-removes DRM. It decides the notes' depth (docs/v2-plan.md, Two modes):
+removes DRM. It decides the notes' depth (Two modes, above):
 with it, the book is the whole research — source `S1`, read whole by the
 digest, fiction included — and nothing is searched, for **full** notes;
 without it, research is search alone, for an **overview**. `--book-file`
@@ -143,8 +169,8 @@ warnings               anything the reader should check
 
 ```
 known-file ─► research ─► digest ─► write ─► checks ─► review ─► validate ─► book JSON
-               (cached)   (cached,             (code)   (one call)
-                          non-fiction)
+               (search    (long pages,          (code)   (one call)
+               cached)    cached)
 ```
 
 A plain async function (`generate.py`). The research and digest caches are
@@ -358,7 +384,7 @@ both an idea's summary and evidence counts once). The notes are published, so th
 state a book's ideas in their own words and quote a line only where the
 exact words matter — never enough of the book to stand in for it. The write
 prompt says so; the review cuts a flagged quote to its line or paraphrases
-it. Every library book so far sits well under both (longest quote
+it. Every book generated so far sat well under both (longest quote
 ~200 characters, most in one book ~1,200).
 
 No coverage check: a test that flagged parts of a digested book no idea drew
@@ -477,7 +503,7 @@ carries only the command's output.
 
 - **LLM access:** an OpenAI-compatible gateway (OpenRouter) — base URL, key
   and model from env vars, with the `openai` package used only as an HTTP
-  client. The model is Haiku 4.5 (docs/v2-plan.md). Structured output
+  client. The model is Haiku 4.5 (v2-plan.md, Decisions). Structured output
   uses a forced `tool_choice`, which rules out models that reject it.
   Every call asks OpenRouter for providers that support all its
   parameters and that neither keep nor train on prompts
@@ -512,5 +538,5 @@ carries only the command's output.
 
 - A storage layer — generation's contract (JSON in, JSON out) leaves storage
   to the consumer.
-- Consumer integration (book-keeper's schema and publishing tooling) —
-  follow-up work on the consumer's side.
+- Consumer integration (book-keeper's schema, pages and publishing
+  tooling) — it lives in the consumer's repo.

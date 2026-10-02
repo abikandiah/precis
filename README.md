@@ -1,12 +1,13 @@
 # precis
 
 Standalone Python module: reads a known-file (ISBN, title, author, kind),
-researches the book on the web, and writes validated whole-book notes —
-takeaway, synopsis, key ideas (themes for fiction, spoiler-safe) and, for
-non-fiction, key claims for review. Generation always runs in Docker.
+and writes validated whole-book notes — takeaway, synopsis, key ideas
+(themes for fiction, spoiler-safe) and, for non-fiction, key claims for
+review — from your own copy of the book, or an overview from the web when
+you don't have one. Generation always runs in Docker.
 
 See [docs/blueprint.md](docs/blueprint.md) for the design and
-[docs/v2-plan.md](docs/v2-plan.md) for what's still being built.
+[docs/v2-plan.md](docs/v2-plan.md) for what's left to do.
 
 ## Making a known-file
 
