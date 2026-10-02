@@ -68,7 +68,7 @@ async def test_a_failed_review_keeps_the_written_notes_with_a_warning():
 
 def _nonfiction(ideas: int) -> Book:
     return Book.model_validate({
-        "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "one_line_takeaway": "t", "synopsis": "s",
+        "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "depth": "overview", "one_line_takeaway": "t", "synopsis": "s",
         "ideas": [{"title": f"Idea {n}", "summary": "s", "evidence": "e"} for n in range(ideas)],
         "key_claims_for_review": [{"prompt": "Q?", "answer": "A."}] * 5, "tags": ["business", "economics"],
     })  # fmt: skip

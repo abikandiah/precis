@@ -24,9 +24,11 @@ used to weight the notes and carried into the output, never quoted.
 `.pdf` with a text layer, or `.txt`), relative to the known-file. Books
 from Kindle, Apple Books, Kobo and library loans are usually DRM-locked;
 precis refuses those rather than reading them as garbage, and never removes
-DRM. With it, the
-notes are written from the whole book, not only from what's online about
-it — about $0.20-0.25 more for a 400-page non-fiction book, once.
+DRM. With it, the notes are **full**: written from the whole book, with
+no web search, each idea pointing to the chapters it comes from, and for a
+novel its ending kept apart behind a spoiler warning — about $0.20-0.25 of
+reading for a 400-page book, once. Without it, they're an **overview** from
+what's online about the book.
 
 ## Generating
 

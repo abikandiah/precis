@@ -19,7 +19,7 @@ def _idea(n: int, sources: list[str] | None = None) -> dict:
 
 def _book(kind: str = "non-fiction", ideas: int = 6) -> Book:
     return Book.model_validate({
-        "title": "T", "author": "A", "isbn": "1", "kind": kind, "one_line_takeaway": "take", "synopsis": SYNOPSIS,
+        "title": "T", "author": "A", "isbn": "1", "kind": kind, "depth": "overview", "one_line_takeaway": "take", "synopsis": SYNOPSIS,
         "ideas": [_idea(n) for n in range(ideas)],
         "key_claims_for_review": [{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)] if kind == "non-fiction" else None,
         "tags": ["business", "economics"] if kind == "non-fiction" else ["dystopian", "drama"],
@@ -212,7 +212,7 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
     system, user = kwargs["messages"]
     # Same tools and system message as the write call, so the cached research is reused.
     assert system == write.context_messages(KNOWN, RESEARCH)[0]
-    assert kwargs["tool_models"] == write.shared_tools("non-fiction")
+    assert kwargs["tool_models"] == write.shared_tools("non-fiction", "overview")
     assert kwargs["response_model"] is review.Review
     assert "- idea 2: a finding" in user["content"] and '"title": "Idea 5"' in user["content"]
     assert "one idea per distinct point" in user["content"] and "drop or add an idea" in user["content"]
@@ -221,14 +221,14 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
 
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(_book("fiction", ideas=4), [])
-    assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION)
+    assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION, "overview")
     assert write.FICTION_COUNT_RULE in text and "key claims" not in text and "key_claims_for_review" not in text
 
 
 def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():
     assert write.FAITHFUL_RULE in review._instructions(_book(), [])
-    assert write.FAITHFUL_RULE in write._nonfiction_instructions(KNOWN)
-    assert write.FAITHFUL_RULE in write._fiction_instructions(FICTION)
+    assert write.FAITHFUL_RULE in write._nonfiction_instructions(KNOWN, "overview")
+    assert write.FAITHFUL_RULE in write._fiction_instructions(FICTION, "overview")
 
 
 def test_titles_match_whatever_quotes_dashes_and_case_the_model_retypes():
@@ -303,3 +303,45 @@ def test_same_point_pairs_that_arent_two_ideas_or_would_drop_both_are_ignored():
 def test_no_same_point_means_none():
     reviewed, _ = _apply({"same_point": None, "ideas": _verdicts()})
     assert len(reviewed.ideas) == 6
+
+
+# --- full notes -----------------------------------------------------------------------
+
+
+def _full_fiction() -> Book:
+    return Book.model_validate(_book("fiction", ideas=4).model_dump() | {"depth": "full", "resolution": "Ending. " * 20})
+
+
+def test_the_review_corrects_a_novels_ending_only_when_read_whole():
+    reviewed, changes = _apply({"ideas": _verdicts(4), "resolution": "The real ending. " * 20}, _full_fiction())
+    assert reviewed.resolution == "The real ending. " * 20 and "revised resolution" in changes
+    # Part of it alone would lose the rest.
+    reviewed, changes = _apply({"ideas": _verdicts(4), "resolution": "Ending."}, _full_fiction())
+    assert reviewed.resolution == "Ending. " * 20 and any("left the resolution as written" in c for c in changes)
+    # An overview has no ending to correct: one offered is ignored.
+    reviewed, _ = _apply({"ideas": _verdicts(4), "resolution": "An ending."}, _book("fiction", ideas=4))
+    assert reviewed.resolution is None
+
+
+def test_the_full_review_judges_against_the_book_and_checks_where():
+    full = Book.model_validate(_book().model_dump() | {"depth": "full"})
+    text = review._instructions(full, [])
+    assert write.FULL_RULE in text and write.WHERE_RULE in text and "excerpts of pages" not in text
+    assert write.WHERE_RULE not in review._instructions(_book(), [])
+    fiction = review._instructions(_full_fiction(), [])
+    assert write.RESOLUTION_RULE in fiction and "spoiler-safe but for resolution" in fiction and '"resolution"' in fiction
+    assert '"where"' not in fiction  # always empty for fiction: nothing to review
+
+
+def test_a_revised_idea_that_leaves_out_where_keeps_the_originals():
+    full = Book.model_validate(
+        _book().model_dump() | {"depth": "full", "ideas": [_idea(n) | {"where": f"Chapter {n}"} for n in range(6)]}
+    )
+    revised = {"title": "Idea 1", "summary": "Sharper.", "evidence": "e"}
+    reviewed, _ = _apply({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r", "revised": revised})}, full)
+    assert (reviewed.ideas[1].summary, reviewed.ideas[1].where, reviewed.ideas[1].sources) == ("Sharper.", "Chapter 1", ["S1"])
+
+
+def test_a_spoiler_moved_into_the_ending_comes_with_the_whole_ending():
+    text = review._instructions(_full_fiction(), [])
+    assert "returning the whole resolution with it" in text and "takes in a detail moved from another field" in text

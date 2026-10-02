@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from precis import write
-from precis.research import Research, Source
+from precis.research import BOOK_FILE_URL, Research, Source
 from precis.schema import KeyClaim, KnownFile
 from precis.search import author_names
 
@@ -102,17 +102,17 @@ def test_context_messages_cache_the_book_and_research_in_the_system_message():
 
 
 def test_fiction_instructions_are_spoiler_safe_and_ask_for_themes_not_claims():
-    text = write._fiction_instructions(FICTION)
+    text = write._fiction_instructions(FICTION, "overview")
     assert "No spoilers" in text and write.FICTION_COUNT_RULE in text
     assert "key_claims_for_review" not in text
     assert "dystopian" in text and "psychology" not in text
 
 
 def test_nonfiction_instructions_ask_for_claims_and_pass_reader_notes_on():
-    text = write._nonfiction_instructions(NONFICTION)
+    text = write._nonfiction_instructions(NONFICTION, "overview")
     assert "key_claims_for_review: recall questions" in text and write.IDEA_COUNT_RULE in text
     assert "<reader_notes>\nI care most about the decision-making parts.\n</reader_notes>" in text
-    assert "<reader_notes>" not in write._fiction_instructions(FICTION)
+    assert "<reader_notes>" not in write._fiction_instructions(FICTION, "overview")
 
 
 # --- write_notes ----------------------------------------------------------------------
@@ -125,7 +125,7 @@ async def test_write_notes_makes_one_structured_call_and_assembles_the_notes():
     kwargs = call.await_args.kwargs
     assert kwargs["response_model"] is write.DraftWithClaims
     # The same tools the review call sends, so its cache prefix matches.
-    assert kwargs["tool_models"] == write.shared_tools("non-fiction")
+    assert kwargs["tool_models"] == write.shared_tools("non-fiction", "overview")
     assert kwargs["validation_context"] == {write.KIND_KEY: "non-fiction", write.SOURCE_IDS_KEY: {"S1", "S2"}}
     assert kwargs["timeout_seconds"] == write.WRITE_TIMEOUT_SECONDS
     system, user = kwargs["messages"]
@@ -232,10 +232,54 @@ def test_the_author_differs_description_covers_pen_names():
 
 
 def test_key_claims_mustnt_just_restate_an_idea_title():
-    assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION)
+    assert "don't just restate an idea's title as a question" in write._nonfiction_instructions(NONFICTION, "overview")
 
 
 def test_unknown_repeated_or_extra_tags_are_dropped_not_retried():
     tags = [{"name": "x"}, "self-help", "psychology", "psychology", "science", "business", "economics", "history"]
     draft = _validate(write.DraftWithClaims, _draft(tags=tags))
     assert draft.tags == ["psychology", "science", "business", "economics"]
+
+
+# --- full notes -----------------------------------------------------------------------
+
+
+def test_the_draft_has_a_deck_for_nonfiction_and_an_ending_for_fiction_read_whole():
+    assert write.draft_model("non-fiction", "full") is write.DraftWithClaims
+    assert write.draft_model("fiction", "full") is write.DraftWithResolution
+    assert write.draft_model("fiction", "overview") is write.Draft
+
+
+def test_full_instructions_write_from_the_book_and_say_where():
+    nonfiction = write._nonfiction_instructions(NONFICTION, "full")
+    assert write.FULL_RULE in nonfiction and write.WHERE_RULE in nonfiction
+    fiction = write._fiction_instructions(FICTION, "full")
+    assert write.FULL_RULE in fiction and write.RESOLUTION_RULE in fiction
+    assert "No spoilers anywhere but resolution" in fiction and "Leave each theme's where empty" in fiction
+    overview = write._fiction_instructions(FICTION, "overview")
+    assert write.RESOLUTION_RULE not in overview and "Leave each idea's where empty" in overview
+    assert write.FULL_RULE not in write._nonfiction_instructions(NONFICTION, "overview")
+
+
+def test_full_notes_come_from_the_book_itself():
+    book = Research(sources=[Source(id="S1", title="t", url=BOOK_FILE_URL, text="x")], warnings=[], depth="full")
+    full = write.context_messages(FICTION, book)[0]["content"][0]["text"]
+    assert "notes on its full text" in full and "from the reader's own copy of the book" in full
+    assert "from the web" not in full
+    assert "from the web" in write.context_messages(FICTION, RESEARCH)[0]["content"][0]["text"]
+
+
+async def test_fiction_read_whole_keeps_its_ending_apart():
+    book = Research(sources=[Source(id="S1", title="t", url=BOOK_FILE_URL, text="x")], warnings=[], depth="full")
+    draft = _validate(write.DraftWithResolution, _draft("fiction", ideas=4, resolution="Winston loves Big Brother."), "fiction")
+    with patch.object(write.llm, "complete_structured", new=AsyncMock(return_value=draft)) as call:
+        notes = await write.write_notes(FICTION, book, client=MagicMock())
+    assert call.await_args.kwargs["response_model"] is write.DraftWithResolution
+    assert call.await_args.kwargs["tool_models"] == write.shared_tools("fiction", "full")
+    assert (notes.depth, notes.resolution) == ("full", "Winston loves Big Brother.")
+
+
+def test_an_empty_or_placeholder_ending_is_sent_back():
+    for empty in ("", "  ", "N/A."):
+        with pytest.raises(ValidationError, match="must say how the story ends"):
+            _validate(write.DraftWithResolution, _draft("fiction", ideas=4, resolution=empty), "fiction")

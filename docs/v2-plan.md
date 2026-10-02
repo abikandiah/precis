@@ -164,13 +164,18 @@ found online) are the reader's to deal with later, as are the library's
   "deny"` on every call, and `digest.py`'s `FREE_HOSTS`: a long page from
   any other site is screened by its first two chunks and dropped if it's
   the book's own text, fiction included.
-- [ ] **Two modes: full mode** — no search with a `book_file`, chapter
-  pointers, `depth`; fiction read whole, its resolution marked for the
-  spoiler toggle.
+- [x] **Two modes: full mode** (2026-10-02) — schema v3: `depth`, ideas'
+  `where`, fiction's `resolution`. With a `book_file`, research is the book
+  alone (no search), the digest reads it whole — fiction too, with its own
+  notes rule and up to 40 chunks — and the write and review prompts write
+  from it, point full non-fiction ideas into the book, and keep a novel's
+  ending in `resolution`. book-keeper still takes only v2 until its phase
+  lands.
 - [ ] **Two modes: overview mode** — the lighter write contract, no key
   claims, `--overview`.
-- [ ] **Two modes: book-keeper** — `depth` in the schema, the overview note,
-  no banner or index on overviews, the spoiler toggle.
+- [ ] **Two modes: book-keeper** — schema v3 (`depth`, `resolution`, and
+  ideas' `where`, which precis writes as `""` when empty, like `evidence`),
+  the overview note, no banner or index on overviews, the spoiler toggle.
 - [ ] **Generate the library** — the known-files in book-keeper's `known/`,
   with Haiku 4.5: full notes where there's a `book_file`, overviews
   elsewhere; each gets the Claude review before it's committed.

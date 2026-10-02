@@ -17,7 +17,11 @@ from pydantic import (
     model_validator,
 )
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
+
+# What the notes were written from: "full" from the reader's own copy of the
+# book (its book_file), read whole; "overview" from search alone.
+Depth = Literal["full", "overview"]
 
 PLACEHOLDER = "TODO: fill in by hand"
 
@@ -164,6 +168,11 @@ class Idea(BaseModel):
         description='IDs of the research sources that support this idea, e.g. ["S2", "S5"]; empty when it rests '
         "on your own knowledge of the book.",
     )
+    where: str = Field(
+        default="",
+        description="Where in the book it comes from — the chapters or parts, as the book names them. Empty "
+        "unless the instructions ask for it.",
+    )
 
     @field_validator("sources")
     @classmethod
@@ -219,7 +228,9 @@ def without_unknown_sources(idea: Idea, source_ids: set[str]) -> tuple[Idea, lis
 
 class Book(BaseModel):
     """precis's output: whole-book notes for recalling a book after
-    reading it. Fiction's are spoiler-safe and carry no review deck.
+    reading it. Fiction's are spoiler-safe and carry no review deck; read
+    whole (full depth), a novel's ending is in `resolution`, which the page
+    shows only behind a spoiler warning.
     """
 
     schema_version: str = SCHEMA_VERSION
@@ -230,9 +241,11 @@ class Book(BaseModel):
     isbn: str
     page_count: int | None = None
     kind: Literal["fiction", "non-fiction"]
+    depth: Depth
     one_line_takeaway: str
     synopsis: str
     ideas: list[Idea]
+    resolution: str | None = None
     key_claims_for_review: list[KeyClaim] | None = None
     tags: Tags
     reader_notes: str | None = None
@@ -248,4 +261,11 @@ class Book(BaseModel):
     def _check_shape(self) -> Book:
         if problems := notes_shape_problems(self.kind, self.ideas, self.key_claims_for_review):
             raise ValueError("; ".join(problems))
+        if self.resolution is not None and (self.kind, self.depth) != ("fiction", "full"):
+            raise ValueError("only fiction read whole (full depth) has a resolution")
+        if (self.kind, self.depth) != ("non-fiction", "full"):
+            # Only full non-fiction notes point into the book (a novel's
+            # chapters can give its story away); a `where` from anything else
+            # is a guess, cleared rather than sent back.
+            self.ideas = [i.model_copy(update={"where": ""}) if i.where else i for i in self.ideas]
         return self

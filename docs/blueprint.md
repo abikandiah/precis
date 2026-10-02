@@ -65,27 +65,32 @@ caught by the text itself: more than 5% undecodable bytes fails the run. A
 locked PDF is one pypdf can't open without a key or whose encryption
 handler it doesn't implement (a DRM scheme's own); one encrypted only
 against editing opens (pypdf's `crypto` extra reads its AES). precis never
-removes DRM. It becomes source
-`S1`, ahead of the web pages, shown as its opening and read whole by the
-digest for non-fiction (fiction keeps the spoiler-safe opening); a copy of
-the same book in the search results is dropped as a mirror of it, and the
-research is never thin with it. Without it, a book is read whole only when
-search happens to turn up a copy. `--book-file` overrides the path, for a
-container where the known-file's host path doesn't exist. A 400-page book
-adds ~$0.20-0.25 of digest, once: the digest is cached. The known-file's filename
+removes DRM. It decides the notes' depth (docs/v2-plan.md, Two modes):
+with it, the book is the whole research — source `S1`, read whole by the
+digest, fiction included — and nothing is searched, for **full** notes;
+without it, research is search alone, for an **overview**. `--book-file`
+overrides the path, for a container where the known-file's host path
+doesn't exist. A 400-page book costs ~$0.20-0.25 of digest, once: the
+digest is cached. The known-file's filename
 stem is the book's slug: it names the research cache, and the consumer
 names the output after it too.
 
 ## Output: book JSON
 
 ```
-schema_version         "2"
+schema_version         "3"
 title, author, year, isbn, page_count, kind    from the known-file
+depth                  "full" (from the reader's book_file, read whole) or
+                         "overview" (from search)
 one_line_takeaway      one sentence
 synopsis               2-5 paragraphs, fewer when there's less to say
-ideas                  [{ title, summary, evidence, sources }]
+ideas                  [{ title, summary, evidence, sources, where }]
                          non-fiction: key ideas; fiction: themes
                          as many as the book makes, each as long as it needs
+                         where: the chapters or parts an idea comes from,
+                         full non-fiction only
+resolution             how the story ends — fiction at full depth only,
+                         shown behind a spoiler warning
 key_claims_for_review  [{ prompt, answer }], non-fiction only, one per idea
                          a reader needs to remember
 tags                   2-4 from the closed vocabulary for the kind
@@ -95,8 +100,14 @@ warnings               anything the reader should check
 
 - **Fiction is spoiler-safe** — premise and setup only, nothing past roughly
   the first act — because other people browse the library before reading
-  the book. It has no review deck: reading fiction isn't about retaining
-  claims.
+  the book. Read whole (full depth), a novel's ending goes in `resolution`,
+  the one field with spoilers, which the page shows only behind a spoiler
+  warning. Fiction has no review deck: reading fiction isn't about
+  retaining claims.
+- **`where`** points back into the book — chapter or part names from the
+  digest's sections — not a chapter-by-chapter account. Only full
+  non-fiction notes have it: an overview's would be a guess, and a novel's
+  chapter titles can give its story away. Anything else's is cleared.
 - **`evidence`** is the study, story, example or figure the author uses
   (non-fiction), or the characters and situations that carry a theme
   (fiction). It makes the notes memorable and the grounding checkable.
@@ -127,7 +138,10 @@ known-file ─► research ─► digest ─► write ─► checks ─► revie
 
 A plain async function (`generate.py`). The research and digest caches are
 the only persisted state, so an interrupted run just starts again without
-searching, or digesting, again.
+searching, or digesting, again. With a `book_file` there's no search: the
+book is the research, the digest reads it whole (fiction too), and the
+write and review prompts say so (`FULL_RULE`) — full notes; the research
+itself says which (`Research.depth`), so the two calls can't disagree.
 
 ### Research (`research.py`)
 
@@ -200,8 +214,20 @@ source's text; the source keeps them as `parts`. A page
 that's mostly book text is the book's own text (`is_book_text`). Shorter
 cut pages keep their excerpt, which holds most of them verbatim.
 
-Fiction is never digested: a novel's full text holds the ending, and its
-opening excerpt is the spoiler-safe part.
+Fiction is digested only from the reader's own copy, for full notes, with
+its notes on what happens — the ending included, since the notes keep it
+apart in `resolution`. A novel's full text found by search holds its ending
+too, and an overview keeps to its spoiler-safe opening excerpt. The
+reader's copy is read up to `CHUNKS_PER_BOOK_FILE` (40) chunks, ~2.4M
+characters, against 20 for a search page: it's the whole research, and a
+novel's ending is in its last chunks. It's read whenever it's longer than
+its displayed opening, not only past the 2x-excerpt threshold search pages
+need, so a novella isn't noted from its first half. And it's read whole or
+not at all: a copy past the cap fails the run before anything is paid for,
+and a failed chunk fails it after the rest are cached (a retry pays only for
+it), since full notes on part of the book would be wrong, not thin — a
+novel's ending written from memory. Each chunk's cache key includes the
+book's kind, which decides its notes rule.
 
 **Copies of the book only from free libraries.** A copy of the book is kept
 only from the reader's own `book_file` or a site that offers books freely

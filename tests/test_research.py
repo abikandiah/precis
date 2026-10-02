@@ -176,21 +176,24 @@ def test_an_uncut_page_keeps_the_short_lines_cleaning_dropped():
     assert source.page_text == page
 
 
-def test_the_readers_own_copy_comes_first_and_research_with_it_isnt_thin():
+def test_the_readers_own_copy_is_the_whole_research():
     book = "\n".join(f"{_LINE} chapter{j}." for j in range(2_000))
-    found = research.build_research(BOOK, [[_page("https://a.org", _LINE)]], book_text=book)
-    own, web = found.sources
+    found = research.book_research(book)
+    [own] = found.sources
     assert (own.id, own.url, own.title) == ("S1", research.BOOK_FILE_URL, research.BOOK_FILE_TITLE)
     assert own.cut and own.full_text == book and own.text == book[: research.PAGE_CHARS]
-    assert web.id == "S2"
-    assert found.warnings == []  # one web page alone would be thin
-    short = research.build_research(BOOK, [[_page("https://a.org", _LINE)]], book_text=_LINE)
-    assert not short.sources[0].cut and short.sources[0].full_text is None
-    # A copy of the same book among the search results is a mirror of it, not read twice.
-    copy = _page("https://copy.org", book)
-    assert [s.url for s in research.build_research(BOOK, [[copy, _page("https://a.org", _LINE)]], book_text=book).sources] == [
-        research.BOOK_FILE_URL, "https://a.org"
-    ]
+    assert found.warnings == [] and found.depth == "full"
+    short = research.book_research(_LINE).sources[0]
+    assert not short.cut and short.full_text is None
+    # Search research is an overview, however much of it there is.
+    assert research.build_research(BOOK, [[_page("https://a.org", _LINE)]]).depth == "overview"
+
+
+async def test_research_with_the_readers_own_copy_never_searches(tmp_path):
+    client = _client()
+    found = await research.research(BOOK, slug="tfas", client=client, cache_dir=tmp_path, book_text=_LINE * 50)
+    client.search.assert_not_awaited()
+    assert found.depth == "full" and not research.cache_path("tfas", tmp_path).exists()
 
 
 def test_thin_research_warns_by_pages_or_by_text():

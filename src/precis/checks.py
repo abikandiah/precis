@@ -156,6 +156,8 @@ def _quoted(book: Book) -> list[tuple[str, str]]:
     for n, i in enumerate(book.ideas, 1):  # apart, so a quote mark in one can't pair with one in the other
         fields += [(f'idea {n} "{i.title}"', i.summary), (f'idea {n} "{i.title}"', i.evidence)]
     fields += [(f"key claim {n}", c.answer) for n, c in enumerate(book.key_claims_for_review or [], 1)]
+    if book.resolution:
+        fields.append(("the resolution", book.resolution))
     return [(where, quote) for where, text in fields for quote in quotes(text)]
 
 

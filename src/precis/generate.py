@@ -1,11 +1,11 @@
-"""A whole run: research the book, read its long pages whole (digest.py,
-non-fiction only), write its notes, check them in code, then review them
-against the research in one more call. A review that fails
-leaves the written notes, which are already paid for, with a warning that
-they're unreviewed. A plain async
-function — the research and digest caches (research.py, digest.py) are the
-only persisted state, so an interrupted run just starts again without
-searching, or reading long pages, again.
+"""A whole run: research the book (search, or with a book_file the book
+alone), read its long pages whole (digest.py), write its notes, check them
+in code, then review them against the research in one more call. A review
+that fails leaves the written notes, which are already paid for, with a
+warning that they're unreviewed. A plain async function — the research
+and digest caches (research.py, digest.py) are the only persisted state, so
+an interrupted run just starts again without searching, or reading long
+pages, again.
 
 There's no whole-run time limit: every request has its own timeout. A
 stalled provider costs about 15 minutes a call (three 5-minute tries), but

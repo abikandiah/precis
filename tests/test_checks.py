@@ -12,7 +12,7 @@ def _book(ideas: list[dict], claims: list[dict] | None = None) -> Book:
     fillers = ["Flywheel momentum", "Stockdale paradox", "Technology accelerators", "Culture discipline", "Council"]
     ideas = ideas + [_idea(title, title.lower()) for title in fillers[: 5 - len(ideas)]]
     return Book(
-        title="Good to Great", author="Jim Collins", isbn="1", kind="non-fiction", one_line_takeaway="t",
+        title="Good to Great", author="Jim Collins", isbn="1", kind="non-fiction", depth="overview", one_line_takeaway="t",
         synopsis="s", tags=["business", "economics"], ideas=ideas,
         key_claims_for_review=claims or [{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)],
     )  # fmt: skip
@@ -172,3 +172,13 @@ def test_a_leading_apostrophe_does_not_open_a_long_quote():
     assert quotes(text) == []
     # 'em pairs with parents' across a phrase at most, never past a sentence end.
     assert quotes(f"She told 'em. {filler}until her parents' generation lost its hold.") == []
+
+
+def test_quotes_in_a_novels_ending_are_checked_too():
+    passage = "We are what we repeatedly do, and so the habit of each day becomes the person of each year. " * 4
+    ideas = [{"title": f"Theme {n}", "summary": f"theme{n}", "evidence": "e"} for n in range(3)]
+    book = Book(
+        title="A Novel", author="A", isbn="1", kind="fiction", depth="full", one_line_takeaway="t", synopsis="s",
+        tags=["dystopian", "drama"], ideas=ideas, resolution=f'It ends: "{passage.strip()}"',
+    )  # fmt: skip
+    assert any(i.startswith('the resolution: the quote "We are what') for i in check_notes(book))

@@ -265,3 +265,105 @@ async def test_fiction_drops_copies_from_other_sites_but_reads_nothing_whole(tmp
         found = await digest.digest(fiction, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
     assert calls.await_count == 2 * digest.SCREEN_CHUNKS
     assert [s.id for s in found.sources] == ["S2"] and found.sources[0] == research.sources[1]  # its excerpt, as it was
+
+
+def _book_file(full_text: str) -> Source:
+    return Source(id="S1", title="t", url=digest.BOOK_FILE_URL, text=full_text[:100], full_text=full_text, cut=True)
+
+
+async def test_a_novel_is_read_whole_only_from_the_readers_own_copy(tmp_path):
+    fiction = BOOK.model_copy(update={"kind": "fiction"})
+    calls = AsyncMock(return_value=_passage("book"))
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(fiction, Research(sources=[_book_file(LONG)], warnings=[]), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert calls.await_count == len(digest.chunks(LONG)) and found.sources[0].parts
+    assert "what happens in the passage" in calls.await_args.kwargs["messages"][1]["content"]
+    # A novel's copy found by search keeps its spoiler-safe opening (see the fiction test above).
+
+
+def _full(*sources: Source) -> Research:
+    return Research(sources=list(sources), warnings=[], depth="full")
+
+
+async def test_the_readers_own_copy_is_read_further_than_a_search_page_and_never_in_part(tmp_path):
+    calls = AsyncMock(return_value=_passage())
+    with (
+        patch.object(digest, "CHUNK_CHARS", 30_000),
+        patch.object(digest, "CHUNKS_PER_PAGE", 3),
+        patch.object(digest, "CHUNKS_PER_BOOK", 3),
+        patch.object(digest, "CHUNKS_PER_BOOK_FILE", 8),
+        patch.object(digest.llm, "complete_structured", calls),
+    ):
+        found = await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+        n = len(digest.chunks(LONG))
+        assert 3 < n <= 8 and calls.await_count == n and len(found.sources[0].parts) == n
+        assert found.depth == "full"
+        # Past the cap, the run fails before paying for any of it.
+        calls.reset_mock()
+        with pytest.raises(digest.IncompleteBookError, match="full notes need all of it"):
+            await digest.digest(BOOK, _full(_book_file(LONG * 3)), slug="c", client=AsyncMock(), cache_dir=tmp_path)
+        calls.assert_not_awaited()
+
+
+async def test_a_failed_chunk_of_the_readers_own_copy_fails_the_run_and_a_retry_pays_only_for_it(tmp_path):
+    with (
+        patch.object(digest.llm, "complete_structured", _failing_first(llm.StructuredOutputError("no tool call"))),
+        pytest.raises(digest.IncompleteBookError, match="only the rest is paid for"),
+    ):
+        await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    retry = AsyncMock(return_value=_passage())
+    with patch.object(digest.llm, "complete_structured", retry):
+        found = await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert retry.await_count == 1 and found.sources[0].parts
+
+
+async def test_a_short_book_is_read_whole_though_a_search_page_its_length_keeps_its_excerpt(tmp_path):
+    short = LINE * (digest.DIGEST_ABOVE // len(LINE) - 10)  # cut for display, under the digest's threshold
+    assert digest.needs_digest(_book_file(short)) and not digest.needs_digest(_grey("S2", short))
+    calls = AsyncMock(return_value=_passage())
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(BOOK, _full(_book_file(short)), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert calls.await_count == len(digest.chunks(short)) and found.sources[0].parts
+
+
+def test_a_chunks_notes_depend_on_the_books_kind():
+    source = _book_file(LONG)
+    fiction = BOOK.model_copy(update={"kind": "fiction"})
+    assert digest._key(BOOK, source, 1, 3, "x", "m") != digest._key(fiction, source, 1, 3, "x", "m")
+
+
+async def test_a_failure_after_the_screen_keeps_chunks_cached_by_earlier_runs(tmp_path):
+    # An earlier run read S1 (a free library's) whole.
+    with patch.object(digest.llm, "complete_structured", AsyncMock(return_value=_passage("about"))):
+        await digest.digest(BOOK, Research(sources=[_source("S1", LONG)], warnings=[]), slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    before = digest._load(digest.cache_path("b", tmp_path))
+    # Now a grey page is screened, and the full read fails with a bug.
+    research = Research(sources=[_source("S1", LONG), _grey("S2", LONG.replace("Rogers", "Other"))], warnings=[])
+
+    async def call(*_args, **kwargs):
+        if "free-pdf-books" in kwargs["messages"][0]["content"] and 'part="3/' in kwargs["messages"][0]["content"]:
+            raise KeyError("bug")
+        return _passage("about")
+
+    with patch.object(digest.llm, "complete_structured", AsyncMock(side_effect=call)), pytest.raises(KeyError):
+        await digest.digest(BOOK, research, slug="b", client=AsyncMock(), cache_dir=tmp_path)
+    assert before.items() <= digest._load(digest.cache_path("b", tmp_path)).items()
+
+
+async def test_a_page_the_screen_couldnt_check_is_kept_and_logged(tmp_path):
+    fiction = BOOK.model_copy(update={"kind": "fiction"})
+    logged: list[str] = []
+    calls = AsyncMock(side_effect=llm.StructuredOutputError("no tool call"))
+    with patch.object(digest.llm, "complete_structured", calls):
+        found = await digest.digest(fiction, Research(sources=[_grey("S1", LONG)], warnings=[]), slug="b", client=AsyncMock(), cache_dir=tmp_path, on_progress=logged.append)
+    assert [s.id for s in found.sources] == ["S1"] and found.warnings == []
+    assert any("couldn't check S1" in line for line in logged)
+
+
+async def test_notes_on_the_readers_own_copy_too_long_to_show_fail_the_run(tmp_path):
+    with (
+        patch.object(digest, "NOTES_CHARS", 350),  # the header and about two of the three parts
+        patch.object(digest.llm, "complete_structured", AsyncMock(return_value=_passage())),
+        pytest.raises(digest.IncompleteBookError, match="last parts would be left out"),
+    ):
+        await digest.digest(BOOK, _full(_book_file(LONG)), slug="b", client=AsyncMock(), cache_dir=tmp_path)

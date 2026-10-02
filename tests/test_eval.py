@@ -129,7 +129,7 @@ def _generated(fingerprint_text: str = "research") -> Generated:
 
 def _generated_book() -> Book:
     return Book(
-        title="T", author="A", isbn="1", kind="non-fiction", one_line_takeaway="take", synopsis="syn",
+        title="T", author="A", isbn="1", kind="non-fiction", depth="overview", one_line_takeaway="take", synopsis="syn",
         tags=["psychology", "science"], ideas=[_idea(f"idea {n}") for n in range(5)],
         key_claims_for_review=[{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)],
     )  # fmt: skip
@@ -151,7 +151,7 @@ async def test_run_eval_stores_output_and_metrics_and_skips_done_books(tmp_path,
     assert slugs == ["alpha", "beta"]
     assert results[0]["usage"]["searches"] == 1
     assert (results[0]["ideas"], results[0]["key_claims"]) == (5, 5)
-    assert json.loads(data.book_path(tmp_path, "r1", "alpha").read_text())["schema_version"] == "2"
+    assert json.loads(data.book_path(tmp_path, "r1", "alpha").read_text())["schema_version"] == "3"
     assert results[0]["research"] == {"fingerprint": _generated().research.fingerprint, "sources": 1}
 
     again = await runner.run_eval(tmp_path, "r1", books, trust_known=False, on_progress=print)

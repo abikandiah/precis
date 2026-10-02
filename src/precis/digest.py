@@ -14,8 +14,10 @@ notes, in page order, replace the excerpt as the source's text, so the
 write call sees all of the page, and checks.py gets the sections and
 quotes to check the notes against.
 
-Fiction is never digested: a novel's full text holds its ending, while its
-opening excerpt is the spoiler-safe part.
+Fiction is digested only from the reader's own copy (its book_file), for
+full notes: those keep the ending apart, behind a spoiler warning
+(write.py). A novel's full text found by search holds its ending too, and
+an overview keeps to its opening excerpt, the spoiler-safe part.
 
 Each chunk's notes are cached per book, keyed by everything its call
 depends on — the chunk, the book's title and author, the model and
@@ -26,7 +28,8 @@ detail, not the run.
 
 Cost and prompt size are bounded: at most CHUNKS_PER_PAGE chunks of a page
 and CHUNKS_PER_BOOK in all are read (a page past either is noted from its
-start, and says so), and a page's notes are cut at NOTES_CHARS.
+start, and says so) — CHUNKS_PER_BOOK_FILE for the reader's own copy, which
+is all of the research — and a page's notes are cut at NOTES_CHARS.
 
 A copy of the book is kept only from the reader's own book_file or a site
 that offers books freely (FREE_HOSTS: public-domain libraries and
@@ -68,7 +71,7 @@ from precis.research import (
 from precis.schema import KnownFile
 
 # Bumped when the prompt or the notes' shape changes; older digests are redone.
-DIGEST_VERSION = 1
+DIGEST_VERSION = 2
 
 # A page longer than this loses more than half of itself to the excerpt;
 # shorter ones keep most of it, verbatim, which beats notes on all of it.
@@ -84,10 +87,14 @@ CONCURRENCY = 8
 # ~$0.80 of Haiku 4.5 for a book whose research holds several copies of it.
 CHUNKS_PER_PAGE = 20
 CHUNKS_PER_BOOK = 30
+# The reader's own copy is the whole research, and a novel's ending is in
+# its last chunks: ~2.4M characters, so The Brothers Karamazov (~2M) is read
+# to the end, at ~$0.02 a chunk.
+CHUNKS_PER_BOOK_FILE = 40
 # A part's notes run ~3.5-4.5k characters (600 words and five quotes), so
-# this fits every part CHUNKS_PER_PAGE allows; it's a safety net for runaway
-# replies, not a budget meant to bind.
-NOTES_CHARS = CHUNKS_PER_PAGE * 4_500
+# this fits every part CHUNKS_PER_BOOK_FILE allows; it's a safety net for
+# runaway replies, not a budget meant to bind.
+NOTES_CHARS = CHUNKS_PER_BOOK_FILE * 4_500
 
 # Sites whose copies of a book are free to read: public-domain libraries
 # (Project Gutenberg's main site — its Canadian and Australian mirrors go by
@@ -119,8 +126,8 @@ class Passage(BaseModel):
     )
     notes: str = Field(
         default="",
-        description="For book and about: what the passage says — each argument or claim, with the specific "
-        "examples, studies, cases, stories, names and figures it uses. Empty for other.",
+        description="For book and about: what the passage says — or, in a novel, what happens — as the "
+        "instructions describe. Empty for other.",
     )
     quotes: list[str] = Field(
         default_factory=list,
@@ -136,18 +143,36 @@ _PREAMBLE = (
 )
 
 
+def _notes_rule(known_file: KnownFile) -> str:
+    """What a passage's notes hold: a non-fiction book's arguments, or a
+    novel's story — every event, the ending included, since full notes keep
+    it apart behind a spoiler warning (write.py).
+    """
+    if known_file.kind == "fiction":
+        return (
+            "- notes: what happens in the passage, in order: the events, who does what and why, turning points, "
+            "what's revealed and how characters and their relationships change — names included, and twists and "
+            "endings too: these notes are private, and the spoiler-safe notes are written from them. Plain "
+            "sentences, up to about 600 words. State what happens (\"Prendick escapes the burning enclosure\"), "
+            "never describe the passage (\"the passage describes an escape\").\n"
+        )
+    return (
+        "- notes: what the passage says, in its own terms and order: each argument or claim, and the specific "
+        "examples, studies, cases, stories, names and figures it uses — enough that someone who never sees "
+        "the passage can write accurately from your notes. Plain sentences, up to about 600 words. State "
+        "what the passage says (\"Pain is a signal evolution will outgrow\"), never describe it (\"the "
+        "passage discusses pain\").\n"
+    )
+
+
 def _instructions(known_file: KnownFile) -> str:
     return (
         f'The book: "{known_file.title}" by {known_file.author}.\n\n'
         "Note what the passage says about this book, by kind:\n"
         "- kind: is the passage the book's own text, writing about the book, or something else?\n"
         "- section: the chapter or section it sits under, when a heading shows.\n"
-        "- notes: what the passage says, in its own terms and order: each argument or claim, and the specific "
-        "examples, studies, cases, stories, names and figures it uses — enough that someone who never sees "
-        "the passage can write accurately from your notes. Plain sentences, up to about 600 words. State "
-        "what the passage says (\"Pain is a signal evolution will outgrow\"), never describe it (\"the "
-        "passage discusses pain\").\n"
-        "- quotes: up to five of the author's most telling sentences in the passage, copied character for "
+        + _notes_rule(known_file)
+        + "- quotes: up to five of the author's most telling sentences in the passage, copied character for "
         "character — never reworded, joined or completed. Only the book's author: not a critic, reviewer or "
         "someone the author cites.\n\n"
         "Only what's in the passage: never add from your own knowledge of the book, and never fill a field "
@@ -182,9 +207,27 @@ def freely_hosted(source: Source) -> bool:
     return any(host == free or host.endswith(f".{free}") for free in FREE_HOSTS)
 
 
+class IncompleteBookError(RuntimeError):
+    """The reader's own copy of the book couldn't be read whole. It's all of
+    a full-notes run's research, so notes on part of it would be wrong, not
+    thin: the run fails instead.
+    """
+
+
 def needs_digest(source: Source) -> bool:
-    """A page the excerpt cut by more than half."""
-    return source.cut and source.full_text is not None and len(source.full_text) > DIGEST_ABOVE
+    """A page the excerpt cut by more than half — or the reader's own copy,
+    cut at all: it's the whole research, so all of it is read.
+    """
+    if not source.cut or source.full_text is None:
+        return False
+    return source.url == BOOK_FILE_URL or len(source.full_text) > DIGEST_ABOVE
+
+
+def _cap(source: Source) -> int:
+    """The most chunks of `source` read: more of the reader's own copy, the
+    whole research, than of a search page.
+    """
+    return CHUNKS_PER_BOOK_FILE if source.url == BOOK_FILE_URL else CHUNKS_PER_PAGE
 
 
 def render(source: Source, parts: list[Part], total: int) -> tuple[str, int]:
@@ -223,10 +266,13 @@ def cache_path(slug: str, cache_dir: str | Path | None = None) -> Path:
 
 
 def _key(known_file: KnownFile, source: Source, n: int, total: int, chunk: str, model: str) -> str:
-    """Everything a chunk's call depends on: its prompt (book, page, place
-    in the page, text) and the model.
+    """Everything a chunk's call depends on: its prompt (book, its kind —
+    which decides the notes rule — page, place in the page, text) and the
+    model.
     """
-    seed = json.dumps([DIGEST_VERSION, model, known_file.title, known_file.author, source.url, n, total, chunk])
+    seed = json.dumps(
+        [DIGEST_VERSION, model, known_file.title, known_file.author, known_file.kind, source.url, n, total, chunk]
+    )
     return hashlib.sha256(seed.encode()).hexdigest()[:24]
 
 
@@ -290,11 +336,17 @@ def _plan(known_file: KnownFile, pages: list[Source], model: str) -> tuple[list[
     """
     plans: list[_Plan] = []
     notes: list[str] = []
-    budget = CHUNKS_PER_BOOK
+    budget = max(CHUNKS_PER_BOOK, *map(_cap, pages))
     for source in pages:
         assert source.full_text is not None
         pieces = chunks(source.full_text)
-        take = min(len(pieces), CHUNKS_PER_PAGE, budget)
+        take = min(len(pieces), _cap(source), budget)
+        if take < len(pieces) and source.url == BOOK_FILE_URL:
+            raise IncompleteBookError(
+                f"your copy of the book is {len(source.full_text):,} characters ({len(pieces)} chunks), past the "
+                f"{CHUNKS_PER_BOOK_FILE} chunks (~{CHUNKS_PER_BOOK_FILE * CHUNK_CHARS:,} characters) the digest reads "
+                "— full notes need all of it. Remove the book_file for an overview instead."
+            )
         if take < len(pieces):
             notes.append(
                 f"{source.id} is too long to read whole ({len(pieces)} chunks); "
@@ -365,9 +417,10 @@ async def digest(
     on_progress: ProgressCallback | None = None,
 ) -> Research:
     """The research with copies of the book from sites that aren't free
-    libraries dropped, and — for non-fiction — each remaining long page's
-    excerpt replaced by notes on all of it. Research with no long page comes
-    back as it is.
+    libraries dropped, and each remaining long page's excerpt replaced by
+    notes on all of it — for fiction, only the reader's own copy. Research
+    with no long page comes back as it is. Raises IncompleteBookError when
+    the reader's own copy can't be read whole.
     """
     progress = on_progress or (lambda _: None)
     long_pages = [s for s in research.sources if needs_digest(s)]
@@ -386,9 +439,13 @@ async def digest(
         progress(f"digest: {_dropped(source)} ({source.url})")
         warnings.append(_dropped(source))
 
-    def save() -> None:
-        if any(key not in saved for key in used):
-            _save(path, {k: v for k, v in cached.items() if k in used})
+    def save(*, prune: bool = False) -> None:
+        """Writes what's been read. Only the last save drops chunks this
+        research no longer has: an earlier one, before every chunk the
+        research uses is known, would delete ones a later step reads.
+        """
+        if prune or any(key not in saved for key in cached):
+            _save(path, {k: v for k, v in cached.items() if k in used} if prune else cached)
 
     saved = set(cached)
     screens = []
@@ -396,10 +453,9 @@ async def digest(
         if freely_hosted(source):
             continue
         assert source.full_text is not None
-        pieces = chunks(source.full_text)[:SCREEN_CHUNKS]
-        total = len(chunks(source.full_text))
-        keys = [_key(known_file, source, n, total, p, model) for n, p in enumerate(pieces, 1)]
-        screens.append(_Plan(source, keys, pieces, total))
+        pieces = chunks(source.full_text)
+        keys = [_key(known_file, source, n, len(pieces), p, model) for n, p in enumerate(pieces[:SCREEN_CHUNKS], 1)]
+        screens.append(_Plan(source, keys, pieces[:SCREEN_CHUNKS], len(pieces)))
         used.update(keys)
     if screens:
         progress(f"digest: checking {len(screens)} long page(s) from other sites for copies of the book")
@@ -408,13 +464,22 @@ async def digest(
         finally:
             save()
         for plan in screens:
-            if plan.source.id not in failed and any(cached[key].kind == "book" for key in plan.keys):
+            if (error := failed.get(plan.source.id)) is not None:
+                # Kept unchecked: a non-fiction page is still caught if the
+                # full read finds it mostly the book; fiction's keeps its opening.
+                progress(f"digest: couldn't check {plan.source.id} ({plan.source.url}) for a copy of the book ({error})")
+            elif any(cached[key].kind == "book" for key in plan.keys):
                 drop(plan.source)
 
-    kept = [s for s in long_pages if s.id not in dropped]
-    if known_file.kind == "fiction" or not kept:
-        save()
-        return Research(sources=[s for s in research.sources if s.id not in dropped], warnings=warnings)
+    # Fiction's only page read whole is the reader's own copy (see above).
+    kept = [
+        s for s in long_pages if s.id not in dropped and (known_file.kind == "non-fiction" or s.url == BOOK_FILE_URL)
+    ]
+    if not kept:
+        save(prune=True)
+        return dataclasses.replace(
+            research, sources=[s for s in research.sources if s.id not in dropped], warnings=warnings
+        )
 
     plans, notes = _plan(known_file, kept, model)
     warnings += notes
@@ -429,18 +494,28 @@ async def digest(
     try:
         failed = await _read(known_file, plans, cached, client, model)
     finally:
-        save()
+        save(prune=True)
 
     digested: dict[str, Source] = {}
     for plan in plans:
         source = plan.source
-        if (error := failed.get(source.id)) is not None:
+        if (error := failed.get(source.id)) is not None and source.url == BOOK_FILE_URL:
+            raise IncompleteBookError(
+                f"couldn't read your copy of the book whole ({error}) — run again: the parts already read are "
+                "cached, so only the rest is paid for"
+            )
+        if error is not None:
             problem = f"couldn't read {source.id} ({source.url}) whole, so the notes see only its opening ({error})"
             progress(f"digest: {problem}")
             warnings.append(problem)
             continue
         parts = [cached[key] for key in plan.keys]
         text, shown = render(source, parts, plan.total)
+        if shown < plan.total and source.url == BOOK_FILE_URL:
+            raise IncompleteBookError(
+                f"the notes on your copy of the book ran past {NOTES_CHARS:,} characters, so its last parts would "
+                "be left out — full notes need all of it"
+            )
         # Only the parts the notes show: what the write and review calls saw.
         digested[source.id] = dataclasses.replace(source, text=text, parts=tuple(parts[:shown]))
         if not freely_hosted(source) and digested[source.id].is_book_text:
@@ -448,7 +523,8 @@ async def digest(
             continue
         book = sum(p.kind == "book" for p in parts)
         progress(f"digest: {source.id} — {len(parts)} part(s), {book} of them the book's own text")
-    return Research(
+    return dataclasses.replace(
+        research,
         sources=[digested.get(s.id, s) for s in research.sources if s.id not in dropped],
         warnings=warnings,
     )

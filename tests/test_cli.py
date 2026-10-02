@@ -11,7 +11,7 @@ from precis.schema import FICTION_TAGS, NONFICTION_TAGS, SCHEMA_VERSION, Book, K
 
 _READY = KnownFile(isbn="1", title="A Novel", author="A Novelist", kind="fiction")
 _BOOK = Book(
-    title="A Novel", author="A Novelist", isbn="1", kind="fiction", one_line_takeaway="takeaway",
+    title="A Novel", author="A Novelist", isbn="1", kind="fiction", depth="overview", one_line_takeaway="takeaway",
     synopsis="synopsis", tags=["fantasy", "adventure"],
     ideas=[{"title": f"Theme {n}", "summary": "s", "evidence": "e"} for n in range(3)],
 )  # fmt: skip
@@ -60,7 +60,7 @@ def test_generate_writes_the_book_and_names_the_research_cache_after_the_file(kn
     out = tmp_path / "out.json"
     assert _run(["generate", str(known_file_path), "--output", str(out), "--fresh"]) == 0
     written = json.loads(out.read_text())
-    assert written["schema_version"] == "2" and written["title"] == "A Novel"
+    assert written["schema_version"] == "3" and written["title"] == "A Novel"
     assert "key_claims_for_review" not in written  # absent, not null
     assert fake.await_args.kwargs["slug"] == "the-book"
     assert fake.await_args.kwargs["fresh"] is True
