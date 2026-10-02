@@ -7,10 +7,13 @@ the blueprint.
 
 ## Targets
 
-- **Cost:** under **$0.50 per book** on average, measured on the eval set.
-  Expected well below: 2–3 LLM calls and 3 searches per book.
+- **Cost:** under **$0.50 per book** on average, measured on library runs.
+  Expected well below: an overview is 2–3 LLM calls and 3 searches; full
+  notes add the digest of the whole book (~$0.15–0.35 in all, by length)
+  and drop the search.
 - **Quality:** a reader who finished the book can recall what it said from
-  the notes alone — judged against the eval set's references.
+  full notes alone, and knows what it's about from an overview — judged by
+  the Claude review of each library book.
 
 ## Decisions still in force
 
@@ -24,11 +27,75 @@ the blueprint.
   its research (full text where the research has it) and fixes it, the
   reader signs off with `verified`. The goal is a pipeline good enough to
   drop that step: recurring fixes go back into precis.
-- **Evals before exemplars.** Exemplars only if evals show a gap a worked
-  example would close, and exemplar books must never be eval books.
-- **The first full eval run is the baseline**; later runs are judged
-  pairwise against it, with the references as the coverage guide.
-- **Paid runs are confirmed first** — an eval run spends real money.
+- **Live generations over evals** (2026-10-02): new work is judged on the
+  library books it generates, through the Claude review, not on new eval
+  runs — those cost generation too, and the review reads every book
+  anyway. The eval harness and its runs stay as they are; a run is for a
+  question the library can't answer.
+- **Exemplars** only if the reviews show a gap a worked example would
+  close, and an exemplar book is never one the notes are judged on.
+- **Paid runs are confirmed first** — every generation spends real money.
+
+## Two modes (decided 2026-10-02)
+
+Search can't carry thorough notes: they're as good as what search turns up,
+which is choppy — fine for famous books, where the model's own knowledge
+fills in, thin and error-prone for the rest. The reviews found its errors
+come from pages *about* the book: a quote from another of Jung's essays
+that a summary site credited to *The Undiscovered Self*, ideas from
+Storr's later *Solitude*. So precis splits by source, decided by the
+known-file alone — a `book_file` means full notes, none means an overview.
+
+**Full mode — the reader's own copy (`book_file`).**
+- No search: the book is the research. Title, author, year and ISBN
+  already come from Open Library through make-known.
+- The digest reads the whole book; the write states its key ideas, each
+  with the book's own example; quotes are checked against the text.
+- Each idea names where in the book it comes from (a chapter or part) —
+  the digest reads in page order, so it's nearly free — for the reader to
+  go back to, and for the review to check the right passage. A pointer,
+  not a chapter-by-chapter account.
+- Key claims for review (flashcards) as today.
+- The Claude review checks it against the text.
+
+**Overview mode — no `book_file`.**
+- Search as today, minus full texts from anywhere but legitimately free
+  sources (below).
+- Takeaway, synopsis, and a few headline ideas (title and summary, no
+  evidence) where the research supports them; never padded to a count.
+- No key claims: flashcards on claims the research can't back teach the
+  wrong thing.
+- A light Claude review: a sanity check, not a rebuild.
+- `--overview` forces it on a known-file with a `book_file`, for a quick one.
+
+**Both modes.**
+- **No provider keeps or trains on the prompts**: OpenRouter's
+  `provider: {"data_collection": "deny"}` on every call. Free on paid
+  Haiku; it rules out most free models, which are shelved anyway.
+- **Full texts only from legitimately free sources**: a search page the
+  digest finds to be the book itself is kept only from Project Gutenberg,
+  Standard Ebooks, Wikisource, open-access repositories (DOAB, OAPEN) and
+  publishers' own free editions; anything else is dropped, not cut to an
+  excerpt, and logged in the research warnings. archive.org stays off the
+  list: its scans of in-copyright books are what *Hachette v. Internet
+  Archive* ruled against, and its public-domain books are on Gutenberg.
+  In full mode this never comes up — there's no search.
+- **Schema:** a `depth: "full" | "overview"` field.
+
+**book-keeper.** An overview page says so — a short note that it's written
+from published sources online, not the book itself; full notes carry no
+label. Overviews have no review banner, and with few ideas, no idea index.
+Adding a `book_file` and regenerating turns an overview into full notes.
+
+**Fiction in full mode** reads the whole book, not only the opening as
+today: the target is a reader who finished it recalling it. The ending's
+resolution goes behind a spoiler toggle on the page, which keeps the
+library spoiler-safe for other people viewing it — the reason fiction is
+spoiler-safe at all.
+
+**The five books generated so far** (from search, three with a full text it
+found online) are the reader's to deal with later, as are the library's
+`book_file`s.
 
 ## Status
 
@@ -92,6 +159,20 @@ the blueprint.
   (`schema_version: "2"`), the book page shows ideas in place of chapters,
   `fix-chapter` is gone, and the 24 v1 books became v2 known-files to
   regenerate from.
-- [ ] **Generate the library** — the 24 known-files in book-keeper's
-  `known/`, with Haiku 4.5; each gets the Claude review before it's committed.
-- [ ] **Exemplars** — only if evals show a gap.
+- [ ] **Two modes: both-mode guards** — `data_collection: "deny"`, and the
+  allowlist for full texts found by search.
+- [ ] **Two modes: full mode** — no search with a `book_file`, chapter
+  pointers, `depth`; fiction read whole, its resolution marked for the
+  spoiler toggle.
+- [ ] **Two modes: overview mode** — the lighter write contract, no key
+  claims, `--overview`.
+- [ ] **Two modes: book-keeper** — `depth` in the schema, the overview note,
+  no banner or index on overviews, the spoiler toggle.
+- [ ] **Generate the library** — the known-files in book-keeper's `known/`,
+  with Haiku 4.5: full notes where there's a `book_file`, overviews
+  elsewhere; each gets the Claude review before it's committed.
+- [ ] **Exemplars** — only if the reviews show a gap.
+- [ ] **Full-mode eval track** (low priority, may skip) — public-domain
+  books (*The Prince*, *Meditations*, *Walden*, *On the Origin of
+  Species*), since full mode needs the text and evals shouldn't depend on
+  purchased copies.
