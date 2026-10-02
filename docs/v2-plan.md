@@ -96,8 +96,8 @@ library spoiler-safe for other people viewing it — the reason fiction is
 spoiler-safe at all.
 
 **The five books generated so far** (from search, three with a full text it
-found online) are the reader's to deal with later, as are the library's
-`book_file`s.
+found online) came off the site with the v3 switch; they're regenerated
+with the rest of the library. The library's `book_file`s are the reader's.
 
 ## Status
 
@@ -170,17 +170,20 @@ found online) are the reader's to deal with later, as are the library's
   alone (no search), the digest reads it whole — fiction too, with its own
   notes rule and up to 40 chunks — and the write and review prompts write
   from it, point full non-fiction ideas into the book, and keep a novel's
-  ending in `resolution`. book-keeper still takes only v2 until its phase
-  lands.
+  ending in `resolution`.
 - [x] **Two modes: overview mode** (2026-10-02) — headline ideas
   (`OVERVIEW_COUNT_RULE`) with no evidence or where — the overview's write
   and review tools don't offer them — no key claims for any overview
   (`has_deck`: full non-fiction only), a lighter review count, and
   `--overview` to force one over a known-file's `book_file`. The eval
   harness went with it.
-- [ ] **Two modes: book-keeper** — schema v3 (`depth`, `resolution`, and
-  ideas' `where`, which precis writes as `""` when empty, like `evidence`),
-  the overview note, no banner or index on overviews, the spoiler toggle.
+- [x] **Two modes: book-keeper** (2026-10-02) — `schema.ts` takes only v3:
+  `depth` and `kind` pick one of four shapes (the deck on full non-fiction,
+  `resolution` on full fiction), and ideas' `where` is shown under the
+  idea. An overview's page says it's from published sources (and gets the
+  idea index only past five ideas, like any book); a novel's ending sits in a closed `<details>` spoiler toggle.
+  `generate.sh --overview` passes through. The five v2 books were removed
+  (their known-files stay) for the library run to regenerate.
 - [ ] **Generate the library** — the known-files in book-keeper's `known/`,
   with Haiku 4.5: full notes where there's a `book_file`, overviews
   elsewhere; each gets the Claude review before it's committed.
