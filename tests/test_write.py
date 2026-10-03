@@ -50,10 +50,25 @@ def _draft(kind: str = "non-fiction", ideas: int = 6, claims: int = 6, **extra) 
     return draft
 
 
-def _validate(model, data: dict, kind: str = "non-fiction", source_ids=("S1", "S2"), depth: str | None = None):
+def _validate(
+    model, data: dict, kind: str = "non-fiction", source_ids=("S1", "S2"), depth: str | None = None, numbered_list=False
+):
     depth = depth or ("full" if kind == "non-fiction" else "overview")
-    context = {write.KIND_KEY: kind, write.DEPTH_KEY: depth, write.SOURCE_IDS_KEY: set(source_ids)}
+    context = {
+        write.KIND_KEY: kind,
+        write.DEPTH_KEY: depth,
+        write.SOURCE_IDS_KEY: set(source_ids),
+        write.NUMBERED_LIST_KEY: numbered_list,
+    }
     return model.model_validate(data, context=context)
+
+
+def test_more_ideas_than_the_ceiling_are_sent_back_unless_the_book_follows_its_own_list():
+    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
+        _validate(write.DraftWithClaims, _draft(ideas=13))
+    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
+        _validate(write.OverviewDraft, _draft(ideas=13), depth="overview", numbered_list=True)
+    assert len(_validate(write.DraftWithClaims, _draft(ideas=48), numbered_list=True).ideas) == 48
 
 
 # --- the write call's response model ------------------------------------------------
@@ -132,7 +147,10 @@ async def test_write_notes_makes_one_structured_call_and_assembles_the_notes():
     # The same tools the review call sends, so its cache prefix matches.
     assert kwargs["tool_models"] == write.shared_tools("non-fiction", "full")
     assert kwargs["validation_context"] == {
-        write.KIND_KEY: "non-fiction", write.DEPTH_KEY: "full", write.SOURCE_IDS_KEY: {"S1", "S2"}
+        write.KIND_KEY: "non-fiction",
+        write.DEPTH_KEY: "full",
+        write.SOURCE_IDS_KEY: {"S1", "S2"},
+        write.NUMBERED_LIST_KEY: False,
     }
     assert kwargs["timeout_seconds"] == write.WRITE_TIMEOUT_SECONDS
     system, user = kwargs["messages"]
@@ -257,15 +275,28 @@ def test_the_draft_has_a_deck_for_nonfiction_and_an_ending_for_fiction_read_whol
     assert write.draft_model("fiction", "overview") is write.OverviewDraft
 
 
-def test_full_instructions_write_from_the_book_and_say_where():
+def test_full_instructions_write_from_the_book():
     nonfiction = write._nonfiction_instructions(NONFICTION, "full")
-    assert write.FULL_RULE in nonfiction and write.WHERE_RULE in nonfiction
+    assert write.FULL_RULE in nonfiction and write.IDEA_COUNT_RULE in nonfiction
     fiction = write._fiction_instructions(FICTION, "full")
     assert write.FULL_RULE in fiction and write.RESOLUTION_RULE in fiction
-    assert "No spoilers anywhere but resolution" in fiction and "Leave each theme's where empty" in fiction
+    assert "No spoilers anywhere but resolution" in fiction
     overview = write._fiction_instructions(FICTION, "overview")
-    assert write.RESOLUTION_RULE not in overview and "'s where" not in overview and "evidence" not in overview
+    assert write.RESOLUTION_RULE not in overview and "evidence" not in overview
     assert write.FULL_RULE not in write._nonfiction_instructions(NONFICTION, "overview")
+
+
+def test_a_book_built_around_its_own_list_gets_one_idea_per_item_in_full_notes_only():
+    listed = NONFICTION.model_copy(update={"numbered_list": True})
+    full = write._nonfiction_instructions(listed, "full")
+    assert write.LIST_COUNT_RULE in full and write.IDEA_COUNT_RULE not in full
+    assert write.OVERVIEW_COUNT_RULE in write._nonfiction_instructions(listed, "overview")
+
+
+def test_the_ceiling_is_stated_as_one_never_as_a_range_to_fill():
+    for rule in (write.IDEA_COUNT_RULE, write.FICTION_COUNT_RULE):
+        assert "a ceiling, not a target" in rule
+    assert "Never pad toward 12" in write.IDEA_COUNT_RULE
 
 
 def test_full_notes_come_from_the_book_itself():
@@ -328,7 +359,7 @@ def _fields(model) -> tuple[set[str], set[str]]:
 def test_each_modes_tools_offer_only_what_its_notes_can_have():
     from precis import review
 
-    every_idea_field = {"title", "summary", "evidence", "sources", "where"}
+    every_idea_field = {"title", "summary", "evidence", "sources"}
     expected = {
         ("non-fiction", "full"): (True, False, every_idea_field),
         ("fiction", "full"): (False, True, every_idea_field),
@@ -353,6 +384,8 @@ def test_stripping_a_field_the_schema_doesnt_have_fails_loudly():
         stripped_schema({"properties": {}}, fields=("resolution",))
 
 
-def test_validating_a_draft_without_its_depth_fails_loudly():
+def test_validating_a_draft_without_its_depth_or_numbered_list_fails_loudly():
     with pytest.raises(RuntimeError, match="needs its depth"):
         write.DraftWithClaims.model_validate(_draft(), context={write.KIND_KEY: "non-fiction"})
+    with pytest.raises(RuntimeError, match="needs NUMBERED_LIST_KEY"):
+        write.DraftWithClaims.model_validate(_draft(), context={write.KIND_KEY: "non-fiction", write.DEPTH_KEY: "full"})

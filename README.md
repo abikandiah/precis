@@ -26,10 +26,12 @@ used to weight the notes and carried into the output, never quoted.
 from Kindle, Apple Books, Kobo and library loans are usually DRM-locked;
 precis refuses those rather than reading them as garbage, and never removes
 DRM. With it, the notes are **full**: written from the whole book, with
-no web search, each idea pointing to the chapters it comes from, and for a
-novel its ending kept apart behind a spoiler warning — about $0.20-0.25 of
-reading for a 400-page book, once. Without it, they're an **overview** from
-what's online about the book.
+no web search, each of the book's major points (at most 12) with its own
+example, and for a novel its ending kept apart behind a spoiler warning —
+about $0.30 for a 400-page book. Without it, they're an **overview** from
+what's online about the book. `numbered_list: true` marks non-fiction
+built around its own list (48 laws, 7 habits): its full notes give one
+idea per item instead.
 
 ## Generating
 

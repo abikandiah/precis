@@ -18,9 +18,9 @@ alone decides the source: a `book_file` means **full** notes, none means an
 **overview**.
 
 - **Full notes**, from the reader's own copy read whole, with no search:
-  the book's key ideas, each with its own example and a pointer to where in
-  the book it comes from; for a novel, its ending, kept apart behind a
-  spoiler warning; for non-fiction, a review deck of key claims.
+  the book's major points, each with its own example; for a novel, its
+  ending, kept apart behind a spoiler warning; for non-fiction, a review
+  deck of key claims.
 - **An overview**, from search: takeaway, synopsis and a few headline ideas
   with no evidence, and no review deck. Search can't carry thorough notes:
   they're only as good as what it turns up — fine for a famous book, where
@@ -74,7 +74,17 @@ kind        "fiction" | "non-fiction"
 notes       optional — what matters to the reader about this book
 book_file   optional — the reader's own DRM-free copy of the book: .epub,
             .pdf (with a text layer) or .txt, relative to the known-file
+numbered_list  optional, non-fiction only — true for a book built around
+            its own numbered list (48 laws, 7 habits)
 ```
+
+`numbered_list` lifts the ideas' ceiling for full notes: one idea per item
+of the book's list, every item and nothing besides (`LIST_COUNT_RULE`),
+and the digest notes every item a passage covers, not only its main points
+(it's in the chunk cache key, so changing it reads the book again). The
+reader sets it, since it's a fact about the book; left to the model, any
+book with numbered chapters could pass for one. An overview keeps its
+ceiling either way: search research can't be trusted for every item.
 
 `notes` is a weighting signal for the notes, never quoted into them, and is
 carried verbatim into the book's `reader_notes`.
@@ -96,25 +106,24 @@ with it, the book is the whole research — source `S1`, read whole by the
 digest, fiction included — and nothing is searched, for **full** notes;
 without it, research is search alone, for an **overview**. `--book-file`
 overrides the path, for a container where the known-file's host path
-doesn't exist. A 400-page book costs ~$0.20-0.25 of digest, once: the
-digest is cached. The known-file's filename
+doesn't exist. A 400-page book costs ~$0.25 of digest, most of it reading
+the text, once: the digest is cached; full notes come to ~$0.30 in all. The known-file's filename
 stem is the book's slug: it names the research cache, and the consumer
 names the output after it too.
 
 ## Output: book JSON
 
 ```
-schema_version         "3"
+schema_version         "4"
 title, author, year, isbn, page_count, kind    from the known-file
 depth                  "full" (from the reader's book_file, read whole) or
                          "overview" (from search)
 one_line_takeaway      one sentence
 synopsis               2-5 paragraphs, fewer when there's less to say
-ideas                  [{ title, summary, evidence, sources, where }]
-                         non-fiction: key ideas; fiction: themes
-                         as many as the book makes, each as long as it needs
-                         where: the chapters or parts an idea comes from,
-                         full non-fiction only
+ideas                  [{ title, summary, evidence, sources }]
+                         non-fiction: major points; fiction: themes
+                         at most 12 (a book's own list: one per item),
+                         each as long as it needs
 resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
 key_claims_for_review  [{ prompt, answer }], full non-fiction only, one per
@@ -130,10 +139,11 @@ warnings               anything the reader should check
   the one field with spoilers, which the page shows only behind a spoiler
   warning. Fiction has no review deck: reading fiction isn't about
   retaining claims.
-- **`where`** points back into the book — chapter or part names from the
-  digest's sections — not a chapter-by-chapter account. Only full
-  non-fiction notes have it: an overview's would be a guess, and a novel's
-  chapter titles can give its story away. Anything else's is cleared.
+- **Notes on the book, not the book compacted**: the takeaway, a synopsis
+  and the book's major points, each of which can span chapters. Schema v3's
+  uncapped count ("one idea per distinct point") and per-idea chapter
+  pointer (`where`, dropped in v4) gave *Making Embedded Systems*, read
+  whole, 62 ideas — a chapter-by-chapter account at ~$0.49.
 - **`evidence`** is the study, story, example or figure the author uses
   (non-fiction), or the characters and situations that carry a theme
   (fiction). It makes the notes memorable and the grounding checkable.
@@ -143,21 +153,25 @@ warnings               anything the reader should check
 - **Never pad**: thin research means fewer ideas and shorter fields, not
   vaguer ones, and an idea that can only be stated in general terms is
   left out (write.py's rules).
-- **No count to meet** (`IDEA_COUNT_RULE`, shared with the review): one
-  idea per distinct point the book makes, whether three or thirty, and a
-  book that numbers its own ideas (48 laws, 7 habits) gets its list, one
-  idea each. Each idea is as long as it needs to be. The first library's
-  5-12 range made the model pad to 11-12, restating a few points several
-  times. Only notes with no ideas, full non-fiction notes without a
-  review deck, or any others with one, are rejected.
+- **A ceiling, not a target** (`MAX_IDEAS`, 12; the count rules in
+  write.py, shared with the review): only the book's major points, and a
+  book that makes five gets five. The prompts state the ceiling as one and
+  never as a range — the first library's 5-12 range made the model pad to
+  11-12, restating a few points several times — and say never to pad
+  toward it or split one point into several. More than 12 is sent back at
+  the write and review calls (`idea_count_problems`, which knows the
+  known-file's `numbered_list`); `Book` itself doesn't know it, so doesn't
+  check. Notes with no ideas, full non-fiction notes without a review deck,
+  or any others with one, are rejected too.
 - **An overview** (no `book_file`) states the book's headline ideas —
-  title and summary, no `evidence` or `where`. Every mode's write and
+  title and summary, no `evidence`. Every mode's write and
   review tools offer only what its notes can have (`stripped_schema`): an
-  overview's leave out those two, and the deck and the ending go wherever
+  overview's leave out evidence, and the deck and the ending go wherever
   they can't apply — so the model is never offered a field it must leave
-  empty, and `Book` clears any that reach it anyway. It has no review deck: its claims would rest on search research
-  that can't back them, and flashcards on shaky claims teach the wrong
-  thing (`has_deck`). Its count rule (`OVERVIEW_COUNT_RULE`) asks for the
+  empty; `Book` clears an overview's evidence that reaches it anyway, and
+  rejects a deck or an ending where they can't apply. It has no review
+  deck: its claims would rest on search research that can't back them,
+  and flashcards on shaky claims teach the wrong thing (`has_deck`). Its count rule (`OVERVIEW_COUNT_RULE`) asks for the
   central points the research states clearly, never padded; the review gets
   the same rule. book-keeper labels an overview as written from published
   sources; full notes carry no label.
@@ -244,8 +258,10 @@ A non-fiction page the excerpt would cut by more than half (over ~12k
 tokens) is read whole instead: split into ~15k-token chunks at line
 breaks, and one structured call per chunk notes its kind (the book's own
 text, writing about the book, or other — front and back matter,
-navigation), the section it sits under, what it says in its own terms with
-its examples, names and figures, and up to five of the author's sentences
+navigation), the section it sits under, its main arguments in its own
+terms with the standout example behind each (~300 words: notes for the
+book's major points, not a summary of every section; a novel's run to
+~600, for its story), and up to five of the author's sentences
 copied exactly. Those notes, in page order, replace the excerpt as the
 source's text; the source keeps them as `parts`. A page
 that's mostly book text is the book's own text (`is_book_text`). Shorter
@@ -307,8 +323,9 @@ forced to its own), since a provider's cache prefix runs tools → system →
 messages: that's what should let the review read the research from the
 cache — confirmed through OpenRouter: the review reads the research from it.
 
-- Ideas cover the whole book, as many as it makes. They name the book's
-  own terms and never describe the text ("the author discusses…").
+- Ideas are the book's major points across the whole book, under the
+  ceiling. They name the book's own terms and never describe the text
+  ("the author discusses…").
 - Key claims ask what a reader needs to recall about an idea, never just
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
@@ -348,7 +365,7 @@ name and the real name, or an added co-author isn't a mismatch.
 
 Code checks on the written notes, each a specific lead for the review:
 ideas, evidence or answers that describe the text ("the book examines…",
-"Storr traces…") instead of stating the idea or giving the book's example,
+"the book emphasizes…", "Storr traces…") instead of stating the idea or giving the book's example,
 and near-duplicate ideas (half their vocabulary shared — the same point in
 other words is the review's `same_point`). A general
 statement of what the book argues is a fine fallback when research is
@@ -454,8 +471,7 @@ fiction's key claims. A drop with the key claims left as they were keeps
 them, with a warning to check none rests on the dropped idea; an added
 idea with the claims left as they were is warned about too, since it has
 no claim. After the review, a deck covering under half the ideas is a
-warning: there's no count to meet, but most of the notes couldn't be
-reviewed. An idea with
+warning: most of the notes couldn't be reviewed. An idea with
 no verdict is kept as written. If it still can't fix it, or the
 call fails outright, the run keeps the written notes (already paid for),
 with a warning that they're unreviewed and the check findings as warnings.

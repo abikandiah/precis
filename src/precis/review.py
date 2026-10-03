@@ -22,9 +22,10 @@ book's own rules: one that can't be applied (no ideas left, a verdict
 naming no idea) is sent back with the reason, and the run fails only if it
 still can't fix it. What can be left out instead — an uncited new idea, an
 unknown source, a half-returned synopsis — is left out (see _merge). An
-idea the review gives no verdict is kept as written, and there's no idea
-count to meet. After the review, the checks run again, and whatever they
-still find is a warning for the reader.
+idea the review gives no verdict is kept as written, and the ideas stay
+under the write call's ceiling (schema.idea_count_problems). After the
+review, the checks run again, and whatever they still find is a warning
+for the reader.
 """
 
 from __future__ import annotations
@@ -54,6 +55,7 @@ from precis.schema import (
     KeyClaim,
     KnownFile,
     has_deck,
+    idea_count_problems,
     notes_shape_problems,
     stripped_schema,
     without_unknown_sources,
@@ -61,17 +63,16 @@ from precis.schema import (
 from precis.search import normalize_text, overlap
 from precis.write import (
     FAITHFUL_RULE,
-    FICTION_COUNT_RULE,
     FULL_RULE,
-    OVERVIEW_COUNT_RULE,
+    NUMBERED_LIST_KEY,
     RESOLUTION_RULE,
     SOURCE_IDS_KEY,
     SPOILER_RULE,
-    WHERE_RULE,
     WRITE_MAX_RETRIES,
     WRITE_MAX_TOKENS,
     WRITE_TIMEOUT_SECONDS,
     context_messages,
+    count_rule,
     is_placeholder,
     shared_tools,
 )
@@ -181,7 +182,13 @@ class Review(BaseModel):
             raise ValueError("; ".join(problems))
 
         ideas, claims, changes, warnings = _merge(book, self, context.get(SOURCE_IDS_KEY))
-        if problems := notes_shape_problems(book.kind, book.depth, ideas, claims):
+        problems = notes_shape_problems(book.kind, book.depth, ideas, claims)
+        if (numbered_list := context.get(NUMBERED_LIST_KEY)) is None:
+            # Like the write call's depth: defaulted, a book built around its
+            # own list would be sent back until the paid call fails.
+            raise RuntimeError("validating a review needs NUMBERED_LIST_KEY alongside its book")
+        problems += idea_count_problems(ideas, book.depth, numbered_list=numbered_list)
+        if problems:
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
@@ -212,7 +219,7 @@ class Review(BaseModel):
 
 # Each kind and depth's review tool offers only what its notes can have
 # (schema.stripped_schema): a deck for full non-fiction, an ending for
-# fiction read whole, and evidence and where for neither overview. Review
+# fiction read whole, and evidence for neither overview. Review
 # itself, with every field, holds the logic.
 
 
@@ -357,11 +364,9 @@ def _merge(
             changes.append(f'dropped "{original.title}": {verdict.reason}')
         elif verdict.verdict == "revise" and verdict.revised:
             revised = verdict.revised
-            # Sources or where left out means unchanged, not "cites nothing"
-            # or "comes from nowhere".
-            kept_fields = {f: getattr(original, f) for f in ("sources", "where") if f not in revised.model_fields_set}
-            if kept_fields:
-                revised = revised.model_copy(update=kept_fields)
+            # Sources left out means unchanged, not "cites nothing".
+            if "sources" not in revised.model_fields_set:
+                revised = revised.model_copy(update={"sources": original.sources})
             ideas.append(_cited(revised, source_ids, changes))
             changes.append(f'revised "{original.title}": {verdict.reason}')
         else:
@@ -397,31 +402,44 @@ def _merge(
     return ideas, claims, changes, warnings
 
 
-def _instructions(book: Book, issues: list[str]) -> str:
+def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
     full = book.depth == "full"
     notes = book.model_dump(
         include={"one_line_takeaway", "synopsis", "ideas", "resolution", "key_claims_for_review"},
         exclude_none=True,
     )
-    # Empty text fields have nothing to review — an overview's evidence and
-    # where are always empty (Book clears them) — and shown, would read as
-    # fields to fill.
+    # Empty text fields have nothing to review — an overview's evidence is
+    # always empty (Book clears it) — and shown, would read as a field to
+    # fill.
     notes["ideas"] = [{k: v for k, v in idea.items() if v != ""} for idea in notes["ideas"]]
     found = "\n".join(f"- {issue}" for issue in issues) if issues else "- none"
-    if book.kind == "fiction":
-        counts = f"Count: {FICTION_COUNT_RULE}"
-    elif full:
+    # A book built around its own list keeps every item and nothing else;
+    # any other book's notes are pruned toward its major points.
+    follows_list = known_file.numbered_list and full
+    if follows_list:
         counts = (
-            "Count: the notes should have one idea per distinct point the book makes, however many that is. Don't "
-            "pad: merge ideas that make the same point (same_point) and drop ones that don't earn their place. Add "
-            "a new idea only for a major point the notes miss, or a missing entry in a list the book numbers itself "
-            "(its laws, rules or habits)."
+            f"Count: {count_rule(known_file, book.depth)} Add a new idea only for an item of the book's list the "
+            "notes leave out, and drop only ideas that aren't items of it or repeat one."
+        )
+        distinct = (
+            "the separate items of the book's list are, however related; one point restated with a different "
+            "emphasis isn't"
         )
     else:
         counts = (
-            f"Count: {OVERVIEW_COUNT_RULE} Merge ideas that make the same point (same_point), and add a new idea "
-            "only for a headline point the notes miss."
+            f"Count: {count_rule(known_file, book.depth)} Merge ideas that make the same point (same_point), drop "
+            "ones that don't earn their place, and add a new idea only for a major point the notes miss."
         )
+        distinct = (
+            "related rules or steps from one list can be one idea, and one point restated with a different "
+            "emphasis is one"
+        )
+    evidence = (
+        "evidence that describes the text instead of giving the book's example (replace it with the example the "
+        "research gives, or leave the evidence empty — never move it into the summary), "
+        if full
+        else ""
+    )
     claims = (
         "- key_claims_for_review: if a claim is wrong or only restates an idea's title as a question (\"What is "
         "X?\"), or whenever you drop or add an idea — then the whole corrected list: without claims that rest "
@@ -445,7 +463,6 @@ def _instructions(book: Book, issues: list[str]) -> str:
                 "- resolution: only if it misstates how the book ends, or takes in a detail moved from another field "
                 f"— then the whole corrected text, every paragraph. {RESOLUTION_RULE}\n"
             )
-    where = f"- where: {WHERE_RULE} Correct a where the notes on the book contradict.\n" if full and book.kind == "non-fiction" else ""
     research = (
         f"{FULL_RULE} A specific the notes on it don't mention — a name, study, number or example — stays when "
         "you're confident it's from this book: the notes can't hold every line."
@@ -470,8 +487,7 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "would recall them as one: the same claim from different angles (a novel's \"ethics of scientific "
         "ambition\" and \"corruption of knowledge and power\"), or a framework and one of its own parts given "
         "as separate ideas (\"three core conditions\" and one of those conditions). Two ideas are distinct only "
-        "when a reader would need to remember both separately — the separate laws or rules a book lists are, "
-        "however related; one point restated with a different emphasis isn't. For each pair, name the idea to "
+        f"when a reader would need to remember both separately — {distinct}. For each pair, name the idea to "
         "keep — the fuller one — and the one to drop, and revise the kept one to take in anything the dropped "
         "one adds.\n\n"
         "For each idea, in order, give its title as given and a verdict:\n"
@@ -479,8 +495,9 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "and you're confident it's accurate to this book.\n"
         "- revise: the right idea with something wrong — a detail that misstates the book (correct it if you "
         "know the right one, otherwise remove that detail alone), a vague or generic statement, a description "
-        "of the text instead of the idea, or a citation that doesn't support it (correct it, or give sources [] "
-        "when the research is silent but you're confident the idea is right). Give the whole corrected idea, "
+        f"of the text instead of the idea, {evidence}or a citation that doesn't support it (correct it, or give "
+        "sources [] when the research is silent but you're confident the idea is right). Give the whole "
+        "corrected idea, "
         "keeping every specific that's right: fix what's wrong, never make the idea vaguer.\n"
         "- drop: the book doesn't make this argument (the research shows the notes misstate it), it isn't "
         "specific to this book (it could describe any book on the topic), or it repeats another idea.\n\n"
@@ -492,7 +509,6 @@ def _instructions(book: Book, issues: list[str]) -> str:
         "- one_line_takeaway, synopsis: only if they misstate the book or are vague — then the whole corrected "
         "text.\n"
         + claims
-        + where
         + spoilers
         + f"\n{counts} Most notes need few changes: don't rewrite what's already right. Call the tool with the "
         "result."
@@ -540,10 +556,14 @@ async def review_notes(
     progress = on_progress or (lambda _: None)
     review = await llm.complete_structured(
         (client or llm.build_client()).with_options(max_retries=WRITE_MAX_RETRIES),
-        messages=[*context_messages(known_file, research), {"role": "user", "content": _instructions(book, issues)}],
+        messages=[*context_messages(known_file, research), {"role": "user", "content": _instructions(known_file, book, issues)}],
         response_model=review_model(book.kind, book.depth),
         tool_models=shared_tools(book.kind, book.depth),
-        validation_context={BOOK_KEY: book, SOURCE_IDS_KEY: {s.id for s in research.sources}},
+        validation_context={
+            BOOK_KEY: book,
+            SOURCE_IDS_KEY: {s.id for s in research.sources},
+            NUMBERED_LIST_KEY: known_file.numbered_list,
+        },
         timeout_seconds=WRITE_TIMEOUT_SECONDS,
         max_tokens=WRITE_MAX_TOKENS,
         on_retry=lambda reason: progress(f"review: {reason}"),

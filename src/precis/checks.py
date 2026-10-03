@@ -73,19 +73,25 @@ WHOLE_BOOK_CHARS = 100_000
 # Verbs that describe what a text does rather than what it argues: "the
 # book traces X" says nothing about X, "the book argues X" does.
 _DESCRIBING = (
-    r"(examines|explores|discusses|describes|covers|looks at|delves into|talks about|addresses|traces|"
-    r"investigates|includes|presents|outlines)"
+    r"examines|explores|discusses|describes|covers|looks at|delves into|talks about|addresses|traces|"
+    r"investigates|includes|presents|outlines"
 )
 _META = re.compile(
-    rf"\b(the|this) (book|author|chapter|text|novel|work) {_DESCRIBING}\b"
+    rf"\b(the|this) (book|author|chapter|text|novel|work) ({_DESCRIBING})\b"
     r"|\bthe author (argues|explains|shows) (that )?this\b",
     re.IGNORECASE,
 )
 # In evidence, the author describing something is the example itself, and
 # so is "the book includes X" partway through ("…Krakauer's sister. The book
 # includes critical letters he received"). Only evidence that opens by
-# describing the text ("The book examines ten firms.") has no example.
-_META_EVIDENCE = re.compile(rf"^\s*(the|this) (book|chapter|text|novel|work) {_DESCRIBING}\b", re.IGNORECASE)
+# describing the text ("The book examines ten firms.") has no example —
+# and there, so does "The book emphasizes…" or "…contrasts the two
+# approaches", though in a summary "Kahneman distinguishes System 1 from
+# System 2" states the idea.
+_DESCRIBING_EVIDENCE = rf"{_DESCRIBING}|emphasizes|stresses|contrasts|compares|distinguishes|highlights"
+_META_EVIDENCE = re.compile(
+    rf"^\s*(the|this) (book|chapter|text|novel|work) ({_DESCRIBING_EVIDENCE})\b", re.IGNORECASE
+)
 
 
 def _describes_text(text: str, surnames: list[str] = [], *, evidence: bool = False) -> bool:  # noqa: B006 — never mutated
@@ -97,7 +103,7 @@ def _describes_text(text: str, surnames: list[str] = [], *, evidence: bool = Fal
     """
     if (_META_EVIDENCE if evidence else _META).search(text):
         return True
-    return any(re.search(rf"\b{re.escape(name)}\s+{_DESCRIBING}\b", text, re.IGNORECASE) for name in surnames)
+    return any(re.search(rf"\b{re.escape(name)}\s+({_DESCRIBING})\b", text, re.IGNORECASE) for name in surnames)
 
 _STOPWORDS = frozenset(
     ["a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "has", "have", "how", "in", "into", "is", "it", "its", "of", "on", "or", "that", "the", "their", "them", "they", "this", "to", "was", "were", "what", "when", "which", "who", "why", "will", "with"]

@@ -71,7 +71,7 @@ from precis.research import (
 from precis.schema import Depth, KnownFile
 
 # Bumped when the prompt or the notes' shape changes; older digests are redone.
-DIGEST_VERSION = 2
+DIGEST_VERSION = 3
 
 # A page longer than this loses more than half of itself to the excerpt;
 # shorter ones keep most of it, verbatim, which beats notes on all of it.
@@ -79,8 +79,8 @@ DIGEST_ABOVE = 2 * PAGE_CHARS
 # ~15k tokens a chunk: a chapter or two of a book. Bigger chunks mean fewer
 # calls, and output (notes) is most of a digest's cost.
 CHUNK_CHARS = 60_000
-# A chunk's notes run to ~600 words; this leaves room without letting a
-# runaway reply cost much.
+# A chunk's notes run to ~300 words (a novel's to ~600, for its story);
+# this leaves room without letting a runaway reply cost much.
 CHUNK_MAX_TOKENS = 3_000
 CONCURRENCY = 8
 # ~1.2M characters of one page — a long book — and ~1.8M in all: at most
@@ -156,11 +156,21 @@ def _notes_rule(known_file: KnownFile) -> str:
             "sentences, up to about 600 words. State what happens (\"Prendick escapes the burning enclosure\"), "
             "never describe the passage (\"the passage describes an escape\").\n"
         )
+    if known_file.numbered_list:
+        # Full notes give every item of the list, so none can be left out here.
+        return (
+            "- notes: the book is built around its own numbered list (laws, rules, habits or principles). Note "
+            "every item of the list the passage covers, by its number and name as printed, each with what it "
+            "says and the standout example, story or figure behind it; beyond the items, only the passage's "
+            "main points. Plain sentences, up to about 600 words. State what the passage says (\"Never outshine "
+            "the master\"), never describe it (\"the passage discusses ambition\").\n"
+        )
     return (
-        "- notes: what the passage says, in its own terms and order: each argument or claim, and the specific "
-        "examples, studies, cases, stories, names and figures it uses — enough that someone who never sees "
-        "the passage can write accurately from your notes. Plain sentences, up to about 600 words. State "
-        "what the passage says (\"Pain is a signal evolution will outgrow\"), never describe it (\"the "
+        "- notes: what the passage argues, in its own terms: its main arguments or claims, each with the "
+        "standout example, study, case, story or figure behind it — enough that someone who never sees the "
+        "passage can write accurately about the book's major points. Not every point or detail: the notes "
+        "are for the book's main ideas, not a summary of each section. Plain sentences, up to about 300 "
+        "words. State what the passage says (\"Pain is a signal evolution will outgrow\"), never describe it (\"the "
         "passage discusses pain\").\n"
     )
 
@@ -270,12 +280,23 @@ def cache_path(slug: str, depth: Depth, cache_dir: str | Path | None = None) -> 
 
 
 def _key(known_file: KnownFile, source: Source, n: int, total: int, chunk: str, model: str) -> str:
-    """Everything a chunk's call depends on: its prompt (book, its kind —
-    which decides the notes rule — page, place in the page, text) and the
-    model.
+    """Everything a chunk's call depends on: its prompt (book, its kind and
+    whether it's built around its own list — which decide the notes rule —
+    page, place in the page, text) and the model.
     """
     seed = json.dumps(
-        [DIGEST_VERSION, model, known_file.title, known_file.author, known_file.kind, source.url, n, total, chunk]
+        [
+            DIGEST_VERSION,
+            model,
+            known_file.title,
+            known_file.author,
+            known_file.kind,
+            known_file.numbered_list,
+            source.url,
+            n,
+            total,
+            chunk,
+        ]
     )
     return hashlib.sha256(seed.encode()).hexdigest()[:24]
 

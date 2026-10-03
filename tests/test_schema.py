@@ -23,7 +23,7 @@ def _book(kind: str = "non-fiction", ideas: int = 5, claims: int | None = 5, **o
 
 
 def test_a_valid_book_of_each_kind():
-    assert Book.model_validate(_book()).schema_version == "3"
+    assert Book.model_validate(_book()).schema_version == "4"
     assert Book.model_validate(_book("fiction", ideas=3, claims=None)).key_claims_for_review is None
 
 
@@ -87,11 +87,10 @@ def test_only_fiction_read_whole_has_a_resolution():
             Book.model_validate({**book, "resolution": "It ends."})
 
 
-def test_only_full_nonfiction_notes_say_where_an_idea_comes_from():
-    ideas = [{"title": "Idea", "summary": "s", "where": "Chapter 3, Empathy"}]
-    assert Book.model_validate(_book(depth="full", ideas=1) | {"ideas": ideas}).ideas[0].where == "Chapter 3, Empathy"
-    for book in (_book(ideas=1, depth="overview", claims=None), _book("fiction", claims=None, depth="full", ideas=1)):
-        assert Book.model_validate(book | {"ideas": ideas}).ideas[0].where == ""
+def test_only_non_fiction_is_built_around_its_own_list():
+    assert KnownFile(isbn="1", kind="non-fiction", numbered_list=True).numbered_list
+    with pytest.raises(ValidationError, match="numbered_list is for non-fiction"):
+        KnownFile(isbn="1", kind="fiction", numbered_list=True)
 
 
 def test_an_overview_has_headline_ideas_without_evidence_and_no_deck():

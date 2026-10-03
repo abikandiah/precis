@@ -22,7 +22,7 @@ from precis.book_file import BookFileError, read_book_file
 from precis.config import ConfigError, settings
 from precis.generate import generate
 from precis.known_file import create_known_file, preflight_check, slugify_title
-from precis.schema import KnownFile, TagVocabulary
+from precis.schema import MAX_IDEAS, KnownFile, TagVocabulary
 
 
 def _print_progress(message: str) -> None:
@@ -232,6 +232,12 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         return 1
     if (book_text := _book_text(args, known_file)) is False:
         return 1
+    if known_file.numbered_list and book_text is None:
+        print(
+            "note: numbered_list applies to full notes only — this overview keeps to the book's headline ideas, "
+            f"at most {MAX_IDEAS}",
+            file=sys.stderr,
+        )
     # The model client reads these after research, by when an overview's
     # searches have spent their credits: a bad one fails here instead
     # (a ConfigError, reported by _dispatch).

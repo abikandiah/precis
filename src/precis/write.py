@@ -28,6 +28,7 @@ from precis import llm
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
+    MAX_IDEAS,
     Book,
     Depth,
     Idea,
@@ -35,6 +36,7 @@ from precis.schema import (
     KnownFile,
     Tags,
     has_deck,
+    idea_count_problems,
     notes_shape_problems,
     stripped_schema,
     tags_for_kind,
@@ -46,8 +48,8 @@ from precis.search import author_names
 # Output runs to several thousand tokens on top of up to ~60k tokens of research,
 # well past the default per-call timeout. Fewer HTTP-level retries than the
 # default, so a stalled provider costs minutes, not half an hour of
-# timeouts. The token cap is far above a full set of notes — a book that
-# lists 48 laws gets 48 ideas and claims — so a reply is never cut off
+# timeouts. The token cap is far above a full set of notes — a book built
+# around 48 laws gets 48 ideas and claims — so a reply is never cut off
 # mid-JSON, and the timeout leaves time to write that much: ~20k tokens at
 # a slower model's ~60 tokens a second is over five minutes.
 WRITE_TIMEOUT_SECONDS = 600
@@ -63,6 +65,7 @@ _NO_AUTHOR = frozenset({"unknown", "unknown author", "no"})
 KIND_KEY = "kind"
 DEPTH_KEY = "depth"
 SOURCE_IDS_KEY = "source_ids"
+NUMBERED_LIST_KEY = "numbered_list"
 
 _PREAMBLE = (
     "You work on study notes for one book: notes that help a reader who has finished the book recall what it "
@@ -176,7 +179,13 @@ class Draft(BaseModel):
             # notes need a deck is unknown, and skipping the check would let
             # a wrong shape through to fail only after the paid call.
             raise RuntimeError("validating a draft needs its depth (DEPTH_KEY) alongside its kind")
-        if problems := notes_shape_problems(kind, depth, self.ideas, self.claims):
+        if (numbered_list := context.get(NUMBERED_LIST_KEY)) is None:
+            # The same: defaulted, a book built around its own list would be
+            # sent back until the paid call fails.
+            raise RuntimeError("validating a draft needs NUMBERED_LIST_KEY alongside its kind")
+        problems = notes_shape_problems(kind, depth, self.ideas, self.claims)
+        problems += idea_count_problems(self.ideas, depth, numbered_list=numbered_list)
+        if problems:
             raise ValueError("; ".join(problems))
         return self
 
@@ -191,7 +200,7 @@ class Draft(BaseModel):
 
 class OverviewDraft(Draft):
     """An overview: the notes alone, its tool schema without ideas'
-    evidence or where (schema.FULL_ONLY_IDEA_FIELDS).
+    evidence (schema.FULL_ONLY_IDEA_FIELDS).
     """
 
     @classmethod
@@ -305,25 +314,48 @@ SPOILER_RULE = (
     "but never blur the setup to be safe."
 )
 
-# How many ideas, and how long: whatever the book's content needs. Ranges
-# made the model pad to the top of them (every first-library non-fiction
-# book got 11-12 ideas, restating a few points several times). The review
-# gets its own count line (review.py), since it merges and adds rather than
-# writes; fiction's rule is shared with it.
+# How many ideas: the book's major points, never a chapter-by-chapter
+# account. Uncapped, "one for each distinct point" gave Making Embedded
+# Systems, read whole, 62 ideas — the book compacted, not notes on it. The
+# ceiling is stated as one, never as a range: ranges made the model pad to
+# their top (every first-library book got 11-12 ideas, a few points restated
+# several times). Shared with the review, as are the others below.
 IDEA_COUNT_RULE = (
-    "As many ideas as the book makes, no more and no fewer: one for each distinct point, whether that's three "
-    "or thirty, covering the whole book, not just its opening. Where the book numbers or names its own ideas "
-    "(laws, rules, habits, principles), follow its list, one idea each. Never pad to look thorough, and never "
-    "merge distinct ideas to look concise. Each idea is as long as it needs to be: a sentence for a simple "
-    "rule, a few for an argument with steps."
+    "Only the book's major points: the arguments a reader would name when asked what the book says, not a "
+    "chapter-by-chapter account. An idea can draw on many chapters, and a chapter's details belong in the idea "
+    f"they support, not in ideas of their own. At most {MAX_IDEAS} — a ceiling, not a target: a book that makes "
+    f"five major points gets five. Never pad toward {MAX_IDEAS}, never split one point into several, and never "
+    "give two ideas a reader would recall as one. Each idea is as long as it needs to be: a sentence for a "
+    "simple rule, a few for an argument with steps."
 )
-FICTION_COUNT_RULE = "As many themes as the novel develops, often few; never pad."
-# An overview's ideas: the ones search research can carry. No numbers, for
-# the same reason as IDEA_COUNT_RULE. Shared with the review.
+# A book built around its own numbered list (the known-file's
+# numbered_list): the list is the notes.
+LIST_COUNT_RULE = (
+    "The book is built around its own numbered list (its laws, rules, habits or principles): one idea per item, "
+    "in the book's order, titled as the book names it — every item, and no ideas besides them."
+)
+FICTION_COUNT_RULE = (
+    f"Only the novel's main themes, often few, and at most {MAX_IDEAS} — a ceiling, not a target; never pad."
+)
+# An overview's ideas: the ones search research can carry.
 OVERVIEW_COUNT_RULE = (
     "Only the book's headline ideas: the central points its research states clearly, the ones a reader would "
-    "name first. Fewer when the research is thin; never pad, and never stretch one point into several."
+    f"name first, at most {MAX_IDEAS}. Fewer when the research is thin; never pad, and never stretch one point "
+    "into several."
 )
+
+
+def count_rule(known_file: KnownFile, depth: Depth) -> str:
+    """How many ideas: a novel's themes, an overview's headline ideas, or
+    full non-fiction's major points — its own list's items when it's built
+    around one.
+    """
+    if known_file.kind == "fiction":
+        return FICTION_COUNT_RULE
+    if depth == "overview":
+        return OVERVIEW_COUNT_RULE
+    return LIST_COUNT_RULE if known_file.numbered_list else IDEA_COUNT_RULE
+
 
 def _common_rules(depth: Depth) -> str:
     """The rules every write follows. An overview's ideas have no evidence,
@@ -357,12 +389,6 @@ FULL_RULE = (
     "The research is the book itself, read part by part: write from it, and use your own knowledge of the "
     "book only for what its notes leave out."
 )
-# Where an idea comes from, for full non-fiction notes. Shared with the review.
-WHERE_RULE = (
-    "Each idea's where names the chapters or parts it comes from, as the book names them — the notes on the "
-    "book give each part's section. A pointer back into the book, not a summary of it; empty when the notes "
-    "don't show where."
-)
 # The one place for spoilers, in fiction read whole. Shared with the review.
 RESOLUTION_RULE = (
     "resolution: how the story resolves — the climax, the ending, what becomes of the main characters and how "
@@ -371,32 +397,27 @@ RESOLUTION_RULE = (
 )
 
 
-def _depth_rules(depth: Depth, kind: Literal["fiction", "non-fiction"]) -> str:
-    """The rules that differ for full notes: write from the book, and for
-    non-fiction say where each idea comes from. `where` stays empty
-    otherwise — a novel's chapters can give its story away.
-    """
-    if depth != "full":
-        return ""
-    where = WHERE_RULE if kind == "non-fiction" else "Leave each theme's where empty."
-    return f"- {FULL_RULE}\n- {where}\n"
+def _depth_rules(depth: Depth) -> str:
+    """The rule that differs for full notes: write from the book."""
+    return f"- {FULL_RULE}\n" if depth == "full" else ""
 
 
 def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
     if depth == "full":
         ideas = (
             "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), "
-            "a summary stating the idea itself, and its evidence: the specific study, story, example or figure the "
-            f"author uses to make it, or empty when there's none to give. {IDEA_COUNT_RULE}\n"
+            "a summary stating the idea itself, and its evidence: the one specific study, story, example or figure "
+            "the author uses to make it, briefly, or empty when there's none to give. "
+            f"{count_rule(known_file, depth)}\n"
             "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a "
-            "reader needs to remember. Each answer is correct and makes sense on its own; don't just restate an "
+            "reader needs to remember, never more than one per idea. Each answer is correct and makes sense on its own; don't just restate an "
             "idea's title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how "
             "it works, the evidence for it, or when it applies.\n"
         )
     else:
         ideas = (
             "- ideas: the book's headline ideas. Each has a title (the book's own name for the idea where it has "
-            f"one) and a summary stating the idea itself. {OVERVIEW_COUNT_RULE}\n"
+            f"one) and a summary stating the idea itself. {count_rule(known_file, depth)}\n"
         )
     return (
         "Write this book's notes"
@@ -409,7 +430,7 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
-        + _depth_rules(depth, known_file.kind)
+        + _depth_rules(depth)
         + _common_rules(depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
@@ -428,17 +449,17 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + (
             "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
             "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
-            f"setup that carry it, or empty when there's none to give. {FICTION_COUNT_RULE}\n"
+            f"setup that carry it, or empty when there's none to give. {count_rule(known_file, depth)}\n"
             f"- {RESOLUTION_RULE}\n"
             if full
             else "- ideas: the novel's main themes. Each has a title (the theme) and a summary of the theme as the "
-            f"setup raises it, in as few sentences as it needs. {FICTION_COUNT_RULE}\n"
+            f"setup raises it, in as few sentences as it needs. {count_rule(known_file, depth)}\n"
         )
         + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         f"- No spoilers anywhere{' but resolution' if full else ''}. {SPOILER_RULE}\n"
-        + _depth_rules(depth, known_file.kind)
+        + _depth_rules(depth)
         + _common_rules(depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
@@ -513,7 +534,12 @@ async def write_notes(
         messages=[*context_messages(known_file, research), {"role": "user", "content": instructions}],
         response_model=draft_model(kind, depth),
         tool_models=shared_tools(kind, depth),
-        validation_context={KIND_KEY: kind, DEPTH_KEY: depth, SOURCE_IDS_KEY: {s.id for s in research.sources}},
+        validation_context={
+            KIND_KEY: kind,
+            DEPTH_KEY: depth,
+            SOURCE_IDS_KEY: {s.id for s in research.sources},
+            NUMBERED_LIST_KEY: known_file.numbered_list,
+        },
         timeout_seconds=WRITE_TIMEOUT_SECONDS,
         max_tokens=WRITE_MAX_TOKENS,
         on_retry=lambda reason: progress(f"write: {reason}"),

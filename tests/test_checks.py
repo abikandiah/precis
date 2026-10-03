@@ -1,3 +1,5 @@
+import pytest
+
 from precis import checks
 from precis.checks import check_notes, quotes
 from precis.research import Part, Research, Source
@@ -57,6 +59,29 @@ def test_evidence_and_the_authors_surname_as_subject_are_checked_too():
     assert 'idea 1 "Stages": describes the text instead of stating the idea' in issues
     assert 'idea 1 "Stages": its evidence describes the text instead of giving the book\'s example' in issues
     assert not any('"Hedgehog"' in i for i in issues)
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "The book emphasizes that PID tuning requires experimentation.",
+        "The book contrasts the two approaches and their trade-offs.",
+        "The book distinguishes between motor types and their control requirements.",
+    ],
+)
+def test_evidence_emphasizing_or_contrasting_instead_of_an_example_is_flagged(evidence):
+    issues = check_notes(_book([_idea("Motors", evidence=evidence)]))
+    assert 'idea 1 "Motors": its evidence describes the text instead of giving the book\'s example' in issues
+
+
+def test_a_summary_that_distinguishes_or_compares_states_the_idea():
+    book = _book(
+        [
+            _idea("Two systems", summary="Collins distinguishes level 4 leaders from level 5 ones."),
+            _idea("Rider", summary="The author compares the mind to a rider on an elephant."),
+        ]
+    )
+    assert not check_notes(book)
 
 
 def test_evidence_describing_the_text_after_its_example_is_fine():

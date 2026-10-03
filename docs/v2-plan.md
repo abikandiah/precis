@@ -9,8 +9,10 @@ left, and what's left. Git history has the phases that got here.
 
 - **Cost:** under **$0.50 per book** on average, measured on library runs.
   Expected well below: an overview is 2–3 LLM calls and 3 searches; full
-  notes add the digest of the whole book (~$0.15–0.35 in all, by length)
-  and drop the search.
+  notes add the digest of the whole book and drop the search: ~$0.30 for
+  a 400-page book, most of it reading the text. Schema v3's first full
+  run (*Making Embedded Systems*) cost $0.49, nearly half of it writing and
+  reviewing 62 ideas.
 - **Quality:** a reader who finished the book can recall what it said from
   full notes alone, and knows what it's about from an overview — judged by
   the Claude review of each library book.
@@ -39,6 +41,13 @@ left, and what's left. Git history has the phases that got here.
   couldn't exercise full mode (no book files), and it judged overviews by
   rules they no longer follow.
 - **Paid runs are confirmed first** — every generation spends real money.
+- **Notes on the book, not the book compacted** (2026-10-03, schema v4):
+  a takeaway, a synopsis and the book's major points, which can span
+  chapters — at most 12, a ceiling never stated as a range to fill, with
+  no padding toward it and no point split in two. A book built around its
+  own numbered list (48 laws, 7 habits) is the exception the reader marks
+  with the known-file's `numbered_list`: one idea per item. No chapter
+  pointers (`where` is gone).
 
 ## Remaining
 
@@ -48,5 +57,6 @@ left, and what's left. Git history has the phases that got here.
   None has a `book_file` yet: the reader adds them for the books they own
   first, since upgrading an overview later pays for the book twice. The
   site is empty until then — the five books generated from search came
-  off it with the switch to schema v3 — so book-keeper's `main` isn't
+  off it with the switch to schema v3 (and *Making Embedded Systems*, v3's
+  first full run, is regenerated on v4) — so book-keeper's `main` isn't
   pushed before the first reviewed books land.

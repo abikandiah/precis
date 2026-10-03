@@ -17,7 +17,7 @@ from pydantic import (
     model_validator,
 )
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 # What the notes were written from: "full" from the reader's own copy of the
 # book (its book_file), read whole; "overview" from search alone.
@@ -119,6 +119,17 @@ class KnownFile(BaseModel):
     # The reader's own copy of the book (.epub, .pdf or .txt), relative to
     # the known-file; read whole as part of the research (book_file.py).
     book_file: str | None = None
+    # Non-fiction built around its own numbered list (48 laws, 7 habits):
+    # full notes give one idea per item, past MAX_IDEAS. Set by the reader,
+    # not judged by the model, which would take any book with numbered
+    # chapters for one.
+    numbered_list: bool = False
+
+    @model_validator(mode="after")
+    def _list_is_nonfiction(self) -> KnownFile:
+        if self.numbered_list and self.kind == "fiction":
+            raise ValueError("numbered_list is for non-fiction built around its own list, not a novel")
+        return self
 
     @property
     def has_title(self) -> bool:
@@ -168,11 +179,6 @@ class Idea(BaseModel):
         description='IDs of the research sources that support this idea, e.g. ["S2", "S5"]; empty when it rests '
         "on your own knowledge of the book.",
     )
-    where: str = Field(
-        default="",
-        description="Where in the book it comes from — the chapters or parts, as the book names them. Empty "
-        "unless the instructions ask for it.",
-    )
 
     @field_validator("sources")
     @classmethod
@@ -182,9 +188,15 @@ class Idea(BaseModel):
         return sources
 
 
-# An overview's ideas have neither: it states the ideas, not the book's own
-# examples, which research from the web can't be trusted for.
-FULL_ONLY_IDEA_FIELDS = ("evidence", "where")
+# An overview's ideas have no evidence: it states the ideas, not the book's
+# own examples, which research from the web can't be trusted for.
+FULL_ONLY_IDEA_FIELDS = ("evidence",)
+
+# The most ideas notes have: a book's major points, not a chapter-by-chapter
+# account (Making Embedded Systems, read whole, got 62). A ceiling, never a
+# target — the prompts say so, since ranges made the model pad to their top.
+# Only full notes on a book built around its own numbered list go past it.
+MAX_IDEAS = 12
 
 
 def stripped_schema(
@@ -226,8 +238,8 @@ def notes_shape_problems(
     """What makes a book's notes unusable: no ideas, full non-fiction notes
     with no review deck, or any others with one. Shared by `Book` and the
     write and review calls' response models, so it's a retryable validation
-    failure at the call and the final book can't disagree with it. There's
-    no count to meet: a book has as many ideas as it makes.
+    failure at the call and the final book can't disagree with it. The
+    count's ceiling is idea_count_problems'.
     """
     problems = []
     if not ideas:
@@ -240,12 +252,26 @@ def notes_shape_problems(
     return problems
 
 
+def idea_count_problems(ideas: list[Idea], depth: Depth, *, numbered_list: bool) -> list[str]:
+    """More than MAX_IDEAS ideas, unless they're full notes following the
+    book's own numbered list. Checked at the write and review calls, which
+    know the known-file — a retryable failure there — not by `Book`, which
+    doesn't.
+    """
+    if len(ideas) <= MAX_IDEAS or (numbered_list and depth == "full"):
+        return []
+    problem = (
+        f"{len(ideas)} ideas — at most {MAX_IDEAS}: keep the book's major points, merging ones a reader would "
+        "recall as one and dropping the minor ones"
+    )
+    return [problem]
+
+
 def deck_coverage_warnings(
     kind: Literal["fiction", "non-fiction"], depth: Depth, ideas: list[Idea], key_claims: list[KeyClaim] | None
 ) -> list[str]:
-    """A review deck covering under half the ideas. There's no count to
-    meet, but key claims are one per idea a reader needs to remember, so a
-    deck this thin (2 claims for 25 ideas) means most of the notes can't be
+    """A review deck covering under half the ideas. Key claims are one per
+    idea a reader needs to remember, so a deck this thin (2 claims for 25 ideas) means most of the notes can't be
     reviewed. A warning, not a retry.
     """
     if not has_deck(kind, depth) or len(key_claims or []) * 2 >= len(ideas):
@@ -303,17 +329,8 @@ class Book(BaseModel):
             raise ValueError("; ".join(problems))
         if self.resolution is not None and (self.kind, self.depth) != ("fiction", "full"):
             raise ValueError("only fiction read whole (full depth) has a resolution")
-        # Cleared rather than sent back, as guesses: `where` outside full
-        # non-fiction notes (a novel's chapters can give its story away), and
-        # an overview's evidence — the book's own examples, which search
-        # research can't be trusted for.
-        cleared = {}
-        if (self.kind, self.depth) != ("non-fiction", "full"):
-            cleared["where"] = ""
+        # An overview's evidence is cleared rather than sent back, as a guess:
+        # the book's own examples, which search research can't be trusted for.
         if self.depth == "overview":
-            cleared["evidence"] = ""
-        if cleared:
-            self.ideas = [
-                i.model_copy(update=cleared) if any(getattr(i, f) for f in cleared) else i for i in self.ideas
-            ]
+            self.ideas = [i.model_copy(update={"evidence": ""}) if i.evidence else i for i in self.ideas]
         return self

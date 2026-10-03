@@ -41,8 +41,9 @@ def _verdicts(n: int = 6, **overrides: dict) -> list[dict]:
 _CLAIMS = [{"prompt": f"Q{n}?", "answer": "A."} for n in range(5)]
 
 
-def _validate(data: dict, book: Book | None = None) -> review.Review:
-    return review.Review.model_validate(data, context={review.BOOK_KEY: book or _book(), write.SOURCE_IDS_KEY: {"S1"}})
+def _validate(data: dict, book: Book | None = None, *, numbered_list: bool = False) -> review.Review:
+    context = {review.BOOK_KEY: book or _book(), write.SOURCE_IDS_KEY: {"S1"}, write.NUMBERED_LIST_KEY: numbered_list}
+    return review.Review.model_validate(data, context=context)
 
 
 def _apply(data: dict, book: Book | None = None) -> tuple[Book, list[str]]:
@@ -67,8 +68,12 @@ def test_the_review_is_validated_against_the_book_it_would_produce(data, message
         _validate(data)
 
 
-def test_counts_outside_the_limits_dont_fail_the_review():
-    reviewed, _ = _apply({"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]})
+def test_a_review_past_the_ceiling_is_sent_back_unless_the_book_follows_its_own_list():
+    data = {"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}
+    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
+        _validate(data)
+    book = _book()
+    reviewed, _ = review.apply_review(book, _validate(data, book, numbered_list=True))
     assert len(reviewed.ideas) == 13
 
 
@@ -217,18 +222,22 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
     assert kwargs["tool_models"] == write.shared_tools("non-fiction", "full")
     assert kwargs["response_model"] is review.FullNonfictionReview
     assert "- idea 2: a finding" in user["content"] and '"title": "Idea 5"' in user["content"]
-    assert "one idea per distinct point" in user["content"] and "drop or add an idea" in user["content"]
-    assert kwargs["validation_context"] == {review.BOOK_KEY: book, write.SOURCE_IDS_KEY: {"S1"}}
+    assert write.IDEA_COUNT_RULE in user["content"] and "drop or add an idea" in user["content"]
+    assert kwargs["validation_context"] == {
+        review.BOOK_KEY: book,
+        write.SOURCE_IDS_KEY: {"S1"},
+        write.NUMBERED_LIST_KEY: False,
+    }
 
 
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
-    text = review._instructions(_book("fiction", ideas=4), [])
+    text = review._instructions(FICTION, _book("fiction", ideas=4), [])
     assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION, "overview")
     assert write.FICTION_COUNT_RULE in text and "key claims" not in text and "key_claims_for_review" not in text
 
 
 def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():
-    assert write.FAITHFUL_RULE in review._instructions(_book(), [])
+    assert write.FAITHFUL_RULE in review._instructions(KNOWN, _book(), [])
     assert write.FAITHFUL_RULE in write._nonfiction_instructions(KNOWN, "full")
     assert write.FAITHFUL_RULE in write._fiction_instructions(FICTION, "overview")
 
@@ -325,27 +334,46 @@ def test_the_review_corrects_a_novels_ending_only_when_read_whole():
     assert reviewed.resolution is None
 
 
-def test_the_full_review_judges_against_the_book_and_checks_where():
-    full = Book.model_validate(_book().model_dump() | {"depth": "full"})
-    text = review._instructions(full, [])
-    assert write.FULL_RULE in text and write.WHERE_RULE in text and "excerpts of pages" not in text
-    assert write.WHERE_RULE not in review._instructions(_book(depth="overview"), [])
-    fiction = review._instructions(_full_fiction(), [])
+def test_the_full_review_judges_against_the_book():
+    text = review._instructions(KNOWN, _book(), [])
+    assert write.FULL_RULE in text and "excerpts of pages" not in text
+    fiction = review._instructions(FICTION, _full_fiction(), [])
     assert write.RESOLUTION_RULE in fiction and "spoiler-safe but for resolution" in fiction and '"resolution"' in fiction
-    assert '"where"' not in fiction  # always empty for fiction: nothing to review
 
 
-def test_a_revised_idea_that_leaves_out_where_keeps_the_originals():
-    full = Book.model_validate(
-        _book().model_dump() | {"depth": "full", "ideas": [_idea(n) | {"where": f"Chapter {n}"} for n in range(6)]}
-    )
-    revised = {"title": "Idea 1", "summary": "Sharper.", "evidence": "e"}
-    reviewed, _ = _apply({"ideas": _verdicts(i1={"verdict": "revise", "reason": "r", "revised": revised})}, full)
-    assert (reviewed.ideas[1].summary, reviewed.ideas[1].where, reviewed.ideas[1].sources) == ("Sharper.", "Chapter 1", ["S1"])
+def test_a_book_built_around_its_own_list_is_reviewed_against_it():
+    listed = KNOWN.model_copy(update={"numbered_list": True})
+    text = review._instructions(listed, _book(), [])
+    assert write.LIST_COUNT_RULE in text and "an item of the book's list the notes leave out" in text
+    assert "the separate items of the book's list are, however related" in text
+    assert "drop ones that don't earn their place" not in text
+    # Any other book's related rules can be merged toward its major points.
+    other = review._instructions(KNOWN, _book(), [])
+    assert write.IDEA_COUNT_RULE in other and "related rules or steps from one list can be one idea" in other
+    assert "the book's list" not in other
+    # An overview of a list book keeps to headline ideas.
+    overview = review._instructions(listed, _book(depth="overview"), [])
+    assert write.OVERVIEW_COUNT_RULE in overview and "the book's list" not in overview
+
+
+def test_an_overview_of_a_list_book_is_still_capped():
+    data = {"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}
+    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
+        _validate(data, _book(depth="overview"), numbered_list=True)
+
+
+def test_validating_a_review_without_numbered_list_fails_loudly():
+    with pytest.raises(RuntimeError, match="needs NUMBERED_LIST_KEY"):
+        review.Review.model_validate({"ideas": _verdicts()}, context={review.BOOK_KEY: _book()})
+
+
+def test_flagged_evidence_is_replaced_or_emptied_never_moved_into_the_summary():
+    assert "never move it into the summary" in review._instructions(KNOWN, _book(), [])
+    assert "evidence" not in review._instructions(KNOWN, _book(depth="overview"), [])
 
 
 def test_a_spoiler_moved_into_the_ending_comes_with_the_whole_ending():
-    text = review._instructions(_full_fiction(), [])
+    text = review._instructions(FICTION, _full_fiction(), [])
     assert "returning the whole resolution with it" in text and "takes in a detail moved from another field" in text
 
 
@@ -354,9 +382,9 @@ def test_a_spoiler_moved_into_the_ending_comes_with_the_whole_ending():
 
 def test_an_overviews_review_keeps_to_headline_ideas_and_has_no_deck():
     overview = _book(depth="overview")
-    text = review._instructions(overview, [])
+    text = review._instructions(KNOWN, overview, [])
     assert write.OVERVIEW_COUNT_RULE in text and "key_claims_for_review" not in text
-    assert '"evidence"' not in text and '"where"' not in text  # nothing to review
+    assert '"evidence"' not in text  # nothing to review
     # A deck the review offers anyway is ignored.
     reviewed, _ = _apply({"ideas": _verdicts(), "key_claims_for_review": _CLAIMS}, overview)
     assert reviewed.key_claims_for_review is None
