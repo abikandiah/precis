@@ -204,6 +204,14 @@ def _quote_issues(quoted: list[tuple[str, str]], research: Research) -> list[str
     return issues
 
 
+def _title_names(title: str) -> list[str]:
+    """The book's title, and its main title without a subtitle ("Sapiens"
+    for "Sapiens: A Brief History of Humankind").
+    """
+    main = re.split(r"[:—]", title, maxsplit=1)[0].strip()
+    return [title] if main == title.strip() else [title, main]
+
+
 def check_notes(book: Book, research: Research | None = None) -> list[str]:
     """One line per finding, naming the idea (1-based) or field it's about.
     Checking quotes against the research needs the research the notes were
@@ -212,7 +220,18 @@ def check_notes(book: Book, research: Research | None = None) -> list[str]:
     issues: list[str] = []
     ideas = book.ideas
 
+    # The author's surname as a subject that describes the text ("Collins
+    # traces…"), and in the takeaway and synopsis the book's own title too
+    # ("Good to Great explores…") — only there: where the title names the
+    # book's concept (Grit, Mindset), "Grit includes passion…" in an idea
+    # is the idea itself.
     surnames = author_surnames(book.author)
+    if book.kind == "non-fiction":
+        # Not fiction's: a novel's synopsis is asked for "what the story
+        # explores".
+        for field in ("one_line_takeaway", "synopsis"):
+            if _describes_text(getattr(book, field), [*surnames, *_title_names(book.title)]):
+                issues.append(f"{field}: describes the text instead of stating what the book argues")
     for n, idea in enumerate(ideas, 1):
         if _describes_text(f"{idea.title}. {idea.summary}", surnames):
             issues.append(f'idea {n} "{idea.title}": describes the text instead of stating the idea')

@@ -207,3 +207,32 @@ def test_quotes_in_a_novels_ending_are_checked_too():
         tags=["dystopian", "drama"], ideas=ideas, resolution=f'It ends: "{passage.strip()}"',
     )  # fmt: skip
     assert any(i.startswith('the resolution: the quote "We are what') for i in check_notes(book))
+
+
+def test_a_takeaway_or_synopsis_describing_the_text_is_flagged_with_the_title_as_a_subject():
+    book = _book([]).model_copy(
+        update={
+            "one_line_takeaway": "Good to Great explores what separates great companies.",
+            "synopsis": "Great firms confront the brutal facts.\n\nThe book examines eleven of them.",
+        }
+    )
+    issues = check_notes(book)
+    assert "one_line_takeaway: describes the text instead of stating what the book argues" in issues
+    assert "synopsis: describes the text instead of stating what the book argues" in issues
+    assert checks._title_names("Sapiens: A Brief History") == ["Sapiens: A Brief History", "Sapiens"]
+
+
+def test_a_title_naming_the_books_concept_is_the_idea_in_summaries_and_answers():
+    book = _book(
+        [_idea("Grit", summary="Grit includes passion and perseverance working together.")],
+        claims=[{"prompt": "What is grit made of?", "answer": "Grit includes passion and perseverance."}],
+    ).model_copy(update={"title": "Grit: The Power of Passion and Perseverance"})
+    assert not any("describes the text" in i for i in check_notes(book))
+
+
+def test_a_novels_synopsis_may_say_what_the_story_explores():
+    novel = Book(
+        title="1984", author="George Orwell", isbn="2", kind="fiction", depth="overview", one_line_takeaway="t",
+        synopsis="The novel explores surveillance.", tags=["dystopian", "drama"], ideas=[_idea("Power")],
+    )  # fmt: skip
+    assert not any(i.startswith("synopsis") for i in check_notes(novel))

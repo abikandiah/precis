@@ -165,14 +165,13 @@ class Idea(BaseModel):
 
     title: str = Field(description="The idea or theme, named as the book names it where it has a name.")
     summary: str = Field(
-        description="The idea itself (or the theme as the setup raises it), in as few sentences as it needs: one "
-        "for a simple rule, more for an argument with steps."
+        description="The idea itself (or the theme as the setup raises it), in 1-3 sentences."
     )
     evidence: str = Field(
         default="",
-        description="Briefly, the study, story, example or figure the author uses (non-fiction), or the "
-        "characters and situations that carry the theme (fiction). Empty when you have no specific one — never "
-        "a general statement in its place.",
+        description="The study, story or example the author uses (non-fiction), or the characters and "
+        "situations that carry the theme (fiction). Empty when you have no specific one — never a general "
+        "statement in its place.",
     )
     sources: list[str] = Field(
         default_factory=list,

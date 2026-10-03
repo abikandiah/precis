@@ -47,7 +47,10 @@ left, and what's left. Git history has the phases that got here.
   no padding toward it and no point split in two. A book built around its
   own numbered list (48 laws, 7 habits) is the exception the reader marks
   with the known-file's `numbered_list`: one idea per item. No chapter
-  pointers (`where` is gone).
+  pointers (`where` is gone). The points are ranked across the whole book —
+  merge what a reader would recall as one, then drop the weaker — and
+  stated as concepts a reader would explain to a friend, not the book's
+  figures, names and procedures.
 
 ## Remaining
 

@@ -376,3 +376,8 @@ async def test_an_overview_never_prunes_the_full_runs_reading_of_the_book(tmp_pa
         await digest.digest(BOOK, _research(), slug="b", client=AsyncMock(), cache_dir=tmp_path)
     assert full and digest._load(digest.cache_path("b", "full", tmp_path)) == full
     assert digest._load(digest.cache_path("b", "overview", tmp_path))
+
+
+def test_a_passage_is_other_only_when_none_of_it_is_the_books_text():
+    kind = digest.Passage.model_json_schema()["properties"]["kind"]["description"]
+    assert "only a passage that's all other" in kind and "the contents, then the introduction" in kind

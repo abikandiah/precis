@@ -123,7 +123,7 @@ synopsis               2-5 paragraphs, fewer when there's less to say
 ideas                  [{ title, summary, evidence, sources }]
                          non-fiction: major points; fiction: themes
                          at most 12 (a book's own list: one per item),
-                         each as long as it needs
+                         each 1-3 sentences
 resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
 key_claims_for_review  [{ prompt, answer }], full non-fiction only, one per
@@ -158,7 +158,13 @@ warnings               anything the reader should check
   book that makes five gets five. The prompts state the ceiling as one and
   never as a range — the first library's 5-12 range made the model pad to
   11-12, restating a few points several times — and say never to pad
-  toward it or split one point into several. More than 12 is sent back at
+  toward it or split one point into several. The points come from the
+  whole book, ranked: with more than fit, the ones a reader would recall
+  as one merge and the weaker are left out — and the review, at the
+  ceiling, swaps a missing major point for the weakest idea or merges two.
+  Capped without that, *Making Embedded Systems*' 12 came from its first
+  nine chapters, and the review's three additions were sent back with
+  nothing in their place. More than 12 is sent back at
   the write and review calls (`idea_count_problems`, which knows the
   known-file's `numbered_list`); `Book` itself doesn't know it, so doesn't
   check. Notes with no ideas, full non-fiction notes without a review deck,
@@ -258,7 +264,9 @@ A non-fiction page the excerpt would cut by more than half (over ~12k
 tokens) is read whole instead: split into ~15k-token chunks at line
 breaks, and one structured call per chunk notes its kind (the book's own
 text, writing about the book, or other — front and back matter,
-navigation), the section it sits under, its main arguments in its own
+navigation, and only when that's all the passage holds: the first chunk
+of a PDF, contents then chapter 1, was once noted as other and the book's
+opening lost), the section it sits under, its main arguments in its own
 terms with the standout example behind each (~300 words: notes for the
 book's major points, not a summary of every section; a novel's run to
 ~600, for its story), and up to five of the author's sentences
@@ -326,6 +334,14 @@ cache — confirmed through OpenRouter: the review reads the research from it.
 - Ideas are the book's major points across the whole book, under the
   ceiling. They name the book's own terms and never describe the text
   ("the author discusses…").
+- **Concepts, not particulars** (`ALTITUDE_RULE`, non-fiction, shared with
+  the review): the notes refresh a reader's memory of the book's takeaways
+  and core ideas, so each idea is stated as the concept the book teaches,
+  named as the book names it, in 1-3 sentences — with one memorable example
+  as evidence in full notes — leaving out only exact figures, part or
+  function names, lists of options and procedures unless the idea is that
+  detail. Key claims ask about concepts, never lists of specifics. A
+  novel's themes aren't taught, so fiction has no such rule.
 - Key claims ask what a reader needs to recall about an idea, never just
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
@@ -364,10 +380,13 @@ name and the real name, or an added co-author isn't a mismatch.
 ### Checks (`checks.py`)
 
 Code checks on the written notes, each a specific lead for the review:
-ideas, evidence or answers that describe the text ("the book examines…",
-"the book emphasizes…", "Storr traces…") instead of stating the idea or giving the book's example,
-and near-duplicate ideas (half their vocabulary shared — the same point in
-other words is the review's `same_point`). A general
+ideas, evidence or answers — and non-fiction's takeaway and synopsis —
+that describe the text ("the book examines…", "the book emphasizes…",
+"Storr traces…", "Good to Great explores…": the author's surname counts
+as a subject, and in the takeaway and synopsis the title too — not in
+ideas, where a title naming the book's concept, *Grit*, is the idea)
+instead of stating the idea or giving the book's example, and near-duplicate ideas (half their vocabulary shared —
+the same point in other words is the review's `same_point`). A general
 statement of what the book argues is a fine fallback when research is
 thin; a description of the text isn't. The author's surname counts as a
 subject in summaries and answers, not in evidence, where "Krakauer
@@ -433,7 +452,10 @@ excerpts can't hold everything, so a specific the model is
 confident is from the book stays; the reader, who has read the book, is
 the final check. The first baseline's review broke both: it dropped a
 Sapiens idea because critics dispute Harari, and made correct details
-vaguer because the research didn't mention them.
+vaguer because the research didn't mention them. Keeping to concepts
+(`ALTITUDE_RULE`) doesn't undo that: it removes only exact figures, part
+and function names, option lists and procedures, never the book's own
+terms, arguments or example.
 
 - **keep** — accurate to the book, citations included: its cited sources
   support it, or it cites none and the model is confident it's accurate.
@@ -441,11 +463,14 @@ vaguer because the research didn't mention them.
   the book (corrected, or that detail alone removed), vagueness, a
   description of the text, or a citation that doesn't support it
   (corrected, or emptied when the research is silent but the idea is
-  right). Every specific that's right is kept: fix what's wrong, never make
-  the idea vaguer.
+  right), or an idea lost in particulars instead of its concept
+  (non-fiction). Every specific that's right is kept — the book's terms,
+  arguments and example — and only the particulars `ALTITUDE_RULE` lists
+  go: fix what's wrong, never make the idea vaguer.
 - **drop** — the book doesn't make this argument, it isn't specific to this
-  book, or it repeats another idea. A wrong idea is worse than a missing
-  one; claims resting on it go too.
+  book, or it repeats another idea — or, at the ceiling, it's the weakest
+  idea and a missing major point takes its place. A wrong idea is worse
+  than a missing one; claims resting on it go too.
 - **same point** — first, before any verdict: pairs of ideas a reader
   would recall as one — the same claim from different angles, or a
   framework and one of its own parts given separately — each naming the

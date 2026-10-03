@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from precis import write
 from precis.research import BOOK_FILE_URL, Research, Source
-from precis.schema import KeyClaim, KnownFile
+from precis.schema import MAX_IDEAS, KeyClaim, KnownFile
 from precis.search import author_names
 
 NONFICTION = KnownFile(
@@ -293,10 +293,28 @@ def test_a_book_built_around_its_own_list_gets_one_idea_per_item_in_full_notes_o
     assert write.OVERVIEW_COUNT_RULE in write._nonfiction_instructions(listed, "overview")
 
 
+def test_non_fiction_writes_concepts_not_the_books_particulars():
+    full = write._nonfiction_instructions(NONFICTION, "full")
+    assert write.ALTITUDE_RULE in full and write.ONE_EXAMPLE_RULE in full
+    assert "Never a list of specifics or trivia" in full
+    # An overview has no evidence to hold its one example.
+    overview = write._nonfiction_instructions(NONFICTION, "overview")
+    assert write.ALTITUDE_RULE in overview and write.ONE_EXAMPLE_RULE not in overview
+    # A novel's themes aren't taught.
+    for depth in ("full", "overview"):
+        assert write.ALTITUDE_RULE not in write._fiction_instructions(FICTION, depth)
+
+
+def test_major_points_come_from_the_whole_book_by_rank():
+    assert "its later chapters as much as its opening" in write.IDEA_COUNT_RULE
+    assert "keep the most important and leave out the weaker" in write.IDEA_COUNT_RULE
+
+
 def test_the_ceiling_is_stated_as_one_never_as_a_range_to_fill():
     for rule in (write.IDEA_COUNT_RULE, write.FICTION_COUNT_RULE):
         assert "a ceiling, not a target" in rule
-    assert "Never pad toward 12" in write.IDEA_COUNT_RULE
+    # The number is named once, as the ceiling, so the model can't anchor on it as a goal.
+    assert "Never pad toward the ceiling" in write.IDEA_COUNT_RULE and write.IDEA_COUNT_RULE.count(str(MAX_IDEAS)) == 1
 
 
 def test_full_notes_come_from_the_book_itself():

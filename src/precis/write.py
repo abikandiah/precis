@@ -319,14 +319,16 @@ SPOILER_RULE = (
 # Systems, read whole, 62 ideas — the book compacted, not notes on it. The
 # ceiling is stated as one, never as a range: ranges made the model pad to
 # their top (every first-library book got 11-12 ideas, a few points restated
-# several times). Shared with the review, as are the others below.
+# several times). The whole book, by rank: capped without that, the same
+# book's 12 ideas came from its first nine chapters and none from its last
+# five. Shared with the review, as are the others below.
 IDEA_COUNT_RULE = (
     "Only the book's major points: the arguments a reader would name when asked what the book says, not a "
-    "chapter-by-chapter account. An idea can draw on many chapters, and a chapter's details belong in the idea "
-    f"they support, not in ideas of their own. At most {MAX_IDEAS} — a ceiling, not a target: a book that makes "
-    f"five major points gets five. Never pad toward {MAX_IDEAS}, never split one point into several, and never "
-    "give two ideas a reader would recall as one. Each idea is as long as it needs to be: a sentence for a "
-    "simple rule, a few for an argument with steps."
+    "chapter-by-chapter account. Draw them from the whole book, its later chapters as much as its opening; an "
+    "idea can span many chapters, and a chapter's details belong in the idea they support, not in ideas of "
+    f"their own. At most {MAX_IDEAS} — a ceiling, not a target: a book that makes five major points gets five. "
+    f"With more candidates than that, merge the ones a reader would recall as one, then keep the most important "
+    "and leave out the weaker. Never pad toward the ceiling, and never split one point into several."
 )
 # A book built around its own numbered list (the known-file's
 # numbered_list): the list is the notes.
@@ -357,15 +359,18 @@ def count_rule(known_file: KnownFile, depth: Depth) -> str:
     return LIST_COUNT_RULE if known_file.numbered_list else IDEA_COUNT_RULE
 
 
-def _common_rules(depth: Depth) -> str:
+def _common_rules(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
     """The rules every write follows. An overview's ideas have no evidence,
-    so it isn't asked for the book's examples.
+    so it isn't asked for the book's examples; a novel's themes have no
+    altitude to keep to.
     """
     full = depth == "full"
+    altitude = f"- {rule}\n" if (rule := altitude_rule(kind, depth)) else ""
     examples = "examples, " if full else ""
     evidence = "an idea's evidence stays empty when you have no specific example for it, and " if full else ""
     return (
-        f"- Name the book's actual terms, arguments, {examples}characters and situations. No generic statements "
+        altitude
+        + f"- Name the book's actual terms, arguments, {examples}characters and situations. No generic statements "
         "that could describe any book on the topic, and no descriptions of the text itself (\"the author "
         'discusses...", "this chapter examines...") — state the ideas.\n'
         "- Accuracy comes first. Use the research, and your own knowledge of the book where you're confident of "
@@ -378,10 +383,36 @@ def _common_rules(depth: Depth) -> str:
         "- Each idea makes a point no other idea makes: not the same claim from another angle, and not a "
         "framework plus one of its own parts as a separate idea.\n"
         f"- Never pad. Thin research means fewer ideas and shorter fields, not vaguer ones: {evidence}an idea you "
-        "could only state in general terms is left out. Every sentence should tell a reader something specific "
-        "about this book.\n"
+        "could only state in terms that fit any book on its topic is left out. Every sentence should say "
+        "something true of this book in particular — specific to it, not more detailed.\n"
         f"- {FAITHFUL_RULE}\n"
     )
+
+
+# How high non-fiction's notes sit: concepts, not the book's particulars.
+# Read whole, a book's notes otherwise fill with figures, part and function
+# names and procedures — precise, and no help recalling what it taught. It
+# removes only those: the book's own terms, arguments and example stay, or
+# the review makes correct ideas vaguer, as the first baseline's did. A
+# novel's themes aren't taught, so fiction has none. Shared with the review.
+ALTITUDE_RULE = (
+    "These notes refresh a reader's memory of the book — its takeaways, core concepts and ideas — not a "
+    "condensed copy of it. State each idea as the concept the book teaches, named as the book names it, at the "
+    "level the reader would explain it to a friend: its point and why it matters, in 1-3 sentences. Leave out "
+    "only exact figures, part and function names, lists of options and step-by-step procedures, unless the "
+    "idea is that detail; the book's own terms and arguments stay."
+)
+# Full notes' evidence: one example, not a catalogue of them.
+ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than several."
+
+
+def altitude_rule(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
+    """Non-fiction's ALTITUDE_RULE, with its one example for full notes
+    (an overview has no evidence to put it in); none for fiction.
+    """
+    if kind == "fiction":
+        return ""
+    return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}" if depth == "full" else ALTITUDE_RULE
 
 
 # Full notes: the book itself is the research. Shared with the review.
@@ -406,13 +437,14 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
     if depth == "full":
         ideas = (
             "- ideas: the book's key ideas. Each has a title (the book's own name for the idea where it has one), "
-            "a summary stating the idea itself, and its evidence: the one specific study, story, example or figure "
-            "the author uses to make it, briefly, or empty when there's none to give. "
+            "a summary stating the concept, and its evidence: in a sentence, the one memorable study, story or "
+            "example the author uses to make it, or empty when there's none to give. "
             f"{count_rule(known_file, depth)}\n"
             "- key_claims_for_review: recall questions (prompt) with 1-3 sentence answers, one for each idea a "
-            "reader needs to remember, never more than one per idea. Each answer is correct and makes sense on its own; don't just restate an "
-            "idea's title as a question (\"What is X?\") — ask for what the reader needs to recall about it: how "
-            "it works, the evidence for it, or when it applies.\n"
+            "reader needs to remember, never more than one per idea. Each answer is correct and makes sense on its "
+            "own; don't just restate an idea's title as a question (\"What is X?\") — ask for what the reader "
+            "needs to recall about the concept: how it works, why it matters, or when it applies. Never a list of "
+            "specifics or trivia to memorize.\n"
         )
     else:
         ideas = (
@@ -425,13 +457,15 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + ".\n\n"
         "- one_line_takeaway: one sentence — the book's central message.\n"
         "- synopsis: 2-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
-        "its argument builds, and where it lands. Fewer paragraphs when there's less to say.\n"
+        "its argument builds, and where it lands, as connected prose stating what the book argues — never stage "
+        "labels like \"The argument builds by…\" or descriptions like \"The book moves from…\". Fewer "
+        "paragraphs when there's less to say.\n"
         + ideas
         + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         + _depth_rules(depth)
-        + _common_rules(depth)
+        + _common_rules(known_file.kind, depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
     )
@@ -460,7 +494,7 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         "Rules:\n"
         f"- No spoilers anywhere{' but resolution' if full else ''}. {SPOILER_RULE}\n"
         + _depth_rules(depth)
-        + _common_rules(depth)
+        + _common_rules(known_file.kind, depth)
         + _reader_notes(known_file)
         + "\nCall the tool with the result."
     )

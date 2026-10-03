@@ -367,6 +367,20 @@ def test_validating_a_review_without_numbered_list_fails_loudly():
         review.Review.model_validate({"ideas": _verdicts()}, context={review.BOOK_KEY: _book()})
 
 
+def test_the_review_keeps_ideas_at_the_concepts_level_and_makes_room_at_the_ceiling():
+    text = review._instructions(KNOWN, _book(), [])
+    assert write.ALTITUDE_RULE in text and "an idea lost in particulars" in text
+    # Bounded: only the particulars go, never the book's terms or example.
+    assert "leaving out only the particulars named above" in text and "never make the idea vaguer" in text
+    assert "takes the place of the weakest idea" in text and "at the ceiling — it's the weakest idea" in text
+    listed = review._instructions(KNOWN.model_copy(update={"numbered_list": True}), _book(), [])
+    assert "takes the place of the weakest idea" not in listed and "the weakest idea and" not in listed
+    # A novel's themes have no altitude rule.
+    fiction = review._instructions(FICTION, _full_fiction(), [])
+    assert write.ALTITUDE_RULE not in fiction and "an idea lost in particulars" not in fiction
+    assert "keeping every specific that's right:" in fiction
+
+
 def test_flagged_evidence_is_replaced_or_emptied_never_moved_into_the_summary():
     assert "never move it into the summary" in review._instructions(KNOWN, _book(), [])
     assert "evidence" not in review._instructions(KNOWN, _book(depth="overview"), [])

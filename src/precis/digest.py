@@ -71,7 +71,7 @@ from precis.research import (
 from precis.schema import Depth, KnownFile
 
 # Bumped when the prompt or the notes' shape changes; older digests are redone.
-DIGEST_VERSION = 3
+DIGEST_VERSION = 4
 
 # A page longer than this loses more than half of itself to the excerpt;
 # shorter ones keep most of it, verbatim, which beats notes on all of it.
@@ -117,7 +117,8 @@ class Passage(BaseModel):
     kind: Literal["book", "about", "other"] = Field(
         description="book: the book's own text. about: writing about this book — a summary, review, interview or "
         "analysis. other: anything else — front or back matter (contents, index, references, copyright), "
-        "navigation, or other books."
+        "navigation, or other books — but only a passage that's all other: one where the book's own text "
+        "starts or goes on (the contents, then the introduction) is book, noted from that text."
     )
     section: str = Field(
         default="",
