@@ -103,12 +103,24 @@ def test_a_synopsis_still_describing_the_book_is_sent_back():
     assert reviewed.synopsis == "Firms fail." and "revised synopsis" in changes
 
 
-def test_an_overview_still_giving_figures_is_sent_back():
+def test_an_overview_still_giving_figures_is_sent_back_once():
     book = _book(depth="overview").model_copy(update={"synopsis": "Costs fell 30% in a decade.\n\nThey rose again."})
+    context = {review.BOOK_KEY: book, write.SOURCE_IDS_KEY: {"S1"}, write.NUMBERED_LIST_KEY: False}
     with pytest.raises(ValidationError, match=r"an overview gives no figures, and these still do: synopsis"):
+        review.Review.model_validate({"ideas": _verdicts()}, context=context)
+    # The retry is accepted either way; what's left is a warning.
+    kept = review.Review.model_validate({"ideas": _verdicts()}, context=context)
+    reviewed, _ = review.apply_review(book, kept)
+    assert any("gives figures (30%)" in w for w in reviewed.warnings)
+    fixed, _ = _apply({"ideas": _verdicts(), "synopsis": "Costs fell sharply over a decade.\n\nThey rose again."}, book)
+    assert fixed.synopsis.startswith("Costs fell sharply")
+
+
+def test_describing_and_figures_are_sent_back_in_one_message():
+    synopsis = "The book examines why costs fell 30%.\n\nThey rose again."
+    book = _book(depth="overview").model_copy(update={"synopsis": synopsis})
+    with pytest.raises(ValidationError, match=r"the synopsis still describes the book.*an overview gives no figures"):
         _validate({"ideas": _verdicts()}, book)
-    reviewed, _ = review.apply_review(book, _validate({"ideas": _verdicts(), "synopsis": "Costs fell, then rose."}, book))
-    assert reviewed.synopsis == "Costs fell, then rose."
 
 
 def test_a_review_can_drop_below_the_minimum():

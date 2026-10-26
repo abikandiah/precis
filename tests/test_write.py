@@ -417,3 +417,11 @@ def test_validating_a_draft_without_its_depth_or_numbered_list_fails_loudly():
         write.DraftWithClaims.model_validate(_draft(), context={write.KIND_KEY: "non-fiction"})
     with pytest.raises(RuntimeError, match="needs NUMBERED_LIST_KEY"):
         write.DraftWithClaims.model_validate(_draft(), context={write.KIND_KEY: "non-fiction", write.DEPTH_KEY: "full"})
+
+
+def test_an_overview_of_either_kind_is_told_to_give_no_figures():
+    for kind in ("non-fiction", "fiction"):
+        known = KnownFile(isbn="1", title="T", author="A", kind=kind)
+        instructions = write._nonfiction_instructions if kind == "non-fiction" else write._fiction_instructions
+        assert write.OVERVIEW_FIGURES_RULE in instructions(known, "overview")
+        assert write.OVERVIEW_FIGURES_RULE not in instructions(known, "full")

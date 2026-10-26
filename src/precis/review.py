@@ -46,7 +46,7 @@ from pydantic import (
 )
 
 from precis import llm
-from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words, figure_issues
+from precis.checks import DUPLICATE_OVERLAP, FIGURES_ISSUE, check_notes, content_words
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
@@ -82,6 +82,10 @@ from precis.write import (
 
 # validation_context key: the written book the review is of.
 BOOK_KEY = "book"
+# Set in the validation_context once the review has been sent back over
+# what _unfixed finds: the same dict reaches every attempt, so the next is
+# accepted (llm.complete_structured).
+SENT_BACK_KEY = "sent_back"
 
 # What a model writes in a field it means to leave alone.
 _UNCHANGED = frozenset({"unchanged", "no change", "no changes"})
@@ -195,15 +199,16 @@ class Review(BaseModel):
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
-        rewrites = _rewrite_fields(book)
+        rewrites = _describing_fields(check_notes(book))
         for field in ("one_line_takeaway", "synopsis", "resolution"):
             if (value := getattr(self, field)) is None:
                 continue
             written = getattr(book, field)
             if written is None:
                 continue  # the Review tool offers a resolution to every book; only fiction read whole has one
-            # A rewrite of one that describes the text or gives figures can be
-            # shorter: it's a fix, not a part returned.
+            # A rewrite of one that describes the text can be shorter: it's a
+            # fix, not a part returned. Not one clearing figures: a number
+            # restated in words keeps a field about as long.
             if field != "one_line_takeaway" and field not in rewrites and len(value) < len(written) / 2:
                 # Most likely only the part it changed: the rest would be lost.
                 changes.append(f"left the {field} as written: the review returned only part of it")
@@ -218,23 +223,15 @@ class Review(BaseModel):
             self._reviewed = Book.model_validate(book.model_copy(update=updates).model_dump())
         except ValidationError as exc:
             raise ValueError(f"the reviewed notes aren't valid: {exc}") from exc
-        if still := _describing_fields(self._reviewed):
-            # Sent back, not left as a warning: given only as a lead, the
-            # review left Wealthy Renter's "The book challenges…" synopsis as
-            # it was. Failing twice leaves the notes as written, warned.
-            raise ValueError(
-                f"the {' and the '.join(still)} still describe{'' if len(still) > 1 else 's'} the book instead of "
-                "stating what it argues: return the whole field rewritten as the argument itself, never \"The "
-                "book…\" or the author doing something to the text"
-            )
-        if left := figure_issues(self._reviewed):
-            # Sent back like the describing check: as a lead alone, The Diet
-            # Myth's review kept every figure.
-            raise ValueError(
-                "an overview gives no figures, and these still do: "
-                + "; ".join(left)
-                + " — return each whole field restated as the point the figure makes, without the number"
-            )
+        # Sent back once, both problems in one message, then accepted: given
+        # only as leads, the review left Wealthy Renter's "The book
+        # challenges…" synopsis and every one of The Diet Myth's figures as
+        # they were. Never twice: a false positive (Atomic Habits' "1%
+        # better") repeated would lose the whole review, every other fix with
+        # it. What's left after the one retry is a warning (apply_review).
+        if not context.get(SENT_BACK_KEY) and (problems := _unfixed(self._reviewed)):
+            context[SENT_BACK_KEY] = True
+            raise ValueError("; ".join(problems))
         self._changes = changes
         self._warnings = warnings
         return self
@@ -310,20 +307,33 @@ def _verdict_problems(book: Book, review: Review) -> list[str]:
     return problems
 
 
-def _describing_fields(book: Book) -> list[str]:
-    """The takeaway and synopsis, of those that describe the book instead of
-    stating its argument (checks.py's test, non-fiction only).
+def _describing_fields(issues: list[str]) -> list[str]:
+    """The takeaway and synopsis, of those the checks' `issues` find
+    describing the book instead of stating its argument (non-fiction only).
     """
-    found = "\n".join(check_notes(book))
+    found = "\n".join(issues)
     return [field for field in ("one_line_takeaway", "synopsis") if f"{field}: describes the text instead of" in found]
 
 
-def _rewrite_fields(book: Book) -> set[str]:
-    """The takeaway and synopsis, of those the review is sent back over:
-    describing the book, or an overview's figures.
+def _unfixed(book: Book) -> list[str]:
+    """What the review is sent back over: a takeaway or synopsis describing
+    the book, and an overview's figures (checks.py) — from one run of the
+    checks.
     """
-    figures = [issue.split(":", 1)[0] for issue in figure_issues(book)]
-    return {*_describing_fields(book), *(f for f in ("one_line_takeaway", "synopsis") if f in figures)}
+    issues = check_notes(book)
+    problems = [
+        f"the {field} still describes the book instead of stating what it argues: return the whole field "
+        "rewritten as the argument itself, never \"The book…\" or the author doing something to the text"
+        for field in _describing_fields(issues)
+    ]
+    if figures := [issue for issue in issues if FIGURES_ISSUE in issue]:
+        problems.append(
+            "an overview gives no figures, and these still do: "
+            + "; ".join(figures)
+            + " — return each whole field restated as the point the figure makes, keeping a number only when "
+            "it names one of the book's own concepts"
+        )
+    return problems
 
 
 def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea], list[Idea]]:
@@ -562,7 +572,8 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         "paraphrase.\n\n"
         f"<notes>\n{json.dumps(notes, indent=2, ensure_ascii=False)}\n</notes>\n\n"
         f"Automated checks flagged:\n{found}\n"
-        "These are leads, not verdicts.\n\n"
+        "These are leads, not verdicts — except a takeaway or synopsis that describes the book and, in an "
+        "overview, figures: fix those.\n\n"
         "First, same_point: compare the ideas with each other. Two ideas make the same point when a reader "
         "would recall them as one: the same claim from different angles (a novel's \"ethics of scientific "
         "ambition\" and \"corruption of knowledge and power\"), or a framework and one of its own parts given "
@@ -591,8 +602,8 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         "only ones the research supports, each citing its sources. Not a part or restatement of an idea the "
         "notes already have: sharpen that idea with revise instead. An idea is something the book argues (or, "
         "for a novel, a theme it develops), not an observation about the book, its genre or its reception.\n"
-        "- one_line_takeaway, synopsis: only if they misstate the book, are vague, or describe the text instead "
-        "of stating what it argues — then the whole corrected text.\n"
+        "- one_line_takeaway, synopsis: only if they misstate the book, are vague, describe the text instead "
+        "of stating what it argues, or (in an overview) give figures — then the whole corrected text.\n"
         + claims
         + spoilers
         + f"\n{counts} Most notes need few changes: don't rewrite what's already right. Call the tool with the "

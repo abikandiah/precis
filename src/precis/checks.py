@@ -21,7 +21,7 @@ defend, so the review spends its attention where problems are likely.
   without research.
 - **Figures in an overview**: a percentage, range, decimal, large count or
   amount with a unit ("roughly 30 percent", "between 5.5 and 13
-  kilograms", "fewer than 10"). An overview states what a book argues, and
+  kilograms", "thirty percent"). An overview states what a book argues, and
   search research can't be trusted for the book's own numbers: across the
   first library overviews, figures were the detail most often wrong, or
   contradicting each other (20,000 genes, then 22,000), or from a later
@@ -211,21 +211,31 @@ def _quote_issues(quoted: list[tuple[str, str]], research: Research) -> list[str
     return issues
 
 
-# A figure is a quantity, not any digit: years ("in 1942"), small numbers
-# naming things ("System 1", "Law 7") and numbers in the book's own title
-# (Fahrenheit 451) aren't flagged.
+# A figure is a quantity, not any digit: years and spans of them ("in 1942",
+# "1939 to 1945", "1914-18"), numbers naming things — small ones ("System
+# 1", "Law 7") and any after a capitalized word ("Room 101", "Web 2.0") or
+# "year" — and numbers in the book's own title (Fahrenheit 451) aren't
+# flagged. A book's own number-named concept ("the 10,000-hour rule") still
+# is; the review, sent back once, may keep it.
 _UNITS = (
     r"percent|per cent|kg|kilograms?|kilos?|pounds?|lbs?|grams?|calories|kcal|miles?|km|kilometres?|kilometers?|"
     r"dollars?|euros?|years?|months?|weeks?|days?|hours?|minutes?|species|people|times"
 )
+_NUMBER_WORDS = (
+    r"three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|"
+    r"eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion"
+)
+_YEAR = re.compile(r"(?:1\d{3}|20\d{2})")
+_NAMED = re.compile(r"(?:\b[A-Z][\w'’]*|\byear)\s+$")
 _FIGURE = re.compile(
-    r"[$£€]\s*\d[\d,.]*"  # an amount of money
+    r"[$£€]\s*\d(?:[\d,.]*\d)?"  # an amount of money
     r"|\b\d+(?:\.\d+)?\s*%"  # a percentage
     r"|\b\d+(?:[.,]\d+)*\s*(?:[–—-]|to)\s*\d+(?:[.,]\d+)*"  # a range: 5.5-13, 500 to 600
-    rf"|\b\d+(?:\.\d+)?\s*(?:{_UNITS})\b"  # an amount with a unit: 13 kilograms, 5.5 kg, 10 days
+    rf"|\b\d+(?:\.\d+)?[\s-]*(?:{_UNITS})\b"  # an amount with a unit: 13 kilograms, 5.5 kg, a 30-year study
+    r"|\b\d+(?:\.\d+)?\s*(?:thousand|million|billion|trillion)\b"
+    rf"|\b(?:{_NUMBER_WORDS})(?:[ -](?:{_NUMBER_WORDS}))*\s+(?:{_UNITS})\b"  # spelled out: thirty percent
     r"|\b\d+\.\d+\b"  # a decimal
     r"|\b\d{1,3}(?:,\d{3})+\b"  # a large count: 20,000
-    r"|\b\d+(?:\.\d+)?\s*(?:thousand|million|billion|trillion)\b"
     r"|\b(?!1\d{3}\b|20\d{2}\b)\d{3,}\b",  # three or more digits that aren't a year
     re.IGNORECASE,
 )
@@ -236,10 +246,20 @@ def figures(text: str, title: str = "") -> list[str]:
     own = set(re.findall(r"\d+", title))
     found = []
     for match in _FIGURE.finditer(text):
-        figure = match.group(0)
-        if not (set(re.findall(r"\d+", figure)) <= own):
-            found.append(figure.strip())
+        figure = match.group(0).strip()
+        numbers = re.findall(r"\d+", figure)
+        if numbers and set(numbers) <= own:
+            continue
+        if numbers and _YEAR.fullmatch(numbers[0]) and re.fullmatch(r"[\d\s–—-]+|\d+\s+to\s+\d+", figure):
+            continue  # a span of years: 1939 to 1945, 1914-18
+        if re.fullmatch(r"\d+(?:\.\d+)?", figure) and _NAMED.search(text[: match.start()]):
+            continue  # a name: Room 101, Web 2.0, the year 2540
+        found.append(figure)
     return found
+
+
+# How figure_issues' lines read, for the review to find them by.
+FIGURES_ISSUE = "gives figures"
 
 
 def figure_issues(book: Book) -> list[str]:
@@ -252,7 +272,7 @@ def figure_issues(book: Book) -> list[str]:
     for where, text in fields:
         if found := figures(text, book.title):
             issues.append(
-                f"{where}: gives figures ({', '.join(found)}) — an overview states the point, not the book's numbers"
+                f"{where}: {FIGURES_ISSUE} ({', '.join(found)}) — an overview states the point, not the book's numbers"
             )
     return issues
 

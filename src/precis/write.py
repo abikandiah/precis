@@ -431,8 +431,9 @@ ALTITUDE_RULE = (
 # (checks.figure_issues finds them; the review is sent back while any stay).
 OVERVIEW_FIGURES_RULE = (
     "An overview gives no figures anywhere, takeaway and synopsis included: no percentages, ranges, decimals, "
-    "counts or amounts. State what a figure shows instead (\"identical twins gained very different amounts\", "
-    "not \"between 5.5 and 13 kilograms\")."
+    "counts or amounts, in digits or words. State what a figure shows instead (\"people overfed by the same "
+    "amount gained very different amounts\", not \"between 5.5 and 13 kilograms\"). The exception is a number "
+    "that names one of the book's own concepts (\"the 10,000-hour rule\")."
 )
 # Full notes' evidence: one example, not a catalogue of them.
 ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than several."
@@ -440,11 +441,11 @@ ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than
 
 def altitude_rule(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
     """Non-fiction's ALTITUDE_RULE, with its one example for full notes
-    (an overview has no evidence to put it in) and no figures for an
-    overview; none for fiction.
+    (an overview has no evidence to put it in); for an overview of either
+    kind, no figures (checks.figure_issues checks both).
     """
     if kind == "fiction":
-        return ""
+        return OVERVIEW_FIGURES_RULE if depth == "overview" else ""
     return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}" if depth == "full" else f"{ALTITUDE_RULE} {OVERVIEW_FIGURES_RULE}"
 
 

@@ -436,18 +436,27 @@ it. Every book generated so far sat well under both (longest quote
 ~200 characters, most in one book ~1,200).
 
 **Figures in an overview** (`figure_issues`): a percentage, range,
-decimal, large count or amount with a unit ("roughly 30 percent",
-"between 5.5 and 13 kilograms") anywhere in an overview's takeaway,
-synopsis or ideas. Years, small numbers naming things ("System 1") and
-numbers in the book's title aren't figures. Search can't be trusted for a
-book's numbers: *The Diet Myth*'s first v4 overview had five ideas
-carrying them, two contradicting each other (20,000 genes, then 22,000)
-and one likely from a later book. Not a fact check: a right figure goes
-too. This and the describing check on the takeaway and synopsis are the
-two the review is sent back over, not left as leads: given only as
-leads, the review left both as they were. A rewrite that clears either
-can be much shorter than what it fixes without counting as a partial
-return.
+decimal, large count or amount with a unit, in digits or words ("roughly
+30 percent", "between 5.5 and 13 kilograms", "thirty percent") anywhere in
+an overview's takeaway, synopsis or ideas, of either kind. Years and spans
+of them, small numbers naming things ("System 1"), numbers after a
+capitalized word ("Room 101", "Web 2.0") and numbers in the book's title
+aren't figures. Search can't be trusted for a book's numbers: *The Diet
+Myth*'s first v4 overview had five ideas carrying them, two contradicting
+each other (20,000 genes, then 22,000) and one likely from a later book.
+Not a fact check: a right figure goes too, unless it names one of the
+book's own concepts ("the 10,000-hour rule").
+
+This and the describing check on the takeaway and synopsis are the two
+the review is sent back over, not left as leads: given only as leads, the
+review left both as they were. It's sent back **once**, with both in one
+message, and the retry is accepted whatever it keeps, which is then a
+warning: the review has two attempts, and a false positive sent back on
+both would lose the whole review, every other fix with it (`SENT_BACK_KEY`
+in the validation context, which reaches every attempt). A rewrite that
+clears a describing synopsis can be much shorter than what it fixes
+without counting as a partial return; one clearing figures can't, since a
+figure restated in words keeps a field about as long.
 
 No coverage check: a test that flagged parts of a digested book no idea drew
 on led the review to add ideas repeating ones the notes had, and the notes
