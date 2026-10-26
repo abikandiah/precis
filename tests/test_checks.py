@@ -236,3 +236,38 @@ def test_a_novels_synopsis_may_say_what_the_story_explores():
         synopsis="The novel explores surveillance.", tags=["dystopian", "drama"], ideas=[_idea("Power")],
     )  # fmt: skip
     assert not any(i.startswith("synopsis") for i in check_notes(novel))
+
+
+# --- figures in an overview ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "found"),
+    [
+        ("identical twins gained between 5.5 and 13 kilograms", ["5.5", "13 kilograms"]),
+        ("roughly 30 percent fewer events, a 30% reduction", ["30 percent", "30%"]),
+        ("500–600 plant species; 10 to 20 plants a week", ["500–600", "10 to 20"]),
+        ("20,000 genes against 2 million", ["20,000", "2 million"]),
+        ("rent of $300 a month, gone within 10 days", ["$300", "10 days"]),
+        ("System 1 and System 2, published in 1942, since 1990", []),
+        ("Law 7 of the 48 laws", []),
+        ("Montag, a fireman in Fahrenheit 451", []),
+    ],
+)
+def test_figures_are_quantities_not_any_number(text, found):
+    assert checks.figures(text, "Fahrenheit 451") == found
+
+
+def test_only_an_overview_is_checked_for_figures():
+    data = {
+        "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "one_line_takeaway": "Costs fall 30%.",
+        "synopsis": "S.", "ideas": [{"title": "I", "summary": "Gains of 5.5 kg.", "evidence": "", "sources": []}],
+        "tags": ["business", "economics"],
+    }  # fmt: skip
+    overview = Book.model_validate({**data, "depth": "overview"})
+    assert checks.figure_issues(overview) == [
+        "one_line_takeaway: gives figures (30%) — an overview states the point, not the book's numbers",
+        'idea 1 "I": gives figures (5.5 kg) — an overview states the point, not the book\'s numbers',
+    ]
+    full = Book.model_validate({**data, "depth": "full", "key_claims_for_review": [{"prompt": "Q?", "answer": "A."}]})
+    assert checks.figure_issues(full) == []

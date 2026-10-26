@@ -103,6 +103,14 @@ def test_a_synopsis_still_describing_the_book_is_sent_back():
     assert reviewed.synopsis == "Firms fail." and "revised synopsis" in changes
 
 
+def test_an_overview_still_giving_figures_is_sent_back():
+    book = _book(depth="overview").model_copy(update={"synopsis": "Costs fell 30% in a decade.\n\nThey rose again."})
+    with pytest.raises(ValidationError, match=r"an overview gives no figures, and these still do: synopsis"):
+        _validate({"ideas": _verdicts()}, book)
+    reviewed, _ = review.apply_review(book, _validate({"ideas": _verdicts(), "synopsis": "Costs fell, then rose."}, book))
+    assert reviewed.synopsis == "Costs fell, then rose."
+
+
 def test_a_review_can_drop_below_the_minimum():
     verdicts = _verdicts(**{f"i{n}": {"verdict": "drop", "reason": "r"} for n in range(5)})
     reviewed, _ = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS})

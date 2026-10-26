@@ -427,17 +427,25 @@ ALTITUDE_RULE = (
     "only exact figures, part and function names, lists of options and step-by-step procedures, unless the "
     "idea is that detail; the book's own terms and arguments stay."
 )
+# An overview's figures come from search, which can't be trusted for them
+# (checks.figure_issues finds them; the review is sent back while any stay).
+OVERVIEW_FIGURES_RULE = (
+    "An overview gives no figures anywhere, takeaway and synopsis included: no percentages, ranges, decimals, "
+    "counts or amounts. State what a figure shows instead (\"identical twins gained very different amounts\", "
+    "not \"between 5.5 and 13 kilograms\")."
+)
 # Full notes' evidence: one example, not a catalogue of them.
 ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than several."
 
 
 def altitude_rule(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
     """Non-fiction's ALTITUDE_RULE, with its one example for full notes
-    (an overview has no evidence to put it in); none for fiction.
+    (an overview has no evidence to put it in) and no figures for an
+    overview; none for fiction.
     """
     if kind == "fiction":
         return ""
-    return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}" if depth == "full" else ALTITUDE_RULE
+    return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}" if depth == "full" else f"{ALTITUDE_RULE} {OVERVIEW_FIGURES_RULE}"
 
 
 # Full notes: the book itself is the research. Shared with the review.

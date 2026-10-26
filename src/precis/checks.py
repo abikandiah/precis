@@ -19,6 +19,13 @@ defend, so the review spends its attention where problems are likely.
   ideas in their own words and quote only a line where the exact words
   matter — never enough of the book to stand in for it. Checked with or
   without research.
+- **Figures in an overview**: a percentage, range, decimal, large count or
+  amount with a unit ("roughly 30 percent", "between 5.5 and 13
+  kilograms", "fewer than 10"). An overview states what a book argues, and
+  search research can't be trusted for the book's own numbers: across the
+  first library overviews, figures were the detail most often wrong, or
+  contradicting each other (20,000 genes, then 22,000), or from a later
+  book. Not a fact check: a right figure goes too.
 
 Nothing else checks facts against the research: "not in the research's
 excerpts" isn't "invented", and flagging it led the review to strip correct
@@ -204,6 +211,52 @@ def _quote_issues(quoted: list[tuple[str, str]], research: Research) -> list[str
     return issues
 
 
+# A figure is a quantity, not any digit: years ("in 1942"), small numbers
+# naming things ("System 1", "Law 7") and numbers in the book's own title
+# (Fahrenheit 451) aren't flagged.
+_UNITS = (
+    r"percent|per cent|kg|kilograms?|kilos?|pounds?|lbs?|grams?|calories|kcal|miles?|km|kilometres?|kilometers?|"
+    r"dollars?|euros?|years?|months?|weeks?|days?|hours?|minutes?|species|people|times"
+)
+_FIGURE = re.compile(
+    r"[$£€]\s*\d[\d,.]*"  # an amount of money
+    r"|\b\d+(?:\.\d+)?\s*%"  # a percentage
+    r"|\b\d+(?:[.,]\d+)*\s*(?:[–—-]|to)\s*\d+(?:[.,]\d+)*"  # a range: 5.5-13, 500 to 600
+    rf"|\b\d+(?:\.\d+)?\s*(?:{_UNITS})\b"  # an amount with a unit: 13 kilograms, 5.5 kg, 10 days
+    r"|\b\d+\.\d+\b"  # a decimal
+    r"|\b\d{1,3}(?:,\d{3})+\b"  # a large count: 20,000
+    r"|\b\d+(?:\.\d+)?\s*(?:thousand|million|billion|trillion)\b"
+    r"|\b(?!1\d{3}\b|20\d{2}\b)\d{3,}\b",  # three or more digits that aren't a year
+    re.IGNORECASE,
+)
+
+
+def figures(text: str, title: str = "") -> list[str]:
+    """The figures in `text`, leaving out numbers from the book's `title`."""
+    own = set(re.findall(r"\d+", title))
+    found = []
+    for match in _FIGURE.finditer(text):
+        figure = match.group(0)
+        if not (set(re.findall(r"\d+", figure)) <= own):
+            found.append(figure.strip())
+    return found
+
+
+def figure_issues(book: Book) -> list[str]:
+    """An overview's figures, one line per field that has any."""
+    if book.depth != "overview":
+        return []
+    fields = [("one_line_takeaway", book.one_line_takeaway), ("synopsis", book.synopsis)]
+    fields += [(f'idea {n} "{i.title}"', f"{i.title}. {i.summary}") for n, i in enumerate(book.ideas, 1)]
+    issues = []
+    for where, text in fields:
+        if found := figures(text, book.title):
+            issues.append(
+                f"{where}: gives figures ({', '.join(found)}) — an overview states the point, not the book's numbers"
+            )
+    return issues
+
+
 def _title_names(title: str) -> list[str]:
     """The book's title, and its main title without a subtitle ("Sapiens"
     for "Sapiens: A Brief History of Humankind").
@@ -247,6 +300,7 @@ def check_notes(book: Book, research: Research | None = None) -> list[str]:
     for a, b in combinations(range(len(ideas)), 2):
         if overlap(words[a], words[b]) >= DUPLICATE_OVERLAP:
             issues.append(f'ideas {a + 1} and {b + 1} ("{ideas[a].title}", "{ideas[b].title}") say much the same thing')
+    issues += figure_issues(book)
     quoted = _quoted(book)
     issues += _length_issues(quoted)
     if research is not None:

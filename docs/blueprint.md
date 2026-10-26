@@ -435,6 +435,20 @@ prompt says so; the review cuts a flagged quote to its line or paraphrases
 it. Every book generated so far sat well under both (longest quote
 ~200 characters, most in one book ~1,200).
 
+**Figures in an overview** (`figure_issues`): a percentage, range,
+decimal, large count or amount with a unit ("roughly 30 percent",
+"between 5.5 and 13 kilograms") anywhere in an overview's takeaway,
+synopsis or ideas. Years, small numbers naming things ("System 1") and
+numbers in the book's title aren't figures. Search can't be trusted for a
+book's numbers: *The Diet Myth*'s first v4 overview had five ideas
+carrying them, two contradicting each other (20,000 genes, then 22,000)
+and one likely from a later book. Not a fact check: a right figure goes
+too. This and the describing check on the takeaway and synopsis are the
+two the review is sent back over, not left as leads: given only as
+leads, the review left both as they were. A rewrite that clears either
+can be much shorter than what it fixes without counting as a partial
+return.
+
 No coverage check: a test that flagged parts of a digested book no idea drew
 on led the review to add ideas repeating ones the notes had, and the notes
 aim at a book's key ideas, not a chapter-by-chapter account.

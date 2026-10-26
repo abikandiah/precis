@@ -46,7 +46,7 @@ from pydantic import (
 )
 
 from precis import llm
-from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words
+from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words, figure_issues
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
@@ -195,16 +195,16 @@ class Review(BaseModel):
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
-        describing = _describing_fields(book)
+        rewrites = _rewrite_fields(book)
         for field in ("one_line_takeaway", "synopsis", "resolution"):
             if (value := getattr(self, field)) is None:
                 continue
             written = getattr(book, field)
             if written is None:
                 continue  # the Review tool offers a resolution to every book; only fiction read whole has one
-            # A rewrite of one that describes the text can be shorter: it's a
-            # fix, not a part returned.
-            if field != "one_line_takeaway" and field not in describing and len(value) < len(written) / 2:
+            # A rewrite of one that describes the text or gives figures can be
+            # shorter: it's a fix, not a part returned.
+            if field != "one_line_takeaway" and field not in rewrites and len(value) < len(written) / 2:
                 # Most likely only the part it changed: the rest would be lost.
                 changes.append(f"left the {field} as written: the review returned only part of it")
                 warnings.append(
@@ -226,6 +226,14 @@ class Review(BaseModel):
                 f"the {' and the '.join(still)} still describe{'' if len(still) > 1 else 's'} the book instead of "
                 "stating what it argues: return the whole field rewritten as the argument itself, never \"The "
                 "book…\" or the author doing something to the text"
+            )
+        if left := figure_issues(self._reviewed):
+            # Sent back like the describing check: as a lead alone, The Diet
+            # Myth's review kept every figure.
+            raise ValueError(
+                "an overview gives no figures, and these still do: "
+                + "; ".join(left)
+                + " — return each whole field restated as the point the figure makes, without the number"
             )
         self._changes = changes
         self._warnings = warnings
@@ -308,6 +316,14 @@ def _describing_fields(book: Book) -> list[str]:
     """
     found = "\n".join(check_notes(book))
     return [field for field in ("one_line_takeaway", "synopsis") if f"{field}: describes the text instead of" in found]
+
+
+def _rewrite_fields(book: Book) -> set[str]:
+    """The takeaway and synopsis, of those the review is sent back over:
+    describing the book, or an overview's figures.
+    """
+    figures = [issue.split(":", 1)[0] for issue in figure_issues(book)]
+    return {*_describing_fields(book), *(f for f in ("one_line_takeaway", "synopsis") if f in figures)}
 
 
 def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea], list[Idea]]:
