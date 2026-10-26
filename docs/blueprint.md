@@ -119,7 +119,8 @@ title, author, year, isbn, page_count, kind    from the known-file
 depth                  "full" (from the reader's book_file, read whole) or
                          "overview" (from search)
 one_line_takeaway      one sentence
-synopsis               2-5 paragraphs, fewer when there's less to say
+synopsis               full notes: 2-5 paragraphs; an overview: 1-2 short
+                         ones; fewer when there's less to say
 ideas                  [{ title, summary, evidence, sources }]
                          non-fiction: major points; fiction: themes
                          at most 12 in full notes (a book's own list: one
@@ -129,7 +130,8 @@ resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
 key_claims_for_review  [{ prompt, answer }], full non-fiction only, one per
                          idea a reader needs to remember
-tags                   2-4 from the closed vocabulary for the kind
+tags                   2-3 from the closed vocabulary for the kind (2, a
+                         third only when as central)
 reader_notes           the known-file's notes, when given
 warnings               anything the reader should check
 ```
@@ -369,7 +371,7 @@ cache — confirmed through OpenRouter: the review reads the research from it.
   themes play out gave away *The Island of Dr. Moreau*'s second half.
 
 The response is validated as it arrives — at least one idea, a review deck
-for full non-fiction notes and none otherwise, 2-4 tags from the closed
+for full non-fiction notes and none otherwise, 2-3 tags from the closed
 vocabulary —
 and a retry after a failure shows the model its rejected call and the
 error. Retries are for output that can't be used, and what can be left

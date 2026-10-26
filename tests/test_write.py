@@ -84,7 +84,7 @@ def test_a_valid_nonfiction_draft_passes():
     [
         (_draft(ideas=0), "non-fiction", "at least one idea"),
         (_draft(claims=0), "non-fiction", "full non-fiction notes need key_claims_for_review"),
-        (_draft(tags=["psychology", "made-up"]), "non-fiction", "give 2-4 tags from the closed non-fiction vocabulary"),
+        (_draft(tags=["psychology", "made-up"]), "non-fiction", "give 2-3 tags from the closed non-fiction vocabulary"),
     ],
 )
 def test_draft_counts_and_tags_are_validated_per_kind(data, kind, message):
@@ -263,7 +263,17 @@ def test_key_claims_mustnt_just_restate_an_idea_title():
 def test_unknown_repeated_or_extra_tags_are_dropped_not_retried():
     tags = [{"name": "x"}, "self-help", "psychology", "psychology", "science", "business", "economics", "history"]
     draft = _validate(write.DraftWithClaims, _draft(tags=tags))
-    assert draft.tags == ["psychology", "science", "business", "economics"]
+    assert draft.tags == ["psychology", "science", "business"]
+
+
+def test_an_overview_asks_for_a_short_synopsis_and_two_tags():
+    for kind in ("non-fiction", "fiction"):
+        known = KnownFile(isbn="1", title="T", author="A", kind=kind)
+        instructions = write._nonfiction_instructions if kind == "non-fiction" else write._fiction_instructions
+        overview = instructions(known, "overview")
+        assert write.OVERVIEW_SYNOPSIS in overview and write.TAGS_RULE in overview
+        full = instructions(known, "full")
+        assert "2-5 paragraphs" in full and write.OVERVIEW_SYNOPSIS not in full
 
 
 # --- full notes -----------------------------------------------------------------------

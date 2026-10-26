@@ -52,6 +52,14 @@ left, and what's left. Git history has the phases that got here.
   Slow*, filled all 12 from search, the overreach full notes were for.
   Fewer claims, and none padded out on a book the research barely
   covers.
+- **book-keeper is an index of books read** (2026-10-26), not a complete
+  account of each, so an overview says what the book is and its main
+  points, no more: a synopsis of 1-2 short paragraphs (the first library
+  overviews' overreach was in their longer ones) and 2 tags, a third only
+  when it's as central (given 2-4, the model filled all four). A review
+  that leaves the synopsis or takeaway describing the book ("The book
+  examines…") is sent back rather than warned about: given only as a
+  lead, *Wealthy Renter*'s review left it as it was.
 - **Notes on the book, not the book compacted** (2026-10-03, schema v4):
   a takeaway, a synopsis and the book's major points, which can span
   chapters — at most 12, a ceiling never stated as a range to fill, with

@@ -76,10 +76,13 @@ FICTION_TAGS: tuple[str, ...] = (
 )
 
 
-# 2-4 tags from the closed vocabulary. One definition for every model that
+# 2-3 tags from the closed vocabulary. One definition for every model that
 # carries tags, so the write call's response model can't accept what the
-# final book then rejects.
-Tags = Annotated[list[str], Field(min_length=2, max_length=4)]
+# final book then rejects. Three, not four: given 2-4, the model filled all
+# four (Thinking, Fast and Slow got philosophy, Wealthy Renter psychology and
+# business), and the prompts ask for two, a third only when it's as central.
+MAX_TAGS = 3
+Tags = Annotated[list[str], Field(min_length=2, max_length=MAX_TAGS)]
 
 
 def tags_for_kind(kind: Literal["fiction", "non-fiction"]) -> tuple[str, ...]:

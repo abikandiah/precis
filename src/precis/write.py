@@ -30,6 +30,7 @@ from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
     MAX_IDEAS,
     MAX_OVERVIEW_IDEAS,
+    MAX_TAGS,
     Book,
     Depth,
     Idea,
@@ -116,7 +117,7 @@ class Draft(BaseModel):
         description="Only when author_differs is true: the author those pages name. Null otherwise.",
     )
     one_line_takeaway: str
-    synopsis: str = Field(description="2-5 paragraphs separated by blank lines; fewer when there's less to say.")
+    synopsis: str = Field(description="Paragraphs separated by blank lines, as many as the instructions ask.")
     ideas: list[Idea]
     tags: Tags
 
@@ -139,7 +140,7 @@ class Draft(BaseModel):
     @field_validator("tags", mode="before")
     @classmethod
     def _keep_known_tags(cls, tags: Any, info: ValidationInfo) -> Any:
-        """Tags outside the vocabulary, repeats, and any past the fourth are
+        """Tags outside the vocabulary, repeats, and any past MAX_TAGS are
         dropped rather than failing the call: a whole write retry for one
         invented tag ("self-help") cost more than the tag is worth. Only
         fewer than two usable tags is sent back.
@@ -147,10 +148,11 @@ class Draft(BaseModel):
         kind = (info.context or {}).get(KIND_KEY)
         if kind is None or not isinstance(tags, list):
             return tags
-        known = [t for t in dict.fromkeys(t for t in tags if isinstance(t, str)) if t in tags_for_kind(kind)][:4]
+        known = [t for t in dict.fromkeys(t for t in tags if isinstance(t, str)) if t in tags_for_kind(kind)][:MAX_TAGS]
         if len(known) < 2:
             raise ValueError(
-                f"give 2-4 tags from the closed {kind} vocabulary (got {tags!r}): {sorted(tags_for_kind(kind))!r}"
+                f"give 2-{MAX_TAGS} tags from the closed {kind} vocabulary (got {tags!r}): "
+                f"{sorted(tags_for_kind(kind))!r}"
             )
         return known
 
@@ -348,8 +350,19 @@ FICTION_COUNT_RULE = (
 OVERVIEW_COUNT_RULE = (
     "Only the book's headline ideas: the central points its research states clearly, the ones a reader would "
     f"name first, at most {MAX_OVERVIEW_IDEAS} — a ceiling, not a target. With more candidates, merge the ones a "
-    "reader would recall as one and keep the most important. Fewer when the research is thin; never pad, and never stretch one point "
-    "into several."
+    "reader would recall as one and keep the most important. Fewer when the research is thin; never pad, and "
+    "never stretch one point into several."
+)
+
+
+# An overview's synopsis is short: what the book is, for an index of books
+# read, not an account of it. Every sentence of a longer one was a claim the
+# research had to carry, and the overreach in the first library overviews
+# ("homeowners typically spend thousands of dollars monthly") was there.
+OVERVIEW_SYNOPSIS = "1-2 short paragraphs, separated by a blank line"
+TAGS_RULE = (
+    f"tags: 2, a third only when the book is as much about it as the first two (at most {MAX_TAGS}), no "
+    "duplicates — what the book is about, not every field it touches."
 )
 
 
@@ -462,12 +475,17 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + ("" if depth == "full" else " — an overview, from what's published about it")
         + ".\n\n"
         "- one_line_takeaway: one sentence — the book's central message.\n"
-        "- synopsis: 2-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
-        "its argument builds, and where it lands, as connected prose stating what the book argues — never stage "
-        "labels like \"The argument builds by…\" or descriptions like \"The book moves from…\". Fewer "
-        "paragraphs when there's less to say.\n"
+        + (
+            "- synopsis: 2-5 paragraphs, separated by blank lines — the question or problem the book takes on, how "
+            "its argument builds, and where it lands"
+            if depth == "full"
+            else f"- synopsis: {OVERVIEW_SYNOPSIS} — the problem the book takes on and what it argues"
+        )
+        + ", as connected prose stating what the book argues — never stage labels like \"The argument builds "
+        "by…\" or sentences about the book or its author doing something (\"The book examines…\", \"Kahneman "
+        "traces…\"): state the argument itself. Fewer paragraphs when there's less to say.\n"
         + ideas
-        + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
+        + f"- {TAGS_RULE} From this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         + _depth_rules(depth)
@@ -484,8 +502,13 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + (" but for resolution" if full else "")
         + ": other people browse them before reading the book.\n\n"
         "- one_line_takeaway: one sentence — what the book is about and why it matters, without spoilers.\n"
-        "- synopsis: 2-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
-        "the story explores. Fewer paragraphs when there's less to say.\n"
+        + (
+            "- synopsis: 2-5 paragraphs, separated by blank lines — the premise, setting, main characters and what "
+            "the story explores"
+            if full
+            else f"- synopsis: {OVERVIEW_SYNOPSIS} — the premise, setting and main characters"
+        )
+        + ". Fewer paragraphs when there's less to say.\n"
         + (
             "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
             "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
@@ -495,7 +518,7 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
             else "- ideas: the novel's main themes. Each has a title (the theme) and a summary of the theme as the "
             f"setup raises it, in as few sentences as it needs. {count_rule(known_file, depth)}\n"
         )
-        + f"- tags: 2-4, no duplicates, from this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
+        + f"- {TAGS_RULE} From this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
         "Rules:\n"
         f"- No spoilers anywhere{' but resolution' if full else ''}. {SPOILER_RULE}\n"

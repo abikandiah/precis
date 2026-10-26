@@ -92,6 +92,17 @@ def test_drops_and_merges_make_room_for_new_ideas_at_the_ceiling():
     assert "left out new idea Idea 22: past 12 ideas" in changes
 
 
+def test_a_synopsis_still_describing_the_book_is_sent_back():
+    book = _book().model_copy(update={"synopsis": "The book examines why firms fail.\n\nIt ends well."})
+    with pytest.raises(ValidationError, match="the synopsis still describes the book"):
+        _validate({"ideas": _verdicts()}, book)
+    with pytest.raises(ValidationError, match="the synopsis still describes the book"):
+        _validate({"ideas": _verdicts(), "synopsis": "This book explores failure."}, book)
+    # A rewrite can be much shorter than what it fixes.
+    reviewed, changes = review.apply_review(book, _validate({"ideas": _verdicts(), "synopsis": "Firms fail."}, book))
+    assert reviewed.synopsis == "Firms fail." and "revised synopsis" in changes
+
+
 def test_a_review_can_drop_below_the_minimum():
     verdicts = _verdicts(**{f"i{n}": {"verdict": "drop", "reason": "r"} for n in range(5)})
     reviewed, _ = _apply({"ideas": verdicts, "key_claims_for_review": _CLAIMS})

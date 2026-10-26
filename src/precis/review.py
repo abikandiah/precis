@@ -195,13 +195,16 @@ class Review(BaseModel):
             raise ValueError("; ".join(problems))
 
         updates: dict[str, Any] = {"ideas": ideas, "key_claims_for_review": claims}
+        describing = _describing_fields(book)
         for field in ("one_line_takeaway", "synopsis", "resolution"):
             if (value := getattr(self, field)) is None:
                 continue
             written = getattr(book, field)
             if written is None:
                 continue  # the Review tool offers a resolution to every book; only fiction read whole has one
-            if field != "one_line_takeaway" and len(value) < len(written) / 2:
+            # A rewrite of one that describes the text can be shorter: it's a
+            # fix, not a part returned.
+            if field != "one_line_takeaway" and field not in describing and len(value) < len(written) / 2:
                 # Most likely only the part it changed: the rest would be lost.
                 changes.append(f"left the {field} as written: the review returned only part of it")
                 warnings.append(
@@ -215,6 +218,15 @@ class Review(BaseModel):
             self._reviewed = Book.model_validate(book.model_copy(update=updates).model_dump())
         except ValidationError as exc:
             raise ValueError(f"the reviewed notes aren't valid: {exc}") from exc
+        if still := _describing_fields(self._reviewed):
+            # Sent back, not left as a warning: given only as a lead, the
+            # review left Wealthy Renter's "The book challenges…" synopsis as
+            # it was. Failing twice leaves the notes as written, warned.
+            raise ValueError(
+                f"the {' and the '.join(still)} still describe{'' if len(still) > 1 else 's'} the book instead of "
+                "stating what it argues: return the whole field rewritten as the argument itself, never \"The "
+                "book…\" or the author doing something to the text"
+            )
         self._changes = changes
         self._warnings = warnings
         return self
@@ -288,6 +300,14 @@ def _verdict_problems(book: Book, review: Review) -> list[str]:
         if verdict.verdict == "revise" and verdict.revised is None:
             problems.append(f"idea {verdict.title!r} is marked revise but has no revised idea")
     return problems
+
+
+def _describing_fields(book: Book) -> list[str]:
+    """The takeaway and synopsis, of those that describe the book instead of
+    stating its argument (checks.py's test, non-fiction only).
+    """
+    found = "\n".join(check_notes(book))
+    return [field for field in ("one_line_takeaway", "synopsis") if f"{field}: describes the text instead of" in found]
 
 
 def _without_repeats(kept: list[Idea], new_ideas: list[Idea]) -> tuple[list[Idea], list[Idea]]:
