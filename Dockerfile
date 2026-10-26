@@ -5,7 +5,9 @@
 # (an Open Library lookup) runs fine on a host, outside this image.
 FROM python:3.12-slim
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# Pinned, not :latest: a build tool in the image that runs untrusted web
+# content shouldn't change under a rebuild. The version uv.lock was made with.
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
