@@ -306,11 +306,17 @@ FAITHFUL_RULE = (
 # safe. Themes get their own line: stating how a theme plays out gave away
 # The Island of Dr. Moreau's second half (Moreau's death, the Beast Folk
 # reverting) under rules that already named deaths and the ending.
+# The Stranger's overview kept its synopsis to the setup but gave away the
+# verdict in a theme ("his conviction hinges on…") and the trial in the
+# takeaway ("culminating in his trial"): the synopsis is the line the rest
+# can't pass.
 SPOILER_RULE = (
     "Premise and setup only — nothing past roughly the first act. Setup is safe and should be specific: the "
     "world and how it works, the main characters, their situations, work and relationships, and the conflicts "
     "the opening establishes. A spoiler is what a reader only learns later: twists, reveals, betrayals, deaths, "
-    "how relationships turn out, the climax and the ending. The research contains spoilers: leave them out. "
+    "verdicts and sentences, how relationships turn out, the climax and the ending. The research contains "
+    "spoilers: leave them out. The takeaway and themes reveal no more of the story than the synopsis does: an "
+    "event the synopsis doesn't reach, they don't name either. "
     "A theme is stated as the setup raises it — the question the book poses — never as the story resolves "
     "it: not what later becomes of the characters or their world (a collapse, a death, a regression, a return "
     "home, what the narrator concludes at the end). Leave out a later detail when unsure whether it spoils, "

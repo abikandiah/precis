@@ -368,7 +368,10 @@ cache — confirmed through OpenRouter: the review reads the research from it.
   be specific; spoilers are what a reader only learns later. Unsure about a
   later detail means leaving it out, never blurring the setup. A theme is
   stated as the setup raises it, never as the story resolves it: stating how
-  themes play out gave away *The Island of Dr. Moreau*'s second half.
+  themes play out gave away *The Island of Dr. Moreau*'s second half. The
+  takeaway and themes reveal no more of the story than the synopsis: *The
+  Stranger*'s synopsis kept to the setup while a theme gave away the
+  verdict and the takeaway the trial.
 
 The response is validated as it arrives — at least one idea, a review deck
 for full non-fiction notes and none otherwise, 2-3 tags from the closed
