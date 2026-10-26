@@ -68,13 +68,28 @@ def test_the_review_is_validated_against_the_book_it_would_produce(data, message
         _validate(data)
 
 
-def test_a_review_past_the_ceiling_is_sent_back_unless_the_book_follows_its_own_list():
+def test_new_ideas_past_the_ceiling_are_left_out_with_a_warning_unless_the_book_follows_its_own_list():
     data = {"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}
-    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
-        _validate(data)
     book = _book()
+    reviewed, changes = review.apply_review(book, _validate(data, book))
+    assert [i.title for i in reviewed.ideas][6:] == [f"Idea {n}" for n in range(10, 16)]
+    assert "left out new idea Idea 16: past 12 ideas" in changes
+    assert any("left out Idea 16" in w for w in reviewed.warnings)
     reviewed, _ = review.apply_review(book, _validate(data, book, numbered_list=True))
     assert len(reviewed.ideas) == 13
+
+
+def test_drops_and_merges_make_room_for_new_ideas_at_the_ceiling():
+    book = _book(ideas=12)
+    data = {
+        "same_point": [{"keep": "Idea 0", "drop": "Idea 1"}],
+        "ideas": _verdicts(12, i2={"verdict": "drop", "reason": "r"}),
+        "new_ideas": [_idea(n) for n in range(20, 23)],
+    }
+    reviewed, changes = review.apply_review(book, _validate(data, book))
+    assert len(reviewed.ideas) == 12
+    assert {"Idea 20", "Idea 21"} <= {i.title for i in reviewed.ideas}
+    assert "left out new idea Idea 22: past 12 ideas" in changes
 
 
 def test_a_review_can_drop_below_the_minimum():
@@ -233,7 +248,7 @@ async def test_review_notes_sends_the_write_calls_exact_prefix():
 def test_fiction_review_audits_for_spoilers_with_the_write_prompts_guards():
     text = review._instructions(FICTION, _book("fiction", ideas=4), [])
     assert write.SPOILER_RULE in text and write.SPOILER_RULE in write._fiction_instructions(FICTION, "overview")
-    assert write.FICTION_COUNT_RULE in text and "key claims" not in text and "key_claims_for_review" not in text
+    assert write.FICTION_OVERVIEW_COUNT_RULE in text and "key claims" not in text and "key_claims_for_review" not in text
 
 
 def test_the_review_and_the_write_call_share_the_rule_to_report_the_book_not_its_critics():
@@ -358,8 +373,10 @@ def test_a_book_built_around_its_own_list_is_reviewed_against_it():
 
 def test_an_overview_of_a_list_book_is_still_capped():
     data = {"ideas": _verdicts(), "new_ideas": [_idea(n) for n in range(10, 17)]}
-    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
-        _validate(data, _book(depth="overview"), numbered_list=True)
+    book = _book(depth="overview")
+    reviewed, changes = review.apply_review(book, _validate(data, book, numbered_list=True))
+    assert len(reviewed.ideas) == 6
+    assert "left out new ideas Idea 10; Idea 11; Idea 12; Idea 13; Idea 14; Idea 15; Idea 16: past 6 ideas" in changes
 
 
 def test_validating_a_review_without_numbered_list_fails_loudly():

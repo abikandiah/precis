@@ -122,7 +122,8 @@ one_line_takeaway      one sentence
 synopsis               2-5 paragraphs, fewer when there's less to say
 ideas                  [{ title, summary, evidence, sources }]
                          non-fiction: major points; fiction: themes
-                         at most 12 (a book's own list: one per item),
+                         at most 12 in full notes (a book's own list: one
+                         per item), 6 in an overview,
                          each 1-3 sentences
 resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
@@ -153,22 +154,28 @@ warnings               anything the reader should check
 - **Never pad**: thin research means fewer ideas and shorter fields, not
   vaguer ones, and an idea that can only be stated in general terms is
   left out (write.py's rules).
-- **A ceiling, not a target** (`MAX_IDEAS`, 12; the count rules in
-  write.py, shared with the review): only the book's major points, and a
-  book that makes five gets five. The prompts state the ceiling as one and
-  never as a range — the first library's 5-12 range made the model pad to
-  11-12, restating a few points several times — and say never to pad
-  toward it or split one point into several. The points come from the
-  whole book, ranked: with more than fit, the ones a reader would recall
-  as one merge and the weaker are left out — and the review, at the
-  ceiling, swaps a missing major point for the weakest idea or merges two.
-  Capped without that, *Making Embedded Systems*' 12 came from its first
-  nine chapters, and the review's three additions were sent back with
-  nothing in their place. More than 12 is sent back at
-  the write and review calls (`idea_count_problems`, which knows the
+- **A ceiling, not a target** (`max_ideas`: `MAX_IDEAS`, 12, for full
+  notes, `MAX_OVERVIEW_IDEAS`, 6, for an overview — *Thinking, Fast and
+  Slow*'s overview filled all 12 under one shared ceiling, near-full notes
+  from search; the count rules in write.py, shared with the review): only
+  the book's major points, and a book that makes five gets five. The
+  prompts state the ceiling as one and never as a range — the first
+  library's 5-12 range made the model pad to 11-12, restating a few points
+  several times — and say never to pad toward it or split one point into
+  several. The points come from the whole book, ranked: with more than
+  fit, the ones a reader would recall as one merge and the weaker are left
+  out — and the review, at the ceiling, swaps a missing major point for
+  the weakest idea or merges two. Capped without that, *Making Embedded
+  Systems*' 12 came from its first nine chapters, and the review's three
+  additions were sent back with nothing in their place. The write call
+  sends back more than the ceiling; the review leaves out its new ideas
+  past it, in the order given, and names them in a warning — *Thinking,
+  Fast and Slow*'s review added two at the ceiling instead of swapping,
+  twice, and being sent back lost the whole review. Both checks are at the
+  write and review calls (`idea_count_problems`, which knows the
   known-file's `numbered_list`); `Book` itself doesn't know it, so doesn't
-  check. Notes with no ideas, full non-fiction notes without a review deck,
-  or any others with one, are rejected too.
+  check. Notes with no ideas, full non-fiction notes without a review
+  deck, or any others with one, are rejected too.
 - **An overview** (no `book_file`) states the book's headline ideas —
   title and summary, no `evidence`. Every mode's write and
   review tools offer only what its notes can have (`stripped_schema`): an

@@ -196,6 +196,17 @@ FULL_ONLY_IDEA_FIELDS = ("evidence",)
 # target — the prompts say so, since ranges made the model pad to their top.
 # Only full notes on a book built around its own numbered list go past it.
 MAX_IDEAS = 12
+# An overview's ceiling: its headline ideas, the few its search research
+# states clearly. Thinking, Fast and Slow's overview filled all 12 under
+# the shared ceiling — near-full notes from search, the overreach the
+# reader's own copy is for, and on a lesser-known book the slots research
+# can't fill are where guessing and padding come in.
+MAX_OVERVIEW_IDEAS = 6
+
+
+def max_ideas(depth: Depth) -> int:
+    """The ceiling on a book's ideas at this depth."""
+    return MAX_OVERVIEW_IDEAS if depth == "overview" else MAX_IDEAS
 
 
 def stripped_schema(
@@ -252,15 +263,16 @@ def notes_shape_problems(
 
 
 def idea_count_problems(ideas: list[Idea], depth: Depth, *, numbered_list: bool) -> list[str]:
-    """More than MAX_IDEAS ideas, unless they're full notes following the
-    book's own numbered list. Checked at the write and review calls, which
+    """More than the depth's ceiling (max_ideas), unless they're full notes
+    following the book's own numbered list. Checked at the write and review calls, which
     know the known-file — a retryable failure there — not by `Book`, which
     doesn't.
     """
-    if len(ideas) <= MAX_IDEAS or (numbered_list and depth == "full"):
+    ceiling = max_ideas(depth)
+    if len(ideas) <= ceiling or (numbered_list and depth == "full"):
         return []
     problem = (
-        f"{len(ideas)} ideas — at most {MAX_IDEAS}: keep the book's major points, merging ones a reader would "
+        f"{len(ideas)} ideas — at most {ceiling}: keep the book's major points, merging ones a reader would "
         "recall as one and dropping the minor ones"
     )
     return [problem]

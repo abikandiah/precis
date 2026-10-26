@@ -66,8 +66,8 @@ def _validate(
 def test_more_ideas_than_the_ceiling_are_sent_back_unless_the_book_follows_its_own_list():
     with pytest.raises(ValidationError, match="13 ideas — at most 12"):
         _validate(write.DraftWithClaims, _draft(ideas=13))
-    with pytest.raises(ValidationError, match="13 ideas — at most 12"):
-        _validate(write.OverviewDraft, _draft(ideas=13), depth="overview", numbered_list=True)
+    with pytest.raises(ValidationError, match="7 ideas — at most 6"):
+        _validate(write.OverviewDraft, _draft(ideas=7), depth="overview", numbered_list=True)
     assert len(_validate(write.DraftWithClaims, _draft(ideas=48), numbered_list=True).ideas) == 48
 
 
@@ -123,7 +123,7 @@ def test_context_messages_cache_the_book_and_research_in_the_system_message():
 
 def test_fiction_instructions_are_spoiler_safe_and_ask_for_themes_not_claims():
     text = write._fiction_instructions(FICTION, "overview")
-    assert "No spoilers" in text and write.FICTION_COUNT_RULE in text
+    assert "No spoilers" in text and write.FICTION_OVERVIEW_COUNT_RULE in text
     assert "key_claims_for_review" not in text
     assert "dystopian" in text and "psychology" not in text
 

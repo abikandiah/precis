@@ -21,9 +21,10 @@ The review is validated by building the book it would produce, by the
 book's own rules: one that can't be applied (no ideas left, a verdict
 naming no idea) is sent back with the reason, and the run fails only if it
 still can't fix it. What can be left out instead — an uncited new idea, an
-unknown source, a half-returned synopsis — is left out (see _merge). An
-idea the review gives no verdict is kept as written, and the ideas stay
-under the write call's ceiling (schema.idea_count_problems). After the
+unknown source, a half-returned synopsis, new ideas past the ceiling —
+is left out (see _merge). An idea the review gives no verdict is kept as
+written, and the ideas stay under the write call's ceiling
+(schema.idea_count_problems). After the
 review, the checks run again, and whatever they still find is a warning
 for the reader.
 """
@@ -49,7 +50,6 @@ from precis.checks import DUPLICATE_OVERLAP, check_notes, content_words
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
-    MAX_IDEAS,
     Book,
     Depth,
     Idea,
@@ -57,6 +57,7 @@ from precis.schema import (
     KnownFile,
     has_deck,
     idea_count_problems,
+    max_ideas,
     notes_shape_problems,
     stripped_schema,
     without_unknown_sources,
@@ -183,12 +184,12 @@ class Review(BaseModel):
         if problems := _verdict_problems(book, self):
             raise ValueError("; ".join(problems))
 
-        ideas, claims, changes, warnings = _merge(book, self, context.get(SOURCE_IDS_KEY))
-        problems = notes_shape_problems(book.kind, book.depth, ideas, claims)
         if (numbered_list := context.get(NUMBERED_LIST_KEY)) is None:
             # Like the write call's depth: defaulted, a book built around its
-            # own list would be sent back until the paid call fails.
+            # own list would be cut to the ceiling.
             raise RuntimeError("validating a review needs NUMBERED_LIST_KEY alongside its book")
+        ideas, claims, changes, warnings = _merge(book, self, context.get(SOURCE_IDS_KEY), numbered_list=numbered_list)
+        problems = notes_shape_problems(book.kind, book.depth, ideas, claims)
         problems += idea_count_problems(ideas, book.depth, numbered_list=numbered_list)
         if problems:
             raise ValueError("; ".join(problems))
@@ -337,13 +338,15 @@ def _cited(idea: Idea, source_ids: set[str] | None, changes: list[str]) -> Idea:
 
 
 def _merge(
-    book: Book, review: Review, source_ids: set[str] | None
+    book: Book, review: Review, source_ids: set[str] | None, *, numbered_list: bool
 ) -> tuple[list[Idea], list[KeyClaim] | None, list[str], list[str]]:
     """The ideas and claims the review leaves, what it changed, and warnings
     for the reader. What would break a rule but can be left out — a new idea
     citing nothing, a citation of a source that doesn't exist, claims for
-    notes with no deck — is left out, not sent back: a retry that repeats it would lose
-    the whole review, its drops of wrong ideas included.
+    notes with no deck, new ideas past the ceiling — is left out, not sent
+    back: a retry that repeats it would lose the whole review, its drops of
+    wrong ideas included. Thinking, Fast and Slow's review added two ideas
+    at the ceiling instead of swapping, twice, and lost every fix with them.
     """
     ideas: list[Idea] = []
     changes: list[str] = []
@@ -381,6 +384,19 @@ def _merge(
         else:
             changes.append(f'left out new idea "{idea.title}": it cites no research source')
     added, repeats = _without_repeats(ideas, new_ideas)
+    if not (numbered_list and book.depth == "full"):
+        # In the order the review gives them; the reader, told which, can
+        # swap one in for a weaker idea.
+        ceiling = max_ideas(book.depth)
+        room = max(0, ceiling - len(ideas))
+        added, past = added[:room], added[room:]
+        if past:
+            titles = "; ".join(i.title for i in past)
+            changes.append(f"left out new idea{'s' if len(past) > 1 else ''} {titles}: past {ceiling} ideas")
+            warnings.append(
+                f"the review would have gone past {ceiling} ideas, so it left out {titles} — if the book needs "
+                f"{'them' if len(past) > 1 else 'it'}, swap {'them' if len(past) > 1 else 'it'} in for a weaker idea"
+            )
     ideas += added
     changes += [f'added "{i.title}"' for i in added]
     changes += [f'left out new idea "{i.title}": it repeats an idea the notes have' for i in repeats]
@@ -434,7 +450,7 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         counts = (
             f"Count: {count_rule(known_file, book.depth)} Merge ideas that make the same point (same_point), and "
             "add a new idea only for a major point the notes miss. Never go "
-            f"past {MAX_IDEAS}: at the ceiling, a missing major point takes the place of the weakest idea (drop "
+            f"past {max_ideas(book.depth)}: at the ceiling, a missing major point takes the place of the weakest idea (drop "
             "it) or of two ideas merged into one."
         )
         distinct = (

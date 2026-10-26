@@ -47,6 +47,11 @@ left, and what's left. Git history has the phases that got here.
   stays in precis as built, but nothing more is planned around it, and
   book-keeper's generate always passes `--overview` and its schema refuses
   `depth: "full"`. book-keeper's flashcard review is gone with it.
+- **An overview has at most 6 ideas** (2026-10-26), its headline ideas,
+  not full notes' 12: the first library overview, *Thinking, Fast and
+  Slow*, filled all 12 from search, the overreach full notes were for.
+  Fewer claims, and none padded out on a book the research barely
+  covers.
 - **Notes on the book, not the book compacted** (2026-10-03, schema v4):
   a takeaway, a synopsis and the book's major points, which can span
   chapters — at most 12, a ceiling never stated as a range to fill, with

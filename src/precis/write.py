@@ -29,6 +29,7 @@ from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
     MAX_IDEAS,
+    MAX_OVERVIEW_IDEAS,
     Book,
     Depth,
     Idea,
@@ -336,13 +337,18 @@ LIST_COUNT_RULE = (
     "The book is built around its own numbered list (its laws, rules, habits or principles): one idea per item, "
     "in the book's order, titled as the book names it — every item, and no ideas besides them."
 )
+FICTION_OVERVIEW_COUNT_RULE = (
+    f"Only the novel's main themes, often few, and at most {MAX_OVERVIEW_IDEAS} — a ceiling, not a target; never "
+    "pad."
+)
 FICTION_COUNT_RULE = (
     f"Only the novel's main themes, often few, and at most {MAX_IDEAS} — a ceiling, not a target; never pad."
 )
-# An overview's ideas: the ones search research can carry.
+# An overview's ideas: the few search research can carry (MAX_OVERVIEW_IDEAS).
 OVERVIEW_COUNT_RULE = (
     "Only the book's headline ideas: the central points its research states clearly, the ones a reader would "
-    f"name first, at most {MAX_IDEAS}. Fewer when the research is thin; never pad, and never stretch one point "
+    f"name first, at most {MAX_OVERVIEW_IDEAS} — a ceiling, not a target. With more candidates, merge the ones a "
+    "reader would recall as one and keep the most important. Fewer when the research is thin; never pad, and never stretch one point "
     "into several."
 )
 
@@ -353,7 +359,7 @@ def count_rule(known_file: KnownFile, depth: Depth) -> str:
     around one.
     """
     if known_file.kind == "fiction":
-        return FICTION_COUNT_RULE
+        return FICTION_OVERVIEW_COUNT_RULE if depth == "overview" else FICTION_COUNT_RULE
     if depth == "overview":
         return OVERVIEW_COUNT_RULE
     return LIST_COUNT_RULE if known_file.numbered_list else IDEA_COUNT_RULE
