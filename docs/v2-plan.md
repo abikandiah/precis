@@ -41,6 +41,12 @@ left, and what's left. Git history has the phases that got here.
   couldn't exercise full mode (no book files), and it judged overviews by
   rules they no longer follow.
 - **Paid runs are confirmed first** — every generation spends real money.
+- **book-keeper takes overviews only** (2026-10-26): reading the whole
+  book from the reader's own copy was more than a tracking site needs —
+  finding a file for every book, two tiers of notes on one site. Full mode
+  stays in precis as built, but nothing more is planned around it, and
+  book-keeper's generate always passes `--overview` and its schema refuses
+  `depth: "full"`. book-keeper's flashcard review is gone with it.
 - **Notes on the book, not the book compacted** (2026-10-03, schema v4):
   a takeaway, a synopsis and the book's major points, which can span
   chapters — at most 12, a ceiling never stated as a range to fill, with
@@ -55,11 +61,9 @@ left, and what's left. Git history has the phases that got here.
 ## Remaining
 
 - [ ] **Generate the library** — the 28 known-files in book-keeper's
-  `known/`, with Haiku 4.5: full notes where there's a `book_file`,
-  overviews elsewhere; each gets the Claude review before it's committed.
-  None has a `book_file` yet: the reader adds them for the books they own
-  first, since upgrading an overview later pays for the book twice. The
-  site is empty until then — the five books generated from search came
-  off it with the switch to schema v3 (and *Making Embedded Systems*, v3's
-  first full run, is regenerated on v4) — so book-keeper's `main` isn't
-  pushed before the first reviewed books land.
+  `known/`, as overviews with Haiku 4.5, a few first (a well-known book,
+  an obscure one, a list-book) to judge them before the rest; each gets
+  the Claude review before it's committed. The site is empty until then
+  — the five books generated from search came off it with the switch to
+  schema v3 — so book-keeper's `main` isn't pushed before the first
+  reviewed books land.
