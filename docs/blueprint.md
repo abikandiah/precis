@@ -125,7 +125,7 @@ ideas                  [{ title, summary, evidence, sources }]
                          non-fiction: major points; fiction: themes
                          at most 12 in full notes (a book's own list: one
                          per item), 6 in an overview,
-                         each 1-3 sentences
+                         each 1-3 sentences, 1-2 in an overview
 resolution             how the story ends — fiction at full depth only,
                          shown behind a spoiler warning
 key_claims_for_review  [{ prompt, answer }], full non-fiction only, one per

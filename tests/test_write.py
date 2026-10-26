@@ -309,10 +309,11 @@ def test_non_fiction_writes_concepts_not_the_books_particulars():
     assert "Never a list of specifics or trivia" in full
     # An overview has no evidence to hold its one example.
     overview = write._nonfiction_instructions(NONFICTION, "overview")
-    assert write.ALTITUDE_RULE in overview and write.ONE_EXAMPLE_RULE not in overview
+    assert write.OVERVIEW_ALTITUDE_RULE in overview and write.ONE_EXAMPLE_RULE not in overview
     # A novel's themes aren't taught.
     for depth in ("full", "overview"):
-        assert write.ALTITUDE_RULE not in write._fiction_instructions(FICTION, depth)
+        fiction = write._fiction_instructions(FICTION, depth)
+        assert write.ALTITUDE_RULE not in fiction and write.OVERVIEW_ALTITUDE_RULE not in fiction
 
 
 def test_major_points_come_from_the_whole_book_by_rank():
@@ -425,3 +426,14 @@ def test_an_overview_of_either_kind_is_told_to_give_no_figures():
         instructions = write._nonfiction_instructions if kind == "non-fiction" else write._fiction_instructions
         assert write.OVERVIEW_FIGURES_RULE in instructions(known, "overview")
         assert write.OVERVIEW_FIGURES_RULE not in instructions(known, "full")
+
+
+def test_an_overviews_ideas_are_one_or_two_sentences():
+    known = KnownFile(isbn="1", title="T", author="A", kind="non-fiction")
+    overview = write._nonfiction_instructions(known, "overview")
+    assert write.OVERVIEW_ALTITUDE_RULE in overview and write.ALTITUDE_RULE not in overview
+    assert "summary stating the idea itself in 1-2 sentences" in overview
+    full = write._nonfiction_instructions(known, "full")
+    assert write.ALTITUDE_RULE in full and write.OVERVIEW_ALTITUDE_RULE not in full
+    novel = write._fiction_instructions(KnownFile(isbn="2", title="N", author="A", kind="fiction"), "overview")
+    assert "in 1-2 sentences" in novel

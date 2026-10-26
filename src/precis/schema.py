@@ -168,7 +168,7 @@ class Idea(BaseModel):
 
     title: str = Field(description="The idea or theme, named as the book names it where it has a name.")
     summary: str = Field(
-        description="The idea itself (or the theme as the setup raises it), in 1-3 sentences."
+        description="The idea itself (or the theme as the setup raises it), in 1-3 sentences, 1-2 in an overview."
     )
     evidence: str = Field(
         default="",

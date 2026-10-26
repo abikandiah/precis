@@ -60,6 +60,9 @@ left, and what's left. Git history has the phases that got here.
   that leaves the synopsis or takeaway describing the book ("The book
   examines…") is sent back rather than warned about: given only as a
   lead, *Wealthy Renter*'s review left it as it was.
+  An overview's ideas are 1-2 sentences, not 1-3: the extra sentences held
+  the supporting specifics search can't back (*The Diet Myth*'s misread
+  twin study and genes overclaim).
 - **Notes on the book, not the book compacted** (2026-10-03, schema v4):
   a takeaway, a synopsis and the book's major points, which can span
   chapters — at most 12, a ceiling never stated as a range to fill, with

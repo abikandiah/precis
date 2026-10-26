@@ -420,13 +420,22 @@ def _common_rules(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
 # removes only those: the book's own terms, arguments and example stay, or
 # the review makes correct ideas vaguer, as the first baseline's did. A
 # novel's themes aren't taught, so fiction has none. Shared with the review.
-ALTITUDE_RULE = (
-    "These notes refresh a reader's memory of the book — its takeaways, core concepts and ideas — not a "
-    "condensed copy of it. State each idea as the concept the book teaches, named as the book names it, at the "
-    "level the reader would explain it to a friend: its point and why it matters, in 1-3 sentences. Leave out "
-    "only exact figures, part and function names, lists of options and step-by-step procedures, unless the "
-    "idea is that detail; the book's own terms and arguments stay."
-)
+def _altitude(sentences: str) -> str:
+    return (
+        "These notes refresh a reader's memory of the book — its takeaways, core concepts and ideas — not a "
+        "condensed copy of it. State each idea as the concept the book teaches, named as the book names it, at "
+        f"the level the reader would explain it to a friend: its point and why it matters, in {sentences} "
+        "sentences. Leave out only exact figures, part and function names, lists of options and step-by-step "
+        "procedures, unless the idea is that detail; the book's own terms and arguments stay."
+    )
+
+
+ALTITUDE_RULE = _altitude("1-3")
+# An overview's ideas are shorter: the first sentence states the idea, and
+# the next ones held the supporting specifics search can't back — the first
+# library overviews' misread study, overclaims and comparisons were there.
+OVERVIEW_IDEA_SENTENCES = "1-2"
+OVERVIEW_ALTITUDE_RULE = _altitude(OVERVIEW_IDEA_SENTENCES)
 # An overview's figures come from search, which can't be trusted for them
 # (checks.figure_issues finds them; the review is sent back while any stay).
 OVERVIEW_FIGURES_RULE = (
@@ -441,12 +450,15 @@ ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than
 
 def altitude_rule(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
     """Non-fiction's ALTITUDE_RULE, with its one example for full notes
-    (an overview has no evidence to put it in); for an overview of either
-    kind, no figures (checks.figure_issues checks both).
+    (an overview has no evidence to put it in, and shorter ideas:
+    OVERVIEW_ALTITUDE_RULE); for an overview of either kind, no figures
+    (checks.figure_issues checks both).
     """
     if kind == "fiction":
         return OVERVIEW_FIGURES_RULE if depth == "overview" else ""
-    return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}" if depth == "full" else f"{ALTITUDE_RULE} {OVERVIEW_FIGURES_RULE}"
+    if depth == "full":
+        return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}"
+    return f"{OVERVIEW_ALTITUDE_RULE} {OVERVIEW_FIGURES_RULE}"
 
 
 # Full notes: the book itself is the research. Shared with the review.
@@ -483,7 +495,8 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
     else:
         ideas = (
             "- ideas: the book's headline ideas. Each has a title (the book's own name for the idea where it has "
-            f"one) and a summary stating the idea itself. {count_rule(known_file, depth)}\n"
+            f"one) and a summary stating the idea itself in {OVERVIEW_IDEA_SENTENCES} sentences. "
+            f"{count_rule(known_file, depth)}\n"
         )
     return (
         "Write this book's notes"
@@ -531,7 +544,7 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
             f"- {RESOLUTION_RULE}\n"
             if full
             else "- ideas: the novel's main themes. Each has a title (the theme) and a summary of the theme as the "
-            f"setup raises it, in as few sentences as it needs. {count_rule(known_file, depth)}\n"
+            f"setup raises it, in {OVERVIEW_IDEA_SENTENCES} sentences. {count_rule(known_file, depth)}\n"
         )
         + f"- {TAGS_RULE} From this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"
