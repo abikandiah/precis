@@ -25,6 +25,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from precis import llm
+from precis.checks import OVERVIEW_IDEA_MAX_SENTENCES
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
@@ -430,12 +431,20 @@ def _altitude(sentences: str) -> str:
     )
 
 
-ALTITUDE_RULE = _altitude("1-3")
+IDEA_SENTENCES = "1-3"
+ALTITUDE_RULE = _altitude(IDEA_SENTENCES)
 # An overview's ideas are shorter: the first sentence states the idea, and
 # the next ones held the supporting specifics search can't back — the first
-# library overviews' misread study, overclaims and comparisons were there.
-OVERVIEW_IDEA_SENTENCES = "1-2"
+# library overviews' misread study, overclaims and comparisons were there
+# (checks.long_idea_issues finds longer ones; the review is sent back).
+OVERVIEW_IDEA_SENTENCES = f"1-{OVERVIEW_IDEA_MAX_SENTENCES}"
 OVERVIEW_ALTITUDE_RULE = _altitude(OVERVIEW_IDEA_SENTENCES)
+# A novel's themes have no altitude, but the same length. Shared with the
+# review.
+OVERVIEW_THEME_RULE = (
+    f"State each theme in {OVERVIEW_IDEA_SENTENCES} sentences: the theme as the setup raises it, not the scenes "
+    "that carry it."
+)
 # An overview's figures come from search, which can't be trusted for them
 # (checks.figure_issues finds them; the review is sent back while any stay).
 OVERVIEW_FIGURES_RULE = (
@@ -451,11 +460,11 @@ ONE_EXAMPLE_RULE = "One memorable example, as an idea's evidence, says more than
 def altitude_rule(kind: Literal["fiction", "non-fiction"], depth: Depth) -> str:
     """Non-fiction's ALTITUDE_RULE, with its one example for full notes
     (an overview has no evidence to put it in, and shorter ideas:
-    OVERVIEW_ALTITUDE_RULE); for an overview of either kind, no figures
-    (checks.figure_issues checks both).
+    OVERVIEW_ALTITUDE_RULE); for an overview of either kind, short ideas
+    and no figures (checks.long_idea_issues and figure_issues check both).
     """
     if kind == "fiction":
-        return OVERVIEW_FIGURES_RULE if depth == "overview" else ""
+        return f"{OVERVIEW_THEME_RULE} {OVERVIEW_FIGURES_RULE}" if depth == "overview" else ""
     if depth == "full":
         return f"{ALTITUDE_RULE} {ONE_EXAMPLE_RULE}"
     return f"{OVERVIEW_ALTITUDE_RULE} {OVERVIEW_FIGURES_RULE}"
@@ -495,7 +504,7 @@ def _nonfiction_instructions(known_file: KnownFile, depth: Depth) -> str:
     else:
         ideas = (
             "- ideas: the book's headline ideas. Each has a title (the book's own name for the idea where it has "
-            f"one) and a summary stating the idea itself in {OVERVIEW_IDEA_SENTENCES} sentences. "
+            "one) and a summary stating the idea itself, at the length the rules below give. "
             f"{count_rule(known_file, depth)}\n"
         )
     return (
@@ -539,12 +548,12 @@ def _fiction_instructions(known_file: KnownFile, depth: Depth) -> str:
         + ". Fewer paragraphs when there's less to say.\n"
         + (
             "- ideas: the novel's themes. Each has a title (the theme), a summary of the theme as the setup raises "
-            "it, in as few sentences as it needs, and its evidence: the characters, situations or images from the "
+            f"it, in {IDEA_SENTENCES} sentences, and its evidence: the characters, situations or images from the "
             f"setup that carry it, or empty when there's none to give. {count_rule(known_file, depth)}\n"
             f"- {RESOLUTION_RULE}\n"
             if full
             else "- ideas: the novel's main themes. Each has a title (the theme) and a summary of the theme as the "
-            f"setup raises it, in {OVERVIEW_IDEA_SENTENCES} sentences. {count_rule(known_file, depth)}\n"
+            f"setup raises it, at the length the rules below give. {count_rule(known_file, depth)}\n"
         )
         + f"- {TAGS_RULE} From this list only: {', '.join(tags_for_kind(known_file.kind))}.\n"
         "- author_differs: see its description; almost always false.\n\n"

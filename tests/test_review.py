@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from precis import review, write
 from precis.research import Research, Source
-from precis.schema import Book, KnownFile, has_deck
+from precis.schema import Book, Idea, KnownFile, has_deck
 
 KNOWN = KnownFile(isbn="1", title="Good to Great", author="Jim Collins", kind="non-fiction")
 FICTION = KnownFile(isbn="2", title="1984", author="George Orwell", kind="fiction")
@@ -114,6 +114,30 @@ def test_an_overview_still_giving_figures_is_sent_back_once():
     assert any("gives figures (30%)" in w for w in reviewed.warnings)
     fixed, _ = _apply({"ideas": _verdicts(), "synopsis": "Costs fell sharply over a decade.\n\nThey rose again."}, book)
     assert fixed.synopsis.startswith("Costs fell sharply")
+
+
+def test_an_overviews_long_idea_is_sent_back_once():
+    long = {"title": "Idea 0", "summary": "It holds. Here is why. Here is a study.", "evidence": "", "sources": ["S1"]}
+    book = _book(depth="overview").model_copy(update={"ideas": [Idea.model_validate(long), *_book(depth="overview").ideas[1:]]})
+    context = {review.BOOK_KEY: book, write.SOURCE_IDS_KEY: {"S1"}, write.NUMBERED_LIST_KEY: False}
+    with pytest.raises(ValidationError, match=r"an overview's ideas are 1-2 sentences, and these run longer: idea 1"):
+        review.Review.model_validate({"ideas": _verdicts()}, context=context)
+    kept = review.Review.model_validate({"ideas": _verdicts()}, context=context)
+    reviewed, _ = review.apply_review(book, kept)
+    assert any("runs past 2 sentences (3)" in w for w in reviewed.warnings)
+    cut = {"verdict": "revise", "revised": {**long, "summary": "It holds."}}
+    fixed, _ = _apply({"ideas": _verdicts(i0=cut)}, book)
+    assert fixed.ideas[0].summary == "It holds."
+
+
+def test_an_overviews_review_holds_ideas_to_its_length():
+    for known, book in ((KNOWN, _book(depth="overview")), (FICTION, _book("fiction"))):
+        text = review._instructions(known, book, [])
+        assert "a summary past 1-2 sentences: cut it" in text
+        assert write.ALTITUDE_RULE not in text
+    assert write.OVERVIEW_ALTITUDE_RULE in review._instructions(KNOWN, _book(depth="overview"), [])
+    assert write.OVERVIEW_THEME_RULE in review._instructions(FICTION, _book("fiction"), [])
+    assert "a summary past" not in review._instructions(KNOWN, _book(), [])
 
 
 def test_describing_and_figures_are_sent_back_in_one_message():

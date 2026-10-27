@@ -349,8 +349,13 @@ cache — confirmed through OpenRouter: the review reads the research from it.
   named as the book names it, in 1-3 sentences — with one memorable example
   as evidence in full notes — leaving out only exact figures, part or
   function names, lists of options and procedures unless the idea is that
-  detail. Key claims ask about concepts, never lists of specifics. A
-  novel's themes aren't taught, so fiction has no such rule.
+  detail. An overview's ideas are 1-2 sentences (`OVERVIEW_ALTITUDE_RULE`):
+  the extra sentences held the specifics search can't back. Key claims ask
+  about concepts, never lists of specifics. A novel's themes aren't taught,
+  so fiction has no such rule, but are as long: 1-3 sentences, 1-2 in an
+  overview (`OVERVIEW_THEME_RULE`, shared with the review too). Each
+  length is stated once, in the rule `altitude_rule` gives both the write
+  and the review.
 - Key claims ask what a reader needs to recall about an idea, never just
   "What is <the idea's title>?"; the review fixes any that do.
 - Accuracy comes first: never invent a study, figure, quote, name or event;
@@ -447,10 +452,15 @@ each other (20,000 genes, then 22,000) and one likely from a later book.
 Not a fact check: a right figure goes too, unless it names one of the
 book's own concepts ("the 10,000-hour rule").
 
-This and the describing check on the takeaway and synopsis are the two
+**Long ideas in an overview** (`long_idea_issues`): an idea's summary
+past 2 sentences, counted by full stops before a capital, skipping initials
+and abbreviations ("Dr. Moreau", "U.S."). The rule alone was a hint: the
+review had no reason to revise an idea for its length, and kept it.
+
+These and the describing check on the takeaway and synopsis are the three
 the review is sent back over, not left as leads: given only as leads, the
-review left both as they were. It's sent back **once**, with both in one
-message, and the retry is accepted whatever it keeps, which is then a
+review left the first two as they were. It's sent back **once**, with all
+of them in one message, and the retry is accepted whatever it keeps, which is then a
 warning: the review has two attempts, and a false positive sent back on
 both would lose the whole review, every other fix with it (`SENT_BACK_KEY`
 in the validation context, which reaches every attempt). A rewrite that

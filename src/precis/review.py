@@ -46,7 +46,13 @@ from pydantic import (
 )
 
 from precis import llm
-from precis.checks import DUPLICATE_OVERLAP, FIGURES_ISSUE, check_notes, content_words
+from precis.checks import (
+    DUPLICATE_OVERLAP,
+    FIGURES_ISSUE,
+    LONG_IDEA_ISSUE,
+    check_notes,
+    content_words,
+)
 from precis.research import ProgressCallback, Research
 from precis.schema import (
     FULL_ONLY_IDEA_FIELDS,
@@ -67,6 +73,7 @@ from precis.write import (
     FAITHFUL_RULE,
     FULL_RULE,
     NUMBERED_LIST_KEY,
+    OVERVIEW_IDEA_SENTENCES,
     RESOLUTION_RULE,
     SOURCE_IDS_KEY,
     SPOILER_RULE,
@@ -223,7 +230,7 @@ class Review(BaseModel):
             self._reviewed = Book.model_validate(book.model_copy(update=updates).model_dump())
         except ValidationError as exc:
             raise ValueError(f"the reviewed notes aren't valid: {exc}") from exc
-        # Sent back once, both problems in one message, then accepted: given
+        # Sent back once, every problem in one message, then accepted: given
         # only as leads, the review left Wealthy Renter's "The book
         # challenges…" synopsis and every one of The Diet Myth's figures as
         # they were. Never twice: a false positive (Atomic Habits' "1%
@@ -317,8 +324,8 @@ def _describing_fields(issues: list[str]) -> list[str]:
 
 def _unfixed(book: Book) -> list[str]:
     """What the review is sent back over: a takeaway or synopsis describing
-    the book, and an overview's figures (checks.py) — from one run of the
-    checks.
+    the book, and an overview's figures and long ideas (checks.py) — from
+    one run of the checks.
     """
     issues = check_notes(book)
     problems = [
@@ -332,6 +339,12 @@ def _unfixed(book: Book) -> list[str]:
             + "; ".join(figures)
             + " — return each whole field restated as the point the figure makes, keeping a number only when "
             "it names one of the book's own concepts"
+        )
+    if long_ideas := [issue for issue in issues if LONG_IDEA_ISSUE in issue]:
+        problems.append(
+            f"an overview's ideas are {OVERVIEW_IDEA_SENTENCES} sentences, and these run longer: "
+            + "; ".join(long_ideas)
+            + " — revise each, cut to the idea itself"
         )
     return problems
 
@@ -520,6 +533,12 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         else "keeping every specific that's right"
     )
     ceiling = not follows_list
+    too_long = (
+        f"  - in an overview, a summary past {OVERVIEW_IDEA_SENTENCES} sentences: cut it to the idea itself, the "
+        "supporting specifics first;\n"
+        if not full
+        else ""
+    )
     evidence = (
         "  - evidence that describes the text instead of giving the book's example: replace it with the example "
         "the research gives, or leave the evidence empty — never move it into the summary;\n"
@@ -573,7 +592,7 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         f"<notes>\n{json.dumps(notes, indent=2, ensure_ascii=False)}\n</notes>\n\n"
         f"Automated checks flagged:\n{found}\n"
         "These are leads, not verdicts — except a takeaway or synopsis that describes the book and, in an "
-        "overview, figures: fix those.\n\n"
+        "overview, figures and ideas past their length: fix those.\n\n"
         "First, same_point: compare the ideas with each other. Two ideas make the same point when a reader "
         "would recall them as one: the same claim from different angles (a novel's \"ethics of scientific "
         "ambition\" and \"corruption of knowledge and power\"), or a framework and one of its own parts given "
@@ -590,6 +609,7 @@ def _instructions(known_file: KnownFile, book: Book, issues: list[str]) -> str:
         "detail alone;\n"
         "  - a vague or generic statement, or a description of the text instead of the idea;\n"
         + particulars
+        + too_long
         + evidence
         + "  - a citation that doesn't support it: correct it, or give sources [] when the research is silent but "
         "you're confident the idea is right.\n"

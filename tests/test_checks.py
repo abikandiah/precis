@@ -262,6 +262,36 @@ def test_figures_are_quantities_not_any_number(text, found):
     assert checks.figures(text, "Fahrenheit 451") == found
 
 
+@pytest.mark.parametrize(
+    ("text", "count"),
+    [
+        ("One idea, with commas; and more.", 1),
+        ("It holds. Here is why.", 2),
+        ("Dr. Moreau reshapes animals. They talk.", 2),
+        ("The U.S. Army fought. It won. Then 1945 came.", 3),
+        ('He said "Stop." She left.', 2),
+        ("Habits compound, e.g. Small gains add up.", 1),
+        ("Why? Because! No.", 3),
+    ],
+)
+def test_sentences_skip_initials_and_abbreviations(text, count):
+    assert checks.sentences(text) == count
+
+
+def test_only_an_overviews_ideas_are_held_to_two_sentences():
+    data = {
+        "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "one_line_takeaway": "Take.",
+        "synopsis": "S.", "ideas": [{"title": "I", "summary": "One. Two. Three.", "evidence": "", "sources": []}],
+        "tags": ["business", "economics"],
+    }  # fmt: skip
+    overview = Book.model_validate({**data, "depth": "overview"})
+    assert checks.long_idea_issues(overview) == [
+        'idea 1 "I": runs past 2 sentences (3) — an overview states the idea, not its supporting specifics'
+    ]
+    full = Book.model_validate({**data, "depth": "full", "key_claims_for_review": [{"prompt": "Q?", "answer": "A."}]})
+    assert checks.long_idea_issues(full) == []
+
+
 def test_only_an_overview_is_checked_for_figures():
     data = {
         "title": "T", "author": "A", "isbn": "1", "kind": "non-fiction", "one_line_takeaway": "Costs fall 30%.",

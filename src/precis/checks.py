@@ -277,6 +277,39 @@ def figure_issues(book: Book) -> list[str]:
     return issues
 
 
+# An overview's ideas are at most this many sentences: past it they held
+# the supporting specifics search can't back (The Diet Myth's misread twin
+# study and genes overclaim). Shared with the write and the review.
+OVERVIEW_IDEA_MAX_SENTENCES = 2
+# A full stop that doesn't end a sentence: an initial (J. R. R. Tolkien,
+# U.S.) or a title or abbreviation before a name or example.
+_NOT_AN_END = re.compile(r"(?:\b[A-Z]|\b(?:Dr|Mr|Mrs|Ms|St|Jr|Sr|Prof|vs|etc|e\.g|i\.e|cf|ca|no|vol))\.$", re.IGNORECASE)
+
+
+def sentences(text: str) -> int:
+    """How many sentences `text` has: ended by . ! or ?, then (past any
+    closing quote or bracket) a capital, quote or digit.
+    """
+    pieces = re.split(r"(?<=[.!?])[\"'”’)]*\s+(?=[\"'“‘(]?[A-Z0-9])", text.strip())
+    return sum(1 for i, piece in enumerate(pieces) if i == len(pieces) - 1 or not _NOT_AN_END.search(piece))
+
+
+# How long_idea_issues' lines read, for the review to find them by.
+LONG_IDEA_ISSUE = "runs past"
+
+
+def long_idea_issues(book: Book) -> list[str]:
+    """An overview's ideas longer than OVERVIEW_IDEA_MAX_SENTENCES."""
+    if book.depth != "overview":
+        return []
+    return [
+        f'idea {n} "{i.title}": {LONG_IDEA_ISSUE} {OVERVIEW_IDEA_MAX_SENTENCES} sentences ({count}) — an overview '
+        "states the idea, not its supporting specifics"
+        for n, i in enumerate(book.ideas, 1)
+        if (count := sentences(i.summary)) > OVERVIEW_IDEA_MAX_SENTENCES
+    ]
+
+
 def _title_names(title: str) -> list[str]:
     """The book's title, and its main title without a subtitle ("Sapiens"
     for "Sapiens: A Brief History of Humankind").
@@ -321,6 +354,7 @@ def check_notes(book: Book, research: Research | None = None) -> list[str]:
         if overlap(words[a], words[b]) >= DUPLICATE_OVERLAP:
             issues.append(f'ideas {a + 1} and {b + 1} ("{ideas[a].title}", "{ideas[b].title}") say much the same thing')
     issues += figure_issues(book)
+    issues += long_idea_issues(book)
     quoted = _quoted(book)
     issues += _length_issues(quoted)
     if research is not None:

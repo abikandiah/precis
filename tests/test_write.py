@@ -432,8 +432,11 @@ def test_an_overviews_ideas_are_one_or_two_sentences():
     known = KnownFile(isbn="1", title="T", author="A", kind="non-fiction")
     overview = write._nonfiction_instructions(known, "overview")
     assert write.OVERVIEW_ALTITUDE_RULE in overview and write.ALTITUDE_RULE not in overview
-    assert "summary stating the idea itself in 1-2 sentences" in overview
     full = write._nonfiction_instructions(known, "full")
     assert write.ALTITUDE_RULE in full and write.OVERVIEW_ALTITUDE_RULE not in full
-    novel = write._fiction_instructions(KnownFile(isbn="2", title="N", author="A", kind="fiction"), "overview")
-    assert "in 1-2 sentences" in novel
+    fiction = KnownFile(isbn="2", title="N", author="A", kind="fiction")
+    novel = write._fiction_instructions(fiction, "overview")
+    assert write.OVERVIEW_THEME_RULE in novel
+    # Stated once, in the rule the review shares, so the two can't drift.
+    assert overview.count("1-2 sentences") == 1 and novel.count("1-2 sentences") == 1
+    assert "in 1-3 sentences" in write._fiction_instructions(fiction, "full")
