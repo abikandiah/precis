@@ -98,3 +98,13 @@ def test_an_overview_has_headline_ideas_without_evidence_and_no_deck():
     assert book.key_claims_for_review is None and all(i.evidence == "" for i in book.ideas)
     # Full notes keep their evidence.
     assert all(i.evidence == "e" for i in Book.model_validate(_book()).ideas)
+
+
+def test_escapes_a_model_doubled_are_undone():
+    # A Short History of Nearly Everything's synopsis, as the review returned it.
+    data = _book(synopsis='Bryson traces it.\\n\\nLife is "rare" and precious.\\"')
+    data["ideas"][0]["summary"] = 'One.\\nTwo \\"quoted\\".'
+    book = Book.model_validate(data)
+    assert book.synopsis == 'Bryson traces it.\n\nLife is "rare" and precious.'
+    assert book.ideas[0].summary == 'One.\nTwo "quoted".'
+    assert Book.model_validate(_book(one_line_takeaway='He said "go"')).one_line_takeaway == 'He said "go"'

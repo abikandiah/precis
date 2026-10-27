@@ -163,6 +163,19 @@ class TagVocabulary(BaseModel):
 SOURCE_ID = re.compile(r"S[1-9][0-9]*")
 
 
+def unescape_prose(text: str) -> str:
+    """`text` without the escapes a model doubled inside its JSON: A Short
+    History of Nearly Everything's synopsis came back with a literal "\\n\\n"
+    between its paragraphs and a stray \\" at its end. No prose has a
+    backslash-n, so unescaping is safe; the closing quote goes only when it
+    opens nothing.
+    """
+    text = text.replace("\\n", "\n").replace('\\"', '"')
+    if text.rstrip().endswith('"') and text.count('"') % 2:
+        text = text.rstrip()[:-1].rstrip()
+    return text
+
+
 class Idea(BaseModel):
     """A key idea (non-fiction) or theme (fiction)."""
 
@@ -181,6 +194,11 @@ class Idea(BaseModel):
         description='IDs of the research sources that support this idea, e.g. ["S2", "S5"]; empty when it rests '
         "on your own knowledge of the book.",
     )
+
+    @field_validator("title", "summary", "evidence")
+    @classmethod
+    def _unescape(cls, text: str) -> str:
+        return unescape_prose(text)
 
     @field_validator("sources")
     @classmethod
@@ -330,6 +348,11 @@ class Book(BaseModel):
     tags: Tags
     reader_notes: str | None = None
     warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("one_line_takeaway", "synopsis", "resolution")
+    @classmethod
+    def _unescape(cls, text: str | None) -> str | None:
+        return None if text is None else unescape_prose(text)
 
     @field_validator("tags")
     @classmethod
